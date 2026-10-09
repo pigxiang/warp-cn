@@ -512,12 +512,7 @@ impl TextLayoutSystem {
             // Microsoft YaHei (modern Simplified Chinese UI font) regular/bold/
             // light plus SimSun as a legacy serif fallback. These carry the Han
             // glyphs the UI needs. `.ttc` collections load all contained faces.
-            const CJK_FONT_FILES: &[&str] = &[
-                "msyh.ttc",
-                "msyhbd.ttc",
-                "msyhl.ttc",
-                "simsun.ttc",
-            ];
+            const CJK_FONT_FILES: &[&str] = &["msyh.ttc", "msyhbd.ttc", "msyhl.ttc", "simsun.ttc"];
             let mut loaded_cjk = false;
             for file in CJK_FONT_FILES {
                 if db.load_font_file(fonts_dir.join(file)).is_ok() {
@@ -537,8 +532,7 @@ impl TextLayoutSystem {
             }
         }
 
-        let font_system =
-            cosmic_text::FontSystem::new_with_locale_and_db(locale, db);
+        let font_system = cosmic_text::FontSystem::new_with_locale_and_db(locale, db);
 
         // Register every pre-loaded face in font_id_map so that fontdb::IDs
         // returned by cosmic-text shaping can be resolved back to FontId

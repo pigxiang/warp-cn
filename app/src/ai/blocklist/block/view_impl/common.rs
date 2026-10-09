@@ -23,6 +23,7 @@ use warp_core::ui::color::blend::Blend;
 use warp_core::ui::theme::color::internal_colors;
 use warp_editor::content::edit::resolve_asset_source_relative_to_directory;
 use warp_editor::content::mermaid_diagram::mermaid_asset_source;
+use warp_i18n::t;
 use warp_util::path::to_relative_path;
 use warpui::assets::asset_cache::{AssetCache, AssetSource, AssetState};
 use warpui::elements::new_scrollable::{ScrollableAppearance, SingleAxisConfig};
@@ -74,8 +75,6 @@ use crate::ai::blocklist::inline_action::gemini_enterprise_credentials_error::Ge
 use crate::ai::blocklist::inline_action::inline_action_header::{
     INLINE_ACTION_HEADER_VERTICAL_PADDING, INLINE_ACTION_HORIZONTAL_PADDING,
 };
-use warp_i18n::t;
-
 use crate::ai::blocklist::inline_action::inline_action_icons::{self, icon_size};
 use crate::ai::blocklist::inline_action::requested_action::RenderableAction;
 use crate::ai::blocklist::model::{AIBlockModel, AIBlockModelHelper};

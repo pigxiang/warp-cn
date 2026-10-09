@@ -18,11 +18,13 @@ use super::{DecodedBlock, DriverOutput, DriverStreamChunk};
 pub fn build_init_event(conversation_id: String) -> (api::ResponseEvent, String) {
     let request_id = Uuid::new_v4().to_string();
     let init = api::ResponseEvent {
-        r#type: Some(api::response_event::Type::Init(api::response_event::StreamInit {
-            conversation_id,
-            request_id: request_id.clone(),
-            run_id: String::new(),
-        })),
+        r#type: Some(api::response_event::Type::Init(
+            api::response_event::StreamInit {
+                conversation_id,
+                request_id: request_id.clone(),
+                run_id: String::new(),
+            },
+        )),
     };
     (init, request_id)
 }
@@ -41,21 +43,21 @@ pub fn build_success_actions_and_finished(
         match block {
             DecodedBlock::Text(text) => {
                 messages.push(api::Message {
-        fetched_memories: vec![],
+                    fetched_memories: vec![],
                     id: msg_id,
                     task_id: task_id.clone(),
                     request_id: request_id.clone(),
                     timestamp: None,
                     server_message_data: String::new(),
                     citations: vec![],
-                    message: Some(api::message::Message::AgentOutput(api::message::AgentOutput {
-                        text,
-                    })),
+                    message: Some(api::message::Message::AgentOutput(
+                        api::message::AgentOutput { text },
+                    )),
                 });
             }
             DecodedBlock::ToolUse { tool_use_id, tool } => {
                 messages.push(api::Message {
-        fetched_memories: vec![],
+                    fetched_memories: vec![],
                     id: msg_id,
                     task_id: task_id.clone(),
                     request_id: request_id.clone(),
@@ -103,24 +105,28 @@ pub fn build_success_actions_and_finished(
         });
     }
     events.push(api::ResponseEvent {
-        r#type: Some(api::response_event::Type::Finished(api::response_event::StreamFinished {
-            reason: Some(api::response_event::stream_finished::Reason::Done(
-                api::response_event::stream_finished::Done {},
-            )),
-            ..Default::default()
-        })),
+        r#type: Some(api::response_event::Type::Finished(
+            api::response_event::StreamFinished {
+                reason: Some(api::response_event::stream_finished::Reason::Done(
+                    api::response_event::stream_finished::Done {},
+                )),
+                ..Default::default()
+            },
+        )),
     });
     events
 }
 
 pub fn build_finished_error(message: String) -> api::ResponseEvent {
     api::ResponseEvent {
-        r#type: Some(api::response_event::Type::Finished(api::response_event::StreamFinished {
-            reason: Some(api::response_event::stream_finished::Reason::InternalError(
-                api::response_event::stream_finished::InternalError { message },
-            )),
-            ..Default::default()
-        })),
+        r#type: Some(api::response_event::Type::Finished(
+            api::response_event::StreamFinished {
+                reason: Some(api::response_event::stream_finished::Reason::InternalError(
+                    api::response_event::stream_finished::InternalError { message },
+                )),
+                ..Default::default()
+            },
+        )),
     }
 }
 
@@ -441,10 +447,7 @@ pub fn build_finished_from_stop(stop: Option<DriverStreamChunk>) -> api::Respons
             input_cache_read,
             model_id,
             ..
-        }) if input_tokens.is_some()
-            || output_tokens.is_some()
-            || input_cache_read.is_some() =>
-        {
+        }) if input_tokens.is_some() || output_tokens.is_some() || input_cache_read.is_some() => {
             vec![api::response_event::stream_finished::TokenUsage {
                 model_id: model_id.clone(),
                 total_input: input_tokens.unwrap_or(0),
@@ -467,4 +470,3 @@ pub fn build_finished_from_stop(stop: Option<DriverStreamChunk>) -> api::Respons
         )),
     }
 }
-

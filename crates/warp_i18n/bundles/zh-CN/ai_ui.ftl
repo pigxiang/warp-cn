@@ -79,6 +79,7 @@ ai-ui-at-context-filesystem-required = 需要文件系统
 ai-ui-at-context-disabled-terminal-mode = 已在终端模式中禁用，可在设置中重新启用
 ai-ui-choose-execution-profile = 选择 AI 执行配置
 ai-ui-choose-agent-model = 选择智能体模型
+ai-ui-model-uses-chatgpt-subscription-tooltip = 此模型的请求将使用你的 ChatGPT 套餐
 ai-ui-manage = 管理
 ai-ui-manage-api-keys = 管理 API 密钥
 ai-ui-profiles = 配置文件

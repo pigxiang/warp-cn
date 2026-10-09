@@ -1,4 +1,5 @@
 use std::path::Path;
+
 use xtask::i18n_lint::{Allowlist, Severity, SiteTable, scan_source};
 
 fn scan(rel: &str, src: &str) -> Vec<xtask::i18n_lint::Violation> {
@@ -30,7 +31,11 @@ fn flags_single_word_ui_literal() {
         }
     "#;
     let v = scan("app/src/menu.rs", src);
-    assert_eq!(v.len(), 2, "expected single-word UI literals reported: {v:?}");
+    assert_eq!(
+        v.len(),
+        2,
+        "expected single-word UI literals reported: {v:?}"
+    );
     let literals: Vec<_> = v.iter().map(|x| x.literal.as_str()).collect();
     assert!(literals.contains(&"Save"));
     assert!(literals.contains(&"Preferences"));
@@ -47,7 +52,10 @@ fn skips_pure_identifier_literals() {
         }
     "#;
     let v = scan("crates/x/src/foo.rs", src);
-    assert!(v.is_empty(), "purely non-alphabetic literals slipped: {v:?}");
+    assert!(
+        v.is_empty(),
+        "purely non-alphabetic literals slipped: {v:?}"
+    );
 }
 
 #[test]
@@ -178,12 +186,7 @@ fn allowlist_hits_suppress_violation() {
     "#;
     let allow = Allowlist::parse(toml_src).expect("parses");
     let sites = SiteTable::default();
-    let v = scan_source(
-        Path::new("crates/x/src/foo.rs"),
-        src,
-        &sites,
-        &allow,
-    );
+    let v = scan_source(Path::new("crates/x/src/foo.rs"), src, &sites, &allow);
     assert!(v.is_empty(), "allowlist did not suppress: {v:?}");
 }
 

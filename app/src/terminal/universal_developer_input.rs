@@ -3,7 +3,6 @@ use std::boxed::Box;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
-use warp_i18n::t;
 
 use pathfinder_color::ColorU;
 #[cfg(not(target_family = "wasm"))]
@@ -16,6 +15,7 @@ use warp_core::ui::color::contrast::{
 use warp_core::ui::color::{Opacity, Rgb, coloru_with_opacity};
 use warp_core::ui::theme;
 use warp_core::ui::theme::color::internal_colors;
+use warp_i18n::t;
 use warpui::elements::{
     ChildView, Clipped, Container, CornerRadius, CrossAxisAlignment, Fill, Flex, MainAxisAlignment,
     MainAxisSize, ParentElement, Radius, Rect, Shrinkable, SizeConstraintCondition,

@@ -70,7 +70,7 @@ use crate::ui_components::json_tree::{
     CopyJsonFn, JsonTreeColors, JsonTreeState, PathSegment, TREE_FONT_SIZE, ToggleFn,
     ToggleStringFn, render_json_tree,
 };
-use crate::util::bindings::{keybinding_name_to_keystroke, BindingDescriptionFluentExt};
+use crate::util::bindings::{BindingDescriptionFluentExt, keybinding_name_to_keystroke};
 use crate::view_components::action_button::{ButtonSize, KeystrokeSource, NakedTheme};
 use crate::view_components::compactible_action_button::{
     CompactibleActionButton, LARGE_SIZE_SWITCH_THRESHOLD, MEDIUM_SIZE_SWITCH_THRESHOLD,

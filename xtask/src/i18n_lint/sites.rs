@@ -1,5 +1,6 @@
-use globset::{Glob, GlobSet, GlobSetBuilder};
 use std::path::Path;
+
+use globset::{Glob, GlobSet, GlobSetBuilder};
 
 /// UI construction sites whose string-literal arguments must flow through `t!()`.
 ///

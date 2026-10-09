@@ -13,7 +13,9 @@
 use serde_json::Value;
 use warp_multi_agent_api as api;
 
-use super::tool_schema::{message_result_to_text, proto_to_history, request_result_to_text, ToolKind};
+use super::tool_schema::{
+    ToolKind, message_result_to_text, proto_to_history, request_result_to_text,
+};
 
 /// One tool call inside an assistant turn.
 #[derive(Debug, Clone)]
@@ -166,10 +168,7 @@ fn coalesce(atoms: Vec<Atom>) -> Vec<NormalizedTurn> {
     let mut out = Vec::new();
     let mut i = 0;
     while i < atoms.len() {
-        let is_user = matches!(
-            &atoms[i],
-            Atom::UserText(_) | Atom::UserToolResult(_)
-        );
+        let is_user = matches!(&atoms[i], Atom::UserText(_) | Atom::UserToolResult(_));
 
         let mut text_parts: Vec<String> = Vec::new();
         let mut reasoning_parts: Vec<String> = Vec::new();
@@ -177,10 +176,7 @@ fn coalesce(atoms: Vec<Atom>) -> Vec<NormalizedTurn> {
         let mut tool_results: Vec<ToolResult> = Vec::new();
 
         while i < atoms.len() {
-            let still_user = matches!(
-                &atoms[i],
-                Atom::UserText(_) | Atom::UserToolResult(_)
-            );
+            let still_user = matches!(&atoms[i], Atom::UserText(_) | Atom::UserToolResult(_));
             if still_user != is_user {
                 break;
             }
@@ -212,7 +208,11 @@ fn coalesce(atoms: Vec<Atom>) -> Vec<NormalizedTurn> {
                 out.push(NormalizedTurn::User { text, tool_results });
             }
         } else if text.is_some() || !tool_uses.is_empty() || reasoning.is_some() {
-            out.push(NormalizedTurn::Assistant { text, tool_uses, reasoning });
+            out.push(NormalizedTurn::Assistant {
+                text,
+                tool_uses,
+                reasoning,
+            });
         }
     }
     out
@@ -345,9 +345,9 @@ mod tests {
             server_message_data: String::new(),
             citations: vec![],
             fetched_memories: vec![],
-            message: Some(api::message::Message::AgentOutput(api::message::AgentOutput {
-                text: text.into(),
-            })),
+            message: Some(api::message::Message::AgentOutput(
+                api::message::AgentOutput { text: text.into() },
+            )),
         }
     }
 
@@ -408,7 +408,11 @@ mod tests {
             task_context: Some(api::request::TaskContext {
                 tasks: vec![api::Task {
                     id: "t".into(),
-                    messages: vec![user_msg("read it"), agent_msg("here goes"), agent_tool_msg("tc1")],
+                    messages: vec![
+                        user_msg("read it"),
+                        agent_msg("here goes"),
+                        agent_tool_msg("tc1"),
+                    ],
                     ..Default::default()
                 }],
             }),
@@ -416,7 +420,10 @@ mod tests {
         };
         let d = decode(&req);
         assert_eq!(d.turns.len(), 2);
-        if let NormalizedTurn::Assistant { text, tool_uses, .. } = &d.turns[1] {
+        if let NormalizedTurn::Assistant {
+            text, tool_uses, ..
+        } = &d.turns[1]
+        {
             assert_eq!(text.as_deref(), Some("here goes"));
             assert_eq!(tool_uses.len(), 1);
             assert_eq!(tool_uses[0].tool_use_id, "tc1");
@@ -441,12 +448,14 @@ mod tests {
                             server_message_data: String::new(),
                             citations: vec![],
                             fetched_memories: vec![],
-                            message: Some(api::message::Message::ToolCall(api::message::ToolCall {
-                                tool_call_id: "tc".into(),
-                                tool: Some(api::message::tool_call::Tool::SearchCodebase(
-                                    api::message::tool_call::SearchCodebase::default(),
-                                )),
-                            })),
+                            message: Some(api::message::Message::ToolCall(
+                                api::message::ToolCall {
+                                    tool_call_id: "tc".into(),
+                                    tool: Some(api::message::tool_call::Tool::SearchCodebase(
+                                        api::message::tool_call::SearchCodebase::default(),
+                                    )),
+                                },
+                            )),
                         },
                         user_msg("after search"),
                     ],

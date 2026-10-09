@@ -1,7 +1,8 @@
-use anyhow::{Context, Result};
-use clap::{Args as ClapArgs, ValueEnum};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+
+use anyhow::{Context, Result};
+use clap::{Args as ClapArgs, ValueEnum};
 use walkdir::WalkDir;
 
 mod allowlist;

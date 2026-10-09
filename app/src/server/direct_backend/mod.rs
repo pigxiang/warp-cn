@@ -25,10 +25,9 @@ use async_trait::async_trait;
 use warp_core::features::FeatureFlag;
 use warpui::{AppContext, SingletonEntity};
 
-use crate::ai_assistant::{
-    requests::GenerateDialogueResult, utils::TranscriptPart, AIGeneratedCommand,
-    GenerateCommandsFromNaturalLanguageError,
-};
+use crate::ai_assistant::requests::GenerateDialogueResult;
+use crate::ai_assistant::utils::TranscriptPart;
+use crate::ai_assistant::{AIGeneratedCommand, GenerateCommandsFromNaturalLanguageError};
 use crate::drive::workflows::ai_assist::{GeneratedCommandMetadata, GeneratedCommandMetadataError};
 
 /// Resolved provider configuration ready to be sent on the wire.

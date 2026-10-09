@@ -3,10 +3,12 @@
 //! Compile-time `t!()` lives in `warp_i18n_macros`; this module provides the runtime
 //! `tr!()` companion plus warn-deduplication for fallback hits.
 
-use crate::{FluentArgs, render};
-use parking_lot::Mutex;
 use std::collections::HashSet;
 use std::sync::OnceLock;
+
+use parking_lot::Mutex;
+
+use crate::{FluentArgs, render};
 
 static WARN_SEEN: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 
@@ -14,7 +16,10 @@ fn warn_once(key: &str) {
     let set = WARN_SEEN.get_or_init(|| Mutex::new(HashSet::new()));
     let mut seen = set.lock();
     if seen.insert(key.to_owned()) {
-        tracing::warn!(key, "warp_i18n: dynamic tr!() key not in compile-time index");
+        tracing::warn!(
+            key,
+            "warp_i18n: dynamic tr!() key not in compile-time index"
+        );
     }
 }
 

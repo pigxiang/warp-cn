@@ -1,8 +1,9 @@
+use std::collections::BTreeSet;
+use std::path::Path;
+
 use anyhow::{Context, Result, bail};
 use globset::{Glob, GlobMatcher};
 use serde::Deserialize;
-use std::collections::BTreeSet;
-use std::path::Path;
 
 /// Schema mirrors design.md D21.
 #[derive(Debug, Deserialize)]
@@ -61,15 +62,18 @@ impl Allowlist {
     }
 
     pub fn load(path: &Path) -> Result<Self> {
-        let text = std::fs::read_to_string(path)
-            .with_context(|| format!("reading {}", path.display()))?;
+        let text =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         Self::parse(&text)
     }
 
     pub fn parse(text: &str) -> Result<Self> {
         let raw: Raw = toml::from_str(text).context("parsing allowlist toml")?;
         if raw.schema_version != 1 {
-            bail!("unsupported allowlist schema_version: {}", raw.schema_version);
+            bail!(
+                "unsupported allowlist schema_version: {}",
+                raw.schema_version
+            );
         }
         let mut entries = Vec::with_capacity(raw.entries.len());
         let mut keys = BTreeSet::new();

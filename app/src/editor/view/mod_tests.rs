@@ -35,6 +35,7 @@ impl EditorView {
 
 fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
+    crate::test_util::use_english_locale();
 
     app.update(|ctx| {
         AppEditorSettings::handle(ctx).update(ctx, |editor_settings, ctx| {

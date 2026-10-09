@@ -64,7 +64,9 @@ use warpui::elements::{
     Hoverable, MainAxisSize, MouseStateHandle, ParentElement, Radius, Shrinkable,
 };
 use warpui::fonts::{Cache as FontCache, FamilyId, Properties, Weight};
-use warpui::keymap::{BindingDescription, EditableBinding, FixedBinding, Keystroke, PerPlatformKeystroke};
+use warpui::keymap::{
+    BindingDescription, EditableBinding, FixedBinding, Keystroke, PerPlatformKeystroke,
+};
 use warpui::platform::keyboard::KeyCode;
 use warpui::platform::{Cursor, FilePickerConfiguration, OperatingSystem};
 use warpui::text::TextBuffer;

@@ -76,6 +76,7 @@ use crate::{AgentNotificationsModel, experiments};
 /// Initializes all of the necessary models to use a terminal view.
 pub fn initialize_app_for_terminal_view(app: &mut App) {
     initialize_history_persistence_for_tests(app);
+    crate::test_util::use_english_locale();
 
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     // Register a disabled `IapManager` (no IAP state) so code paths that read

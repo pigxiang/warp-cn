@@ -97,12 +97,23 @@ fn create_team_description() -> String {
     warp_i18n::t!("settings-teams-create-team-description")
 }
 
-<<<<<<< ours
 fn or_join_team_header() -> &'static str {
     warp_i18n::t_static!("settings-teams-section-or-join-existing")
 }
 fn join_team_header() -> &'static str {
     warp_i18n::t_static!("settings-teams-section-join-existing")
+}
+fn browse_teams_button_label() -> &'static str {
+    warp_i18n::t_static!("settings-teams-browse-teams-button")
+}
+fn switch_team_button_label() -> &'static str {
+    warp_i18n::t_static!("settings-teams-switch-team-button")
+}
+fn join_workspace_or_team_header() -> &'static str {
+    warp_i18n::t_static!("settings-teams-section-join-workspace-or-team")
+}
+fn or_join_workspace_or_team_header() -> &'static str {
+    warp_i18n::t_static!("settings-teams-section-or-join-workspace-or-team")
 }
 fn no_joinable_teams_header() -> &'static str {
     warp_i18n::t_static!("settings-teams-no-joinable-teams-header")
@@ -116,21 +127,6 @@ fn admin_panel_cta_link_text() -> &'static str {
 fn admin_panel_cta_trailing_copy() -> &'static str {
     warp_i18n::t_static!("settings-teams-admin-panel-cta-trailing")
 }
-=======
-const OR_JOIN_TEAM_HEADER: &str = "Or, join an existing team within your company";
-const JOIN_TEAM_HEADER: &str = "Join an existing team within your company";
-const BROWSE_TEAMS_BUTTON_LABEL: &str = "Browse teams";
-const SWITCH_TEAM_BUTTON_LABEL: &str = "Switch team";
-const JOIN_WORKSPACE_OR_TEAM_HEADER: &str =
-    "Join an existing workspace or team within your company";
-const OR_JOIN_WORKSPACE_OR_TEAM_HEADER: &str =
-    "Or, join an existing workspace or team within your company";
-const NO_JOINABLE_TEAMS_HEADER: &str = "There are currently no joinable teams.";
-const NO_TEAMS_TO_JOIN_DESCRIPTION: &str =
-    "Contact an admin to join a team to gain access to more features.";
-const ADMIN_PANEL_CTA_LINK_TEXT: &str = "Visit the admin panel";
-const ADMIN_PANEL_CTA_TRAILING_COPY: &str = "to manage and create new teams.";
->>>>>>> theirs
 
 // Styling for team management page
 fn leave_team_button_label() -> String {
@@ -1126,7 +1122,7 @@ impl TeamsPageView {
         });
         let join_teams_modal = ctx.add_typed_action_view(|ctx| {
             Modal::new(
-                Some(BROWSE_TEAMS_BUTTON_LABEL.to_string()),
+                Some(browse_teams_button_label().to_string()),
                 join_teams_modal_body,
                 ctx,
             )
@@ -1407,15 +1403,12 @@ impl TeamsPageView {
                 ctx.notify();
             }
             UserWorkspacesEvent::JoinTeamWithTeamDiscoveryRejected(err) => {
-<<<<<<< ours
+                self.discovery_join_target = None;
                 self.show_error(
                     warp_i18n::t!("settings-teams-toast-failed-join-team"),
                     Some(err),
                     ctx,
                 );
-=======
-                self.discovery_join_target = None;
-                self.show_error("Failed to join team", Some(err), ctx);
             }
             UserWorkspacesEvent::JoinTeamInWorkspaceSuccess { team_uid } => {
                 UpdateManager::handle(ctx).update(ctx, move |update_manager, ctx| {
@@ -1426,9 +1419,12 @@ impl TeamsPageView {
                     .as_ref(ctx)
                     .team_from_uid(*team_uid)
                     .map(|team| team.name.clone())
-                    .unwrap_or_else(|| "team".to_string());
+                    .unwrap_or_else(|| warp_i18n::t!("settings-teams-fallback-team-name"));
                 self.close_join_teams_modal(ctx);
-                self.show_success(format!("Successfully joined {team_name}"), ctx);
+                self.show_success(
+                    warp_i18n::t!("settings-teams-toast-joined-team-named", team = team_name),
+                    ctx,
+                );
                 #[cfg(not(target_family = "wasm"))]
                 ctx.dispatch_typed_action(&WorkspaceAction::OpenNewWindowForTeam {
                     team_uid: *team_uid,
@@ -1440,8 +1436,11 @@ impl TeamsPageView {
                         body.set_joining_team(None, ctx);
                     });
                 });
-                self.show_error("Failed to join team", Some(err), ctx);
->>>>>>> theirs
+                self.show_error(
+                    warp_i18n::t!("settings-teams-toast-failed-join-team"),
+                    Some(err),
+                    ctx,
+                );
             }
             UserWorkspacesEvent::JoinWorkspaceFromDiscoverySuccess => {
                 self.discovery_join_target = None;
@@ -1449,11 +1448,15 @@ impl TeamsPageView {
                 UpdateManager::handle(ctx).update(ctx, move |update_manager, ctx| {
                     update_manager.refresh_updated_objects(ctx);
                 });
-                self.show_success("Successfully joined workspace", ctx);
+                self.show_success(warp_i18n::t!("settings-teams-toast-joined-workspace"), ctx);
             }
             UserWorkspacesEvent::JoinWorkspaceFromDiscoveryRejected(err) => {
                 self.discovery_join_target = None;
-                self.show_error("Failed to join workspace", Some(err), ctx);
+                self.show_error(
+                    warp_i18n::t!("settings-teams-toast-failed-join-workspace"),
+                    Some(err),
+                    ctx,
+                );
             }
             UserWorkspacesEvent::FetchDiscoverableTeamsSuccess(teams) => {
                 self.set_discoverable_team_states(teams);
@@ -1523,7 +1526,10 @@ impl TeamsPageView {
             }
             UserWorkspacesEvent::RemoveUserFromWorkspaceSuccess => {
                 self.update_team_members_state(ctx);
-                self.show_success("Removed workspace member", ctx);
+                self.show_success(
+                    warp_i18n::t!("settings-teams-toast-removed-workspace-member"),
+                    ctx,
+                );
             }
             UserWorkspacesEvent::RemoveUserFromWorkspaceRejected(err) => {
                 self.show_error(
@@ -3164,7 +3170,7 @@ impl TeamsWidget {
             .with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::IconFirst,
-                    BROWSE_TEAMS_BUTTON_LABEL,
+                    browse_teams_button_label(),
                     Icon::Search.to_warpui_icon(appearance.theme().accent()),
                     MainAxisSize::Min,
                     MainAxisAlignment::Center,
@@ -3194,7 +3200,7 @@ impl TeamsWidget {
             .with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::IconFirst,
-                    SWITCH_TEAM_BUTTON_LABEL,
+                    switch_team_button_label(),
                     Icon::SwitchHorizontal01.to_warpui_icon(appearance.theme().accent()),
                     MainAxisSize::Min,
                     MainAxisAlignment::Center,
@@ -4330,26 +4336,13 @@ impl TeamsWidget {
         can_team_be_deleted: bool,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
-<<<<<<< ours
-        let mut stack = Stack::new();
-
-        let (label, action) = if is_team_owner {
-            (
-                delete_team_button_label(),
-                TeamsPageAction::ShowDeleteTeamConfirmationDialog,
-            )
-        } else {
-            (
-                leave_team_button_label(),
-=======
         let (label, action) = match footer_action {
             TeamFooterAction::Leave => (
-                LEAVE_TEAM_BUTTON_LABEL,
->>>>>>> theirs
+                leave_team_button_label(),
                 TeamsPageAction::ShowLeaveTeamConfirmationDialog,
             ),
             TeamFooterAction::Delete => (
-                DELETE_TEAM_BUTTON_LABEL,
+                delete_team_button_label(),
                 TeamsPageAction::ShowDeleteTeamConfirmationDialog,
             ),
         };
@@ -5135,10 +5128,10 @@ impl TeamsWidget {
                 TeamsPageSection::JoinTeams { header } => {
                     let header = if view.discoverable_workspaces_states.is_empty() {
                         *header
-                    } else if *header == OR_JOIN_TEAM_HEADER {
-                        OR_JOIN_WORKSPACE_OR_TEAM_HEADER
+                    } else if *header == or_join_team_header() {
+                        or_join_workspace_or_team_header()
                     } else {
-                        JOIN_WORKSPACE_OR_TEAM_HEADER
+                        join_workspace_or_team_header()
                     };
                     page.add_child(self.render_discovery_options(view, appearance, header));
                 }

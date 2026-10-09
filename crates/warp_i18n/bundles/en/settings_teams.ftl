@@ -72,6 +72,14 @@ settings-teams-toast-invite-on-the-way = Your invite is on the way!
 settings-teams-toast-invites-on-the-way = Your { $count } invites are on the way!
 settings-teams-toast-failed-generate-upgrade-link = Failed to generate upgrade link. Please contact us at feedback@warp.dev
 settings-teams-toast-failed-generate-billing-link = Failed to generate billing link. Please contact us at feedback@warp.dev
+settings-teams-toast-joined-workspace = Successfully joined workspace
+settings-teams-toast-failed-join-workspace = Failed to join workspace
+settings-teams-toast-removed-workspace-member = Removed workspace member
+
+# Buttons
+settings-teams-browse-teams-button = Browse teams
+settings-teams-switch-team-button = Switch team
+settings-teams-fallback-team-name = team
 
 # Member action menu labels
 settings-teams-action-cancel-invite = Cancel invite
@@ -89,6 +97,8 @@ settings-teams-section-invite-by-email = Invite by Email
 settings-teams-section-restrict-by-domain = Restrict by domain
 settings-teams-section-make-team-discoverable = Make team discoverable
 settings-teams-section-create-a-team = Create a team
+settings-teams-section-join-workspace-or-team = Join an existing workspace or team within your company
+settings-teams-section-or-join-workspace-or-team = Or, join an existing workspace or team within your company
 settings-teams-section-or-join-existing = Or, join an existing team within your company
 settings-teams-subsection-invite-team-members = Invite team members
 settings-teams-subsection-by-link = By link

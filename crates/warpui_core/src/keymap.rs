@@ -1022,11 +1022,7 @@ impl Keystroke {
 
         s.push(self.displayed_key());
 
-        if macos {
-            s.join("")
-        } else {
-            s.join(" ")
-        }
+        if macos { s.join("") } else { s.join(" ") }
     }
 
     /// Returns a platform-independent keybinding label with expanded modifier

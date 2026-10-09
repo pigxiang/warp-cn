@@ -19,6 +19,6 @@
 pub mod config;
 
 pub use config::{
-    current_snapshot, DirectBackendConfig, DirectBackendConfigEvent, DirectBackendState,
-    DirectProviderKind, ProviderOverrides,
+    DirectBackendConfig, DirectBackendConfigEvent, DirectBackendState, DirectProviderKind,
+    ProviderOverrides, current_snapshot,
 };

@@ -26,6 +26,7 @@ use warp_core::ui::theme::color::internal_colors::{fg_overlay_6, neutral_1, neut
 use warp_editor::content::buffer::InitialBufferState;
 use warp_editor::render::element::VerticalExpansionBehavior;
 use warp_errors::report_error;
+use warp_i18n::t;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warp_util::remote_path::RemotePath;
 use warp_util::standardized_path::StandardizedPath;
@@ -94,7 +95,7 @@ use crate::terminal::ShellLaunchData;
 use crate::terminal::input::SET_INPUT_MODE_AGENT_ACTION_NAME;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
-use crate::util::bindings::{keybinding_name_to_keystroke, BindingDescriptionFluentExt};
+use crate::util::bindings::{BindingDescriptionFluentExt, keybinding_name_to_keystroke};
 use crate::view_components::DismissibleToast;
 use crate::view_components::action_button::{
     ActionButton, ButtonSize, KeystrokeSource, NakedTheme,
@@ -106,7 +107,6 @@ use crate::view_components::compactible_action_button::{
 use crate::view_components::compactible_split_action_button::CompactibleSplitActionButton;
 use crate::workspace::ToastStack;
 use crate::{TelemetryEvent, cmd_or_ctrl_shift, send_telemetry_from_ctx};
-use warp_i18n::t;
 
 const REQUESTED_EDIT_CANCEL_LABEL: &str = "Cancel";
 const REQUESTED_EDIT_REFINE_LABEL: &str = "Refine";

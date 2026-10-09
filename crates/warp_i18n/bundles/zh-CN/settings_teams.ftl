@@ -72,6 +72,14 @@ settings-teams-toast-invite-on-the-way = 邀请已发送！
 settings-teams-toast-invites-on-the-way = 已发送 { $count } 条邀请！
 settings-teams-toast-failed-generate-upgrade-link = 生成升级链接失败。请联系 feedback@warp.dev
 settings-teams-toast-failed-generate-billing-link = 生成账单链接失败。请联系 feedback@warp.dev
+settings-teams-toast-joined-workspace = 已成功加入工作区
+settings-teams-toast-failed-join-workspace = 加入工作区失败
+settings-teams-toast-removed-workspace-member = 已移除工作区成员
+
+# 按钮
+settings-teams-browse-teams-button = 浏览团队
+settings-teams-switch-team-button = 切换团队
+settings-teams-fallback-team-name = 团队
 
 # 成员操作菜单
 settings-teams-action-cancel-invite = 取消邀请
@@ -89,6 +97,8 @@ settings-teams-section-invite-by-email = 通过邮件邀请
 settings-teams-section-restrict-by-domain = 按域名限制
 settings-teams-section-make-team-discoverable = 让团队可被发现
 settings-teams-section-create-a-team = 创建团队
+settings-teams-section-join-workspace-or-team = 加入公司内现有的工作区或团队
+settings-teams-section-or-join-workspace-or-team = 或者，加入公司内现有的工作区或团队
 settings-teams-section-or-join-existing = 或者加入公司内现有的团队
 settings-teams-subsection-invite-team-members = 邀请团队成员
 settings-teams-subsection-by-link = 通过链接

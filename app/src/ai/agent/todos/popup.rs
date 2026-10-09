@@ -1,6 +1,7 @@
 use pathfinder_color::ColorU;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
+use warp_i18n::t;
 use warpui::elements::{
     Border, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container, CornerRadius,
     CrossAxisAlignment, Dismiss, DropShadow, Empty, Expanded, Flex, MainAxisSize, ParentElement,
@@ -20,7 +21,6 @@ use crate::ai::blocklist::{
     BlocklistAIHistoryModel,
 };
 use crate::ui_components::blended_colors;
-use warp_i18n::t;
 
 pub struct AgentTodosPopupView {
     terminal_view_id: EntityId,

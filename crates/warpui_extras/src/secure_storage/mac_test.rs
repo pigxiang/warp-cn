@@ -89,7 +89,9 @@ fn test_creates_storage_dir_if_missing() {
     assert!(!nested.exists());
 
     let storage = SecureStorage::new_with_path("test.service", nested.clone());
-    storage.write_value("k", "v").expect("write should create dir");
+    storage
+        .write_value("k", "v")
+        .expect("write should create dir");
     assert!(nested.is_dir());
     assert_eq!(storage.read_value("k").unwrap(), "v");
 }

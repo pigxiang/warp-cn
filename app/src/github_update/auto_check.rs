@@ -23,10 +23,9 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 const MAX_LAST_CHECK_BYTES: u64 = 16 * 1024;
 
+use super::GithubUpdateState;
 use crate::view_components::DismissibleToast;
 use crate::workspace::{ToastStack, WorkspaceAction};
-
-use super::GithubUpdateState;
 
 /// Delay between init and first GitHub check. Long enough for the main window
 /// to be fully constructed (so `WindowManager::active_window()` is populated)

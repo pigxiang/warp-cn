@@ -22,6 +22,8 @@ misc-cycle-suggestions = 切换建议
 misc-mermaid-rendering = 正在渲染 Mermaid 图表…
 misc-no-images = 无图片
 misc-loading = 加载中...
+# TODO(translation): upstream added 2026-10-05, please review
+misc-failed-to-load-image = 图片加载失败
 
 # 笔记本菜单
 misc-notebook-untitled = 未命名

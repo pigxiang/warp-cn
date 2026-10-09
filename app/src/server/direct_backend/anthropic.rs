@@ -9,22 +9,20 @@
 //! on prompt-level instructions plus the `common::strip_json_fence` parser to
 //! defend against accidental Markdown wrapping.
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::ai_assistant::{
-    requests::GenerateDialogueResult, utils::TranscriptPart, AIGeneratedCommand,
-    GenerateCommandsFromNaturalLanguageError,
-};
-use crate::drive::workflows::ai_assist::{GeneratedCommandMetadata, GeneratedCommandMetadataError};
-
 use super::common::{
-    byok_unlimited_request_limit, parse_commands_payload, parse_metadata_payload, truncate_for_log,
     COMMANDS_SYSTEM_PROMPT, DIALOGUE_SYSTEM_PROMPT, METADATA_SYSTEM_PROMPT,
+    byok_unlimited_request_limit, parse_commands_payload, parse_metadata_payload, truncate_for_log,
 };
 use super::{LlmBackend, ResolvedProvider};
+use crate::ai_assistant::requests::GenerateDialogueResult;
+use crate::ai_assistant::utils::TranscriptPart;
+use crate::ai_assistant::{AIGeneratedCommand, GenerateCommandsFromNaturalLanguageError};
+use crate::drive::workflows::ai_assist::{GeneratedCommandMetadata, GeneratedCommandMetadataError};
 
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 const DEFAULT_MAX_TOKENS: u32 = 8192;

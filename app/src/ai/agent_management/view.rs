@@ -12,6 +12,7 @@ use warp_core::features::FeatureFlag;
 use warp_core::ui::icons::Icon;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
+use warp_i18n::t;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::new_scrollable::{
     NewScrollableElement, ScrollableAppearance, SingleAxisConfig,
@@ -93,7 +94,6 @@ use crate::workspace::{
 };
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 use crate::{AgentModeEntrypoint, send_telemetry_from_ctx};
-use warp_i18n::t;
 
 lazy_static! {
     static ref HASHER: SipHasher = SipHasher::new_with_keys(0, 0);
@@ -1950,17 +1950,12 @@ impl AgentManagementView {
             metadata_parts.push(t!("ai-ui-agent-metadata-run-time", run_time = run_time));
         }
 
-<<<<<<< ours
-        if let Some(usage) = entry.display.request_usage.map(format_credits) {
-            metadata_parts.push(t!("ai-ui-agent-metadata-credits-used", usage = usage));
-=======
         if let Some(credits) = entry.display.request_usage {
             metadata_parts.push(format_request_usage(
                 credits,
                 entry.display.cost_in_cents,
                 AISettings::as_ref(app).usage_display_unit,
             ));
->>>>>>> theirs
         }
 
         Text::new(metadata_parts.join(" • "), font_family, font_size)

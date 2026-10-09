@@ -421,6 +421,7 @@ fn compose_system_prompt_appends_mcp_servers() {
                 description: "list issues".into(),
                 input_schema: None,
             }],
+            identity: None,
         }],
         ..Default::default()
     };
@@ -445,6 +446,7 @@ fn compose_system_prompt_neutralizes_prompt_injection() {
             id: "srv-x".into(),
             resources: vec![],
             tools: vec![],
+            identity: None,
         }],
         ..Default::default()
     };
@@ -490,8 +492,9 @@ fn advertised_tools_drops_mcp_when_no_servers() {
 
 #[test]
 fn advertised_tools_includes_mcp_when_servers_present() {
-    use super::tool_schema;
     use warp_multi_agent_api as api;
+
+    use super::tool_schema;
     let ctx = api::request::McpContext {
         servers: vec![api::request::mcp_context::McpServer {
             name: "x".into(),
@@ -499,6 +502,7 @@ fn advertised_tools_includes_mcp_when_servers_present() {
             id: "x".into(),
             resources: vec![],
             tools: vec![],
+            identity: None,
         }],
         ..Default::default()
     };
@@ -556,7 +560,11 @@ async fn anthropic_skips_malformed_chunk_and_recovers() {
             _ => None,
         })
         .collect();
-    assert_eq!(texts, vec!["recovered"], "malformed event was skipped, good event survived");
+    assert_eq!(
+        texts,
+        vec!["recovered"],
+        "malformed event was skipped, good event survived"
+    );
     assert!(
         chunks
             .iter()
@@ -584,8 +592,7 @@ async fn adapter_emits_append_then_finished_for_text_stream() {
     let chunk_stream = super::anthropic_driver::call_streaming(&p, &[user_turn("hi")], None)
         .await
         .expect("init");
-    let event_stream =
-        super::adapter::adapt(chunk_stream, "task-1".into(), "req-1".into());
+    let event_stream = super::adapter::adapt(chunk_stream, "task-1".into(), "req-1".into());
     let events: Vec<api::ResponseEvent> = event_stream
         .collect::<Vec<_>>()
         .await

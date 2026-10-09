@@ -296,11 +296,7 @@ fn git_describe(args: &[&str]) -> Option<String> {
         return None;
     }
     let tag = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if tag.is_empty() {
-        None
-    } else {
-        Some(tag)
-    }
+    if tag.is_empty() { None } else { Some(tag) }
 }
 
 /// Bakes the minisign public key from `script/warp-update.pub` into the

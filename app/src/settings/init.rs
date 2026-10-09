@@ -25,8 +25,8 @@ use super::{
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::appearance;
 use crate::banner::BannerState;
-use crate::language_settings::LanguageSettings;
 use crate::drive::settings::WarpDriveSettings;
+use crate::language_settings::LanguageSettings;
 use crate::resource_center::TipsCompleted;
 use crate::search::command_search::settings::CommandSearchSettings;
 use crate::terminal::BlockListSettings;

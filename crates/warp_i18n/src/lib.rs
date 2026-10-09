@@ -8,22 +8,23 @@
 //!   the corresponding locale through the snapshot pointer.
 
 pub mod intern;
-pub mod locale;
 pub mod loader;
+pub mod locale;
 pub mod macros;
 pub mod notification;
 
-pub use crate::intern::intern;
-pub use crate::locale::{Locale, LanguagePreference, detect_system_locale, resolve_locale};
-pub use crate::loader::{Bundles, LocaleBundle, args_from};
-pub use fluent_bundle::{FluentArgs, FluentValue};
-pub use warp_i18n_macros::t;
+use std::sync::Arc;
 
 use anyhow::Result;
 use arc_swap::ArcSwap;
+pub use fluent_bundle::{FluentArgs, FluentValue};
 use once_cell::sync::OnceCell;
-use std::sync::Arc;
 use tokio::sync::watch;
+pub use warp_i18n_macros::t;
+
+pub use crate::intern::intern;
+pub use crate::loader::{Bundles, LocaleBundle, args_from};
+pub use crate::locale::{LanguagePreference, Locale, detect_system_locale, resolve_locale};
 
 static I18N: OnceCell<I18n> = OnceCell::new();
 

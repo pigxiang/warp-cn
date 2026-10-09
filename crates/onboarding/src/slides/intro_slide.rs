@@ -83,7 +83,10 @@ impl View for IntroSlide {
         let login_row = Flex::row()
             .with_child(
                 ui_builder
-                    .span(format!("{} ", warp_i18n::t!("onboarding-intro-already-have-account")))
+                    .span(format!(
+                        "{} ",
+                        warp_i18n::t!("onboarding-intro-already-have-account")
+                    ))
                     .with_style(disclaimer_styles)
                     .build()
                     .finish(),
@@ -187,7 +190,9 @@ impl IntroSlide {
         let get_started_button = self.get_started_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(warp_i18n::t!("onboarding-intro-get-started").into()),
+                content: button::Content::Label(
+                    warp_i18n::t!("onboarding-intro-get-started").into(),
+                ),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),

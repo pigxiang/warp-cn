@@ -100,6 +100,10 @@ pub(crate) fn initialize_app(app: &mut App) {
 pub(crate) fn initialize_app_with_team_client(app: &mut App, team_client: Arc<dyn TeamClient>) {
     initialize_settings_for_tests(app);
 
+    // warp-cn fork: upstream tests assert English UI strings, but the fork's
+    // `t!()` needs an initialized bundle or labels render as `{key}` placeholders.
+    crate::test_util::use_english_locale();
+
     // Add the necessary singleton models to the App
     app.add_singleton_model(|_ctx| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
@@ -108,6 +112,15 @@ pub(crate) fn initialize_app_with_team_client(app: &mut App, team_client: Arc<dy
     app.add_singleton_model(|_ctx| PtySpawner::new_for_test());
     app.add_singleton_model(|_| Prompt::mock());
     app.add_singleton_model(|ctx| AutoupdateState::new(ServerApiProvider::as_ref(ctx).get()));
+    // warp-cn fork: MainSettingsPageView observes this singleton at
+    // construction, so any test that builds a real window needs it registered.
+    app.add_singleton_model(|_ctx| crate::github_update::GithubUpdateState::new());
+    app.update(|ctx| crate::language_settings::LanguageSettings::register(ctx));
+    // warp-cn fork: WarpAgentPageView reads the BYO-key config at construction.
+    app.add_singleton_model(ai::direct_backend::DirectBackendConfig::new);
+    // Schedules its startup check via a timer that never fires inside
+    // `App::test`; only the subscription wiring matters for these tests.
+    app.update(|ctx| crate::github_update::register_auto_check(ctx));
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(|_| crate::tab::TabShortcutModifierState::new());

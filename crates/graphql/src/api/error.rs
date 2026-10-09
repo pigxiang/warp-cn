@@ -1,8 +1,7 @@
 use super::object::ObjectType;
-use crate::response_context::ResponseContext;
-use crate::schema;
-use crate::{RemoteString, response_context::ResponseContext, schema};
 use super::platform_error::PlatformErrorInfoResponse;
+use crate::response_context::ResponseContext;
+use crate::{RemoteString, schema};
 
 #[derive(cynic::QueryFragment, Debug)]
 pub struct UserFacingError {

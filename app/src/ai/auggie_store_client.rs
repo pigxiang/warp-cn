@@ -2,16 +2,14 @@
 //! user's local Auggie MCP server. Lives in `app/` because it depends on
 //! `AuggieMcpClient` from `app::ai::auggie_mcp`.
 
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Range,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
-};
+use std::collections::{HashMap, HashSet};
+use std::ops::Range;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
 
+use ::ai::index::full_source_code_embedding::store_client::{IntermediateNode, StoreClient};
 use ::ai::index::full_source_code_embedding::{
-    store_client::{IntermediateNode, StoreClient},
     CodebaseContextConfig, ContentHash, EmbeddingConfig, Error, Fragment, NodeHash, RepoMetadata,
 };
 use async_trait::async_trait;

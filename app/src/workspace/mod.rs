@@ -58,6 +58,7 @@ use crate::tab::{NewSessionMenuItem, uses_vertical_tabs};
 use crate::util::bindings::{
     self, BindingDescriptionFluentExt, CustomAction, cmd_or_ctrl_shift, is_binding_pty_compliant,
 };
+use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{code, modal, notebooks, tab_configs};
 
 // Helper function to access panel header corner radius from other modules
@@ -72,8 +73,14 @@ pub fn panel_header_corner_radius() -> warpui::elements::CornerRadius {
 /// Kept in sync with the availability check in `Workspace::send_feedback` so
 /// the command palette label and the menu item behavior never diverge.
 pub fn is_feedback_skill_available(ctx: &AppContext) -> bool {
+    let user_workspaces = UserWorkspaces::as_ref(ctx);
+    let usage = AIRequestUsageModel::as_ref(ctx);
+    let has_any_ai = ctx.window_ids().any(|window_id| {
+        let scope = user_workspaces.team_context_for_window(window_id);
+        usage.has_any_ai_remaining(&scope, ctx)
+    });
     AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
-        && AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx)
+        && has_any_ai
         && SkillManager::as_ref(ctx)
             .active_local_bundled_skill("feedback", ctx)
             .is_some()
@@ -385,21 +392,11 @@ pub fn init(app: &mut AppContext) {
             BindingDescription::fluent("binding-workspace-cycle-prev-session"),
             id!("Workspace") & id!("Workspace_MultipleTabs"),
         ),
-<<<<<<< ours
-        FixedBinding::custom(
-            CustomAction::AddWindow,
-            WorkspaceAction::AddWindow,
-            BindingDescription::fluent("binding-workspace-add-window"),
-            id!("Workspace"),
-        )
-        .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
-=======
->>>>>>> theirs
     ]);
 
     app.register_editable_bindings([EditableBinding::new(
         NEW_WINDOW_BINDING_NAME,
-        BindingDescription::new("Create New Window"),
+        BindingDescription::fluent("binding-workspace-add-window"),
         WorkspaceAction::AddWindow,
     )
     .with_custom_action(CustomAction::AddWindow)

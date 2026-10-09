@@ -12,12 +12,13 @@
 
 #![cfg_attr(not(test), allow(dead_code))]
 
-use anyhow::{anyhow, bail, Context, Result};
+use std::time::Duration;
+
+use anyhow::{Context, Result, anyhow, bail};
 use computer_use::{
     Action, Key, MouseButton, ScreenshotParams, ScrollDirection, ScrollDistance, Vector2I,
 };
 use serde_json::Value;
-use std::time::Duration;
 
 /// Anthropic emits a single object per tool_use block. The `action` field
 /// dispatches; the rest are action-specific. Returns the lowered action list
@@ -304,8 +305,9 @@ fn parse_key_token(token: &str) -> Key {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn screenshot_action_emits_only_screenshot_request() {

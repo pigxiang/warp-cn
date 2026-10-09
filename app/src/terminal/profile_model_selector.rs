@@ -95,8 +95,6 @@ const MAX_PROFILE_NAME_WIDTH_SCALE_FACTOR: f32 = 10.0;
 const PROFILE_SELECTOR_POSITION_ID: &str = "profile_selector";
 
 const MODEL_PICKER_TOOLTIP: &str = "Choose an agent model";
-const MODEL_USES_CHATGPT_SUBSCRIPTION_TOOLTIP: &str =
-    "Requests for this model use your ChatGPT plan";
 const MODEL_LOCKED_FOR_FOLLOWUP_TOOLTIP: &str = "Follow-ups use the original run's model";
 const MODEL_REQUIRES_EDIT_ACCESS_TOOLTIP: &str = "Request edit access to change model";
 const HARNESS_DEFAULT_MODEL_LABEL: &str = "default";
@@ -1872,9 +1870,9 @@ impl ProfileModelSelector {
         let is_locked = is_locked_for_followup || is_locked_for_non_oz;
         let can_interact = has_edit_access && !is_locked;
         let interactive_tooltip = if is_using_chatgpt_subscription {
-            MODEL_USES_CHATGPT_SUBSCRIPTION_TOOLTIP
+            t!("ai-ui-model-uses-chatgpt-subscription-tooltip")
         } else {
-            MODEL_PICKER_TOOLTIP
+            t!("ai-ui-choose-agent-model")
         };
 
         let hoverable = Hoverable::new(self.model_mouse_state.clone(), move |state| {
@@ -1886,13 +1884,7 @@ impl ProfileModelSelector {
                     )))
                     .finish();
 
-                let tooltip = appearance
-                    .ui_builder()
-<<<<<<< ours
-                    .tool_tip(t!("ai-ui-choose-agent-model"));
-=======
-                    .tool_tip(interactive_tooltip.to_owned());
->>>>>>> theirs
+                let tooltip = appearance.ui_builder().tool_tip(interactive_tooltip);
                 let mut stack = Stack::new();
                 stack.add_child(button_with_hover);
                 stack.add_positioned_overlay_child(

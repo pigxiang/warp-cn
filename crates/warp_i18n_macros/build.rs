@@ -5,10 +5,9 @@
 //! `include!`s this set at expansion time to validate literal keys.
 
 use std::collections::BTreeSet;
-use std::env;
-use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use std::{env, fs};
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());

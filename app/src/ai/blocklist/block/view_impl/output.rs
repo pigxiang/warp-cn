@@ -24,6 +24,7 @@ use ui_components::{Component as _, Options as _, button};
 use warp_core::channel::ChannelState;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
+use warp_i18n::t;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::elements::new_scrollable::SingleAxisConfig;
 use warpui::elements::{
@@ -116,7 +117,6 @@ use crate::ai::skills::{
     SkillManager, SkillOpenOrigin, icon_override_for_skill_name, render_skill_button,
     skill_path_from_location,
 };
-use warp_i18n::t;
 use crate::appearance::Appearance;
 use crate::code::diff_viewer::DisplayMode;
 use crate::code::editor_management::CodeSource;

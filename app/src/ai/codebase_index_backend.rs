@@ -6,13 +6,11 @@
 use settings::Setting;
 use warpui::{AppContext, SingletonEntity};
 
-use crate::{
-    ai::request_usage_model::{AIRequestUsageModel, CodebaseContextUsageLimit},
-    auth::AuthStateProvider,
-    features::FeatureFlag,
-    settings::CodeSettings,
-    workspaces::user_workspaces::UserWorkspaces,
-};
+use crate::ai::request_usage_model::{AIRequestUsageModel, CodebaseContextUsageLimit};
+use crate::auth::AuthStateProvider;
+use crate::features::FeatureFlag;
+use crate::settings::CodeSettings;
+use crate::workspaces::user_workspaces::UserWorkspaces;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CodebaseIndexBackend {
@@ -102,9 +100,10 @@ pub(crate) fn codebase_context_limits_for_backend(ctx: &AppContext) -> CodebaseC
 
 #[cfg(test)]
 mod tests {
+    use warpui::App;
+
     use super::*;
     use crate::server::server_api::ServerApiProvider;
-    use warpui::App;
 
     fn install_auth(app: &mut App, logged_in: bool) {
         if logged_in {

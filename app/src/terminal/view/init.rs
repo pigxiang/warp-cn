@@ -1,4 +1,5 @@
 use warp_core::context_flag::ContextFlag;
+use warp_i18n::t;
 use warpui::AppContext;
 use warpui::keymap::{
     BindingDescription, ContextPredicate, EditableBinding, FixedBinding, PerPlatformKeystroke,
@@ -34,7 +35,6 @@ use crate::util::bindings;
 use crate::util::bindings::{
     BindingDescriptionFluentExt, CustomAction, cmd_or_ctrl_shift, is_binding_pty_compliant,
 };
-use warp_i18n::t;
 
 pub const TOGGLE_BLOCK_FILTER_KEYBINDING: &str =
     "terminal:toggle_block_filter_on_selected_or_last_block";

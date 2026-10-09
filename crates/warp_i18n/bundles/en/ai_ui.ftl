@@ -79,6 +79,7 @@ ai-ui-at-context-filesystem-required = Requires a filesystem
 ai-ui-at-context-disabled-terminal-mode = Disabled in terminal mode, re-enable in settings
 ai-ui-choose-execution-profile = Choose an AI execution profile
 ai-ui-choose-agent-model = Choose an agent model
+ai-ui-model-uses-chatgpt-subscription-tooltip = Requests for this model use your ChatGPT plan
 ai-ui-manage = Manage
 ai-ui-manage-api-keys = Manage API keys
 ai-ui-profiles = Profiles

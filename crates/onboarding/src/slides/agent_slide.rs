@@ -297,11 +297,7 @@ impl AgentSlide {
         Container::new(col.finish()).with_margin_top(40.).finish()
     }
 
-    fn render_section_header(
-        &self,
-        title: String,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
+    fn render_section_header(&self, title: String, appearance: &Appearance) -> Box<dyn Element> {
         appearance
             .ui_builder()
             .paragraph(title)
@@ -320,7 +316,10 @@ impl AgentSlide {
         settings: &AgentDevelopmentSettings,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let header = self.render_section_header(warp_i18n::t!("onboarding-agent-section-default-model"), appearance);
+        let header = self.render_section_header(
+            warp_i18n::t!("onboarding-agent-section-default-model"),
+            appearance,
+        );
 
         let expanded = self.is_model_list_expanded;
         let chip = self.render_collapsed_model_chip(appearance, settings, app, expanded);
@@ -667,7 +666,10 @@ impl AgentSlide {
     }
 
     fn render_autonomy_workspace_enforced(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let header = self.render_section_header(warp_i18n::t!("onboarding-agent-section-autonomy"), appearance);
+        let header = self.render_section_header(
+            warp_i18n::t!("onboarding-agent-section-autonomy"),
+            appearance,
+        );
 
         let theme = appearance.theme();
         let background_for_text = theme.background().into_solid();
@@ -726,7 +728,10 @@ impl AgentSlide {
         appearance: &Appearance,
         settings: &AgentDevelopmentSettings,
     ) -> Box<dyn Element> {
-        let header = self.render_section_header(warp_i18n::t!("onboarding-agent-section-autonomy"), appearance);
+        let header = self.render_section_header(
+            warp_i18n::t!("onboarding-agent-section-autonomy"),
+            appearance,
+        );
 
         // The rows now take the full column width (vs. the previous three-across layout),
         // so they no longer need the extra height that came from cramped subtitle wrapping.

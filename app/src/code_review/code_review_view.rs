@@ -26,6 +26,7 @@ use warp_editor::render::element::VerticalExpansionBehavior;
 #[cfg(not(target_family = "wasm"))]
 use warp_editor::render::model::AutoScrollMode;
 use warp_editor::render::model::LineCount;
+use warp_i18n::t;
 use warp_util::content_version::ContentVersion;
 use warp_util::path::LineAndColumnArg;
 use warp_util::standardized_path::StandardizedPath;
@@ -151,7 +152,6 @@ use crate::view_components::action_button::{
 use crate::view_components::find::{Event as FindViewEvent, Find, FindEvent, FindWithinBlockState};
 use crate::workspace::view::right_panel::{ReviewDestination, ReviewSubmissionResult};
 use crate::workspace::{ToastStack, Workspace, WorkspaceAction};
-use warp_i18n::t;
 
 pub struct CodeReviewHeaderFields {
     pub is_in_split_pane: bool,

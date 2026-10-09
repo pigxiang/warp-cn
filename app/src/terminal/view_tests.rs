@@ -6400,6 +6400,7 @@ fn test_find_bar_prefix_search() {
 
 #[test]
 fn test_create_notification_shorter_than_max() {
+    crate::test_util::use_english_locale();
     let command = "cargo run";
     let output = "error: failed to find directory";
     let command_succeeded = false;
@@ -6419,6 +6420,7 @@ fn test_create_notification_shorter_than_max() {
 
 #[test]
 fn test_create_notification_as_long_as_max() {
+    crate::test_util::use_english_locale();
     let expected_title_suffix = " finished after 4s";
     let max_command_len = UserNotification::MAX_TITLE_LENGTH - expected_title_suffix.len() - 2;
     let command = "a".repeat(max_command_len);
@@ -6443,6 +6445,7 @@ fn test_create_notification_as_long_as_max() {
 
 #[test]
 fn test_create_notification_longer_than_max() {
+    crate::test_util::use_english_locale();
     let expected_title_suffix = " finished after 4s";
     let max_command_len = UserNotification::MAX_TITLE_LENGTH - expected_title_suffix.len() - 2;
     let command = "a".repeat(max_command_len + 1);
@@ -6470,6 +6473,7 @@ fn test_create_notification_longer_than_max() {
 
 #[test]
 fn test_create_notification_char_boundaries_respected() {
+    crate::test_util::use_english_locale();
     let expected_title_suffix = " finished after 4s";
     let max_command_len = UserNotification::MAX_TITLE_LENGTH - expected_title_suffix.len() - 2;
     let command = "😊".repeat(max_command_len + 1);

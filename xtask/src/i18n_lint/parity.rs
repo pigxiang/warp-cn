@@ -1,7 +1,8 @@
-use anyhow::{Context, Result};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::Path;
+
+use anyhow::{Context, Result};
 use walkdir::WalkDir;
 
 #[derive(Debug)]
@@ -19,17 +20,28 @@ pub enum MismatchKind {
     /// `.ftl` files). `load_locale` merges every `<locale>/*.ftl` into one
     /// `FluentBundle`; `add_resource` rejects the duplicate, so
     /// `warp_i18n::init` fails and every UI string renders as `{key}` (#39/#44).
-    Duplicate { locale: String, files: Vec<String> },
+    Duplicate {
+        locale: String,
+        files: Vec<String>,
+    },
 }
 
 impl fmt::Display for Mismatch {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             MismatchKind::MissingInZh => {
-                write!(f, "parity: {} key {:?} missing in zh-CN", self.bundle, self.key)
+                write!(
+                    f,
+                    "parity: {} key {:?} missing in zh-CN",
+                    self.bundle, self.key
+                )
             }
             MismatchKind::MissingInEn => {
-                write!(f, "parity: {} key {:?} missing in en", self.bundle, self.key)
+                write!(
+                    f,
+                    "parity: {} key {:?} missing in en",
+                    self.bundle, self.key
+                )
             }
             MismatchKind::Duplicate { locale, files } => write!(
                 f,

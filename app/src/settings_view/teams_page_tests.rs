@@ -1,6 +1,3 @@
-<<<<<<< ours
-use serial_test::serial;
-=======
 #[cfg(not(target_family = "wasm"))]
 use std::cell::RefCell;
 #[cfg(not(target_family = "wasm"))]
@@ -8,9 +5,9 @@ use std::rc::Rc;
 #[cfg(not(target_family = "wasm"))]
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 
+use serial_test::serial;
 #[cfg(not(target_family = "wasm"))]
 use warpui::App;
->>>>>>> theirs
 
 use super::*;
 #[cfg(not(target_family = "wasm"))]
@@ -631,9 +628,6 @@ fn workspace_admin_without_team_role_can_promote_demote_and_remove() {
 }
 
 #[test]
-<<<<<<< ours
-#[serial]
-=======
 fn workspace_admin_gets_team_management_permissions() {
     let team = team_with_members(vec![member(MEMBER_EMAIL, MembershipRole::User)], true);
     let workspace = admin_workspace(MEMBER_EMAIL);
@@ -646,7 +640,7 @@ fn workspace_admin_gets_team_management_permissions() {
 }
 
 #[test]
->>>>>>> theirs
+#[serial]
 fn workspace_admin_without_native_workspaces_policy_can_manage_members() {
     ensure_en();
     let team = team_with_members(
@@ -799,9 +793,6 @@ fn native_workspace_member_gets_join_or_empty_state() {
 }
 
 #[test]
-<<<<<<< ours
-#[serial]
-=======
 fn native_workspace_member_cannot_leave_their_only_team() {
     let team = team_with_members(vec![member(MEMBER_EMAIL, MembershipRole::User)], false);
     let mut workspace = workspace_with_member(MEMBER_EMAIL, MembershipRole::User, true);
@@ -938,7 +929,7 @@ fn joined_team_disappears_from_open_teams_after_membership_refresh() {
 }
 
 #[test]
->>>>>>> theirs
+#[serial]
 fn viewer_missing_from_the_workspace_roster_is_not_an_admin() {
     ensure_en();
     let workspace = admin_workspace(ADMIN_EMAIL);
@@ -970,7 +961,9 @@ fn workspace_admin_can_cancel_pending_invite() {
 }
 
 #[test]
+#[serial]
 fn disabled_member_is_flagged_but_keeps_removal_action() {
+    ensure_en();
     let team = team_with_members(
         vec![
             member(ADMIN_EMAIL, MembershipRole::Admin),

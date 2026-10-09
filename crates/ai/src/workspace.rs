@@ -123,8 +123,9 @@ impl From<persistence::model::WorkspaceMetadata> for WorkspaceMetadata {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use chrono::TimeZone;
+
+    use super::*;
 
     /// Round-trip every persisted field through `WorkspaceMetadata` →
     /// `NewWorkspaceMetadata` → `persistence::model::WorkspaceMetadata` →

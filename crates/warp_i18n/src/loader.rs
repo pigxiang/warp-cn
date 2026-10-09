@@ -1,10 +1,12 @@
-use crate::locale::Locale;
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use anyhow::Result;
 use fluent_bundle::concurrent::FluentBundle;
 use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
-use std::collections::HashMap;
-use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
+
+use crate::locale::Locale;
 
 // Static `&[(locale, filename, content)]` produced by `build.rs` via
 // `include_str!`. Replaces a previous `RustEmbed` derive that silently
@@ -103,7 +105,8 @@ impl Bundles {
 
 fn load_locale(locale: Locale) -> Result<LocaleBundle> {
     let langid: LanguageIdentifier = locale.as_langid();
-    let mut bundle: FluentBundle<Arc<FluentResource>> = FluentBundle::new_concurrent(vec![langid.clone()]);
+    let mut bundle: FluentBundle<Arc<FluentResource>> =
+        FluentBundle::new_concurrent(vec![langid.clone()]);
     bundle.set_use_isolating(false);
 
     let want_locale = locale.as_bcp47();
@@ -129,11 +132,9 @@ fn load_locale(locale: Locale) -> Result<LocaleBundle> {
     Ok(LocaleBundle { locale, bundle })
 }
 
-
 fn parse_locale(locale: Locale, source: &str) -> Result<LocaleBundle> {
     let langid: LanguageIdentifier = locale.as_langid();
-    let mut bundle: FluentBundle<Arc<FluentResource>> =
-        FluentBundle::new_concurrent(vec![langid]);
+    let mut bundle: FluentBundle<Arc<FluentResource>> = FluentBundle::new_concurrent(vec![langid]);
     bundle.set_use_isolating(false);
     let resource = FluentResource::try_new(source.to_owned())
         .map_err(|(_, errs)| anyhow::anyhow!("ftl parse errors: {:?}", errs))?;

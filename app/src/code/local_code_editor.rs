@@ -86,6 +86,7 @@ const HOVER_DEBOUNCE_PERIOD: Duration = Duration::from_millis(500);
 const AUTO_SAVE_DEBOUNCE_PERIOD: Duration = Duration::from_millis(1000);
 
 use warp_core::send_telemetry_from_ctx;
+use warp_i18n::t;
 
 use super::ImmediateSaveError;
 use super::diff_viewer::DiffViewer;
@@ -94,7 +95,6 @@ use super::editor::view::{CodeEditorEvent, CodeEditorView};
 use super::find_references_view::{FindReferencesView, FindReferencesViewEvent};
 use super::language_server_extension::ProcessedDiagnostic;
 use super::lsp_telemetry::LspTelemetryEvent;
-use warp_i18n::t;
 
 type SaveCallback =
     Box<dyn FnOnce(SaveOutcome, &mut ViewContext<LocalCodeEditorView>) + Send + Sync + 'static>;

@@ -1127,13 +1127,15 @@ impl LoginSlideView {
                         .collect(),
                     warp_i18n::t!("onboarding-login-skip-dialog-cancel-drive"),
                 ),
-                LoginPurpose::WarpAgent | LoginPurpose::ThirdParty | LoginPurpose::AccountFirst => (
-                    warp_i18n::t!("onboarding-login-skip-dialog-title-ai"),
-                    warp_i18n::t!("onboarding-login-skip-dialog-body-ai"),
-                    Vec::new(),
-                    warp_i18n::t!("onboarding-login-skip-dialog-cancel-ai"),
-                ),
-        };
+                LoginPurpose::WarpAgent | LoginPurpose::ThirdParty | LoginPurpose::AccountFirst => {
+                    (
+                        warp_i18n::t!("onboarding-login-skip-dialog-title-ai"),
+                        warp_i18n::t!("onboarding-login-skip-dialog-body-ai"),
+                        Vec::new(),
+                        warp_i18n::t!("onboarding-login-skip-dialog-cancel-ai"),
+                    )
+                }
+            };
 
         // Close button with ESC keyboard-shortcut badge.
         let escape = Keystroke::parse("escape").unwrap_or_default();

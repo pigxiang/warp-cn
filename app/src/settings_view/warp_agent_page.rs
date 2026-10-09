@@ -111,7 +111,9 @@ use crate::view_components::action_button::{
     ActionButton, ButtonSize, DangerSecondaryTheme, SecondaryTheme,
 };
 use crate::view_components::{Dropdown, DropdownItem, FilterableDropdown};
-use crate::workspaces::user_workspaces::{ResolvedTeamScope, TeamContext, UserWorkspacesEvent};
+use crate::workspaces::user_workspaces::{
+    HeadlessTeamScope, ResolvedTeamScope, TeamContext, UserWorkspacesEvent,
+};
 use crate::workspaces::workspace::{AdminEnablementSetting, CustomerType};
 use crate::{TelemetryEvent, UserWorkspaces, send_telemetry_from_ctx};
 
@@ -5112,7 +5114,7 @@ impl ApiKeysWidget {
                             );
                             // Pull a fresh model catalog from the new provider.
                             LLMPreferences::handle(ctx).update(ctx, |p, inner| {
-                                p.refresh_available_models(inner);
+                                p.refresh_available_models(&HeadlessTeamScope::Personal, inner);
                             });
                         }
                     }
@@ -5738,11 +5740,7 @@ impl ApiKeysWidget {
 
         let description = Container::new(
             Text::new(
-<<<<<<< ours
                 warp_i18n::t!("settings-ai-supergrok-connect-description"),
-=======
-                "Connect your SuperGrok plan to use Grok models in the Warp Agent through your xAI account.",
->>>>>>> theirs
                 appearance.ui_font_family(),
                 CONTENT_FONT_SIZE,
             )
@@ -7103,7 +7101,7 @@ fn make_base_url_editor(
             // Endpoint changed → re-fetch the catalog from the new host so
             // the model picker reflects what's actually available there.
             LLMPreferences::handle(ctx).update(ctx, |p, inner| {
-                p.refresh_available_models(inner);
+                p.refresh_available_models(&HeadlessTeamScope::Personal, inner);
             });
         }
     });

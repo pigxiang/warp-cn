@@ -127,8 +127,7 @@ static INSTALL_INSTRUCTIONS: LazyLock<PluginInstructions> = LazyLock::new(|| Plu
     subtitle: warp_i18n::t_static!("terminal-plugin-gemini-command-then-restart"),
     steps: vec![PluginInstructionStep {
         description: warp_i18n::t_static!("terminal-plugin-install-warp-extension"),
-        command:
-            "gemini extensions install https://github.com/warpdotdev/gemini-cli-warp --consent",
+        command: "gemini extensions install https://github.com/warpdotdev/gemini-cli-warp --consent",
         executable: true,
         link: None,
     }],
