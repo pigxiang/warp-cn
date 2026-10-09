@@ -2,13 +2,12 @@ use std::borrow::Cow;
 
 use chrono::{DateTime, Local};
 use session_sharing_protocol::common::SessionId;
-use warp_core::{channel::ChannelState, ui::appearance::Appearance};
+use warp_core::channel::ChannelState;
+use warp_core::ui::appearance::Appearance;
 use warp_i18n::t;
-use warpui::{
-    color::ColorU,
-    ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, SingletonEntity, WeakViewHandle,
-};
+use warpui::color::ColorU;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::{AppContext, SingletonEntity, WeakViewHandle};
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;

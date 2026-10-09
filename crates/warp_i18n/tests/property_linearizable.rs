@@ -28,7 +28,11 @@ fn set_locale_lookup_linearizable_200_ops() {
         handles.push(thread::spawn(move || {
             use warp_i18n::Locale;
             for j in 0..OPS_PER_THREAD {
-                let locale = if (i + j) % 2 == 0 { Locale::ZhCn } else { Locale::En };
+                let locale = if (i + j) % 2 == 0 {
+                    Locale::ZhCn
+                } else {
+                    Locale::En
+                };
                 s.set(locale);
             }
         }));
@@ -37,7 +41,12 @@ fn set_locale_lookup_linearizable_200_ops() {
     for i in 0..N_READERS {
         let s = Arc::clone(&state);
         handles.push(thread::spawn(move || {
-            let keys = ["ui-button-ok", "ui-button-cancel", "ui-button-save", "tabs-close-confirm"];
+            let keys = [
+                "ui-button-ok",
+                "ui-button-cancel",
+                "ui-button-save",
+                "tabs-close-confirm",
+            ];
             for j in 0..OPS_PER_THREAD {
                 let key = keys[(i * j + j) % keys.len()];
                 let observed_locale = s.current_snapshot();
@@ -112,14 +121,20 @@ impl TestState {
         let res = self.results.lock().unwrap();
         let mut groups: BTreeMap<(u8, String), Vec<String>> = BTreeMap::new();
         for (locale, key, value) in res.iter() {
-            groups.entry((*locale, key.clone())).or_default().push(value.clone());
+            groups
+                .entry((*locale, key.clone()))
+                .or_default()
+                .push(value.clone());
         }
-        groups.into_iter().map(|((l, k), v)| {
-            let loc = match l {
-                0 => warp_i18n::Locale::ZhCn,
-                _ => warp_i18n::Locale::En,
-            };
-            (loc, k, v)
-        }).collect()
+        groups
+            .into_iter()
+            .map(|((l, k), v)| {
+                let loc = match l {
+                    0 => warp_i18n::Locale::ZhCn,
+                    _ => warp_i18n::Locale::En,
+                };
+                (loc, k, v)
+            })
+            .collect()
     }
 }

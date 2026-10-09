@@ -4,10 +4,11 @@
 //! - (a) render is a pure function: fixed (locale, key, args) -> bitwise equal String
 //! - (c) render has no side effects: global state, bundle contents, args must be unmodified
 
+use std::sync::{Mutex, OnceLock};
+
 use proptest::prelude::*;
-use std::sync::OnceLock;
-use std::sync::Mutex;
-use warp_i18n::{FluentValue, Locale, args_from, render, set_locale, loader::Bundles};
+use warp_i18n::loader::Bundles;
+use warp_i18n::{FluentValue, Locale, args_from, render, set_locale};
 
 fn lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();

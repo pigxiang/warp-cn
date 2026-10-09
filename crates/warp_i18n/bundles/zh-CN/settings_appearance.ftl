@@ -95,3 +95,5 @@ settings-appearance-cmd-suffix-focus-follows-mouse = 焦点跟随鼠标
 settings-appearance-cmd-suffix-zen-mode = 禅模式
 settings-appearance-cmd-suffix-vertical-tabs = 垂直标签布局
 settings-appearance-cmd-suffix-ligatures = 连字渲染
+settings-appearance-window-backdrop = 窗口背景效果
+settings-appearance-backdrop-not-visible = 不透明度为 100% 时背景效果不可见

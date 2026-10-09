@@ -7,10 +7,9 @@
 //! - Re-run when bundle contents change.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::env;
-use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::{env, fs};
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());

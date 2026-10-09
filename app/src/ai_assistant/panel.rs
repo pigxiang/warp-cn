@@ -46,7 +46,7 @@ use crate::server::telemetry::{TelemetryEvent, WarpAIActionType};
 use crate::terminal::resizable_data::{DEFAULT_WARP_AI_WIDTH, ModalType, ResizableData};
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
-use crate::util::bindings::{cmd_or_ctrl_shift, BindingDescriptionFluentExt, CustomAction};
+use crate::util::bindings::{BindingDescriptionFluentExt, CustomAction, cmd_or_ctrl_shift};
 use crate::workspace::{ActiveSession, TAB_BAR_HEIGHT};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
@@ -913,7 +913,9 @@ impl AIAssistantPanelView {
                 .finish(),
             );
 
-        if AIRequestUsageModel::as_ref(app).has_any_ai_remaining(app) {
+        let user_workspaces = UserWorkspaces::as_ref(app);
+        let scope = user_workspaces.team_context(&self.view_handle, app);
+        if AIRequestUsageModel::as_ref(app).has_any_ai_remaining(&scope, app) {
             column.add_children([
                 Container::new(render_prepared_response_button(
                     appearance,
@@ -986,7 +988,6 @@ impl AIAssistantPanelView {
             .finish(),
         );
 
-        let user_workspaces = UserWorkspaces::as_ref(app);
         let is_custom_llm_enabled = user_workspaces.is_custom_llm_enabled_for_team(
             user_workspaces.team_for_view_handle(&self.view_handle, app),
         );

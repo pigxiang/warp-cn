@@ -250,7 +250,9 @@ pub(super) fn confirm_tooltip(state: &CommitState, app: &AppContext) -> Option<S
     // Only nudge for a missing message; an empty Changes box is self-evident,
     // and gating a tooltip on it would also flash during the open-time load.
     if has_committable_changes(state) && commit_message(state, app).is_none() {
-        return Some(warp_i18n::t!("code-review-git-commit-tooltip-enter-message"));
+        return Some(warp_i18n::t!(
+            "code-review-git-commit-tooltip-enter-message"
+        ));
     }
     None
 }

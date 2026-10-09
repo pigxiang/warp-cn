@@ -16,7 +16,7 @@ pub(super) async fn send_notification(
         on_error,
     } = notification_info;
 
-    use warp_i18n::notification::{truncate, WIN_BODY_MAX, WIN_TITLE_MAX};
+    use warp_i18n::notification::{WIN_BODY_MAX, WIN_TITLE_MAX, truncate};
     let title = truncate(notification_content.title(), WIN_TITLE_MAX);
     let body = truncate(notification_content.body(), WIN_BODY_MAX);
 
@@ -25,17 +25,18 @@ pub(super) async fn send_notification(
         .ok()
         .unwrap_or(powershell_app_id);
     let proxy_clone = proxy.clone();
-    let toast = Toast::new(&app_id)
-        .title(&title)
-        .text1(&body)
-        .on_activated(move |_activated_arguments| {
-            let _ = proxy_clone
-                .send_event(CustomEvent::FocusWindow { window_id })
-                .map_err(|err| {
-                    log::warn!("Unable to focus window after event loop closed: {err:?}");
-                });
-            Ok(())
-        });
+    let toast =
+        Toast::new(&app_id)
+            .title(&title)
+            .text1(&body)
+            .on_activated(move |_activated_arguments| {
+                let _ = proxy_clone
+                    .send_event(CustomEvent::FocusWindow { window_id })
+                    .map_err(|err| {
+                        log::warn!("Unable to focus window after event loop closed: {err:?}");
+                    });
+                Ok(())
+            });
 
     if let Err(err) = toast.show() {
         let error = NotificationSendError::Other {

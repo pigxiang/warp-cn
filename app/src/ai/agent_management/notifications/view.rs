@@ -1,5 +1,6 @@
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
+use warp_i18n::t;
 use warpui::elements::new_scrollable::{ScrollableAppearance, SingleAxisConfig};
 use warpui::elements::{
     Border, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container, CornerRadius,
@@ -28,7 +29,6 @@ use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent
 use crate::appearance::Appearance;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
-use warp_i18n::t;
 
 const ITEM_PADDING: f32 = 12.;
 

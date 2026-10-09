@@ -1,13 +1,14 @@
+use std::path::{Path, PathBuf};
+
+use proc_macro2::{Span, TokenStream, TokenTree};
+use syn::visit::{self, Visit};
+use syn::{
+    Expr, ExprLit, ExprMacro, ExprMethodCall, File, ItemImpl, ItemMod, Lit, LitStr, Meta, StmtMacro,
+};
+
 use super::allowlist::Allowlist;
 use super::report::{Severity, Violation};
 use super::sites::SiteTable;
-use proc_macro2::{Span, TokenStream, TokenTree};
-use std::path::{Path, PathBuf};
-use syn::{
-    Expr, ExprLit, ExprMacro, ExprMethodCall, File, ItemImpl, ItemMod, Lit, LitStr, Meta,
-    StmtMacro,
-    visit::{self, Visit},
-};
 
 pub fn scan_file(
     rel_path: &Path,
@@ -197,9 +198,7 @@ impl<'ast, 'a> Visit<'ast> for Visitor<'a> {
     }
 }
 
-fn first_str_literal(
-    args: &syn::punctuated::Punctuated<Expr, syn::Token![,]>,
-) -> Option<&LitStr> {
+fn first_str_literal(args: &syn::punctuated::Punctuated<Expr, syn::Token![,]>) -> Option<&LitStr> {
     args.iter().next().and_then(str_lit_expr)
 }
 

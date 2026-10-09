@@ -10,9 +10,7 @@ use futures::stream::{self, Stream, StreamExt};
 use uuid::Uuid;
 use warp_multi_agent_api as api;
 
-use super::encode;
-use super::tool_schema;
-use super::{DriverChunkStream, DriverStreamChunk};
+use super::{DriverChunkStream, DriverStreamChunk, encode, tool_schema};
 use crate::server::server_api::AIApiError;
 
 /// Adapter state. `text_messages` / `reasoning_messages` map producer
@@ -38,7 +36,11 @@ pub fn adapt(
     task_id: String,
     request_id: String,
 ) -> impl Stream<Item = Result<api::ResponseEvent, Arc<AIApiError>>> + Send {
-    log::info!("DirectBackend adapter: starting (task={}, request={})", task_id, request_id);
+    log::info!(
+        "DirectBackend adapter: starting (task={}, request={})",
+        task_id,
+        request_id
+    );
     let state = AdapterState {
         task_id,
         request_id,
@@ -77,8 +79,7 @@ pub fn adapt(
                         continue;
                     }
                     if let Some(msg_id) = st.text_messages.get(&block_idx).cloned() {
-                        let ev =
-                            encode::build_append_to_text(&st.task_id, &msg_id, &text);
+                        let ev = encode::build_append_to_text(&st.task_id, &msg_id, &text);
                         return Some((Ok(ev), (src, st)));
                     } else {
                         let msg_id = Uuid::new_v4().to_string();
@@ -97,8 +98,7 @@ pub fn adapt(
                         continue;
                     }
                     if let Some(msg_id) = st.reasoning_messages.get(&block_idx).cloned() {
-                        let ev =
-                            encode::build_append_to_reasoning(&st.task_id, &msg_id, &text);
+                        let ev = encode::build_append_to_reasoning(&st.task_id, &msg_id, &text);
                         return Some((Ok(ev), (src, st)));
                     } else {
                         let msg_id = Uuid::new_v4().to_string();
@@ -121,7 +121,9 @@ pub fn adapt(
                 })) => {
                     log::info!(
                         "DirectBackend adapter: ToolUseComplete name={} id={} args={}",
-                        name, tool_use_id, parsed_input,
+                        name,
+                        tool_use_id,
+                        parsed_input,
                     );
                     let kind = match tool_schema::from_name(&name) {
                         Some(k) => k,
@@ -130,9 +132,7 @@ pub fn adapt(
                             let ev = encode::build_inline_text_message(
                                 &st.task_id,
                                 &st.request_id,
-                                &format!(
-                                    "[tool error] You called an unknown tool `{name}`."
-                                ),
+                                &format!("[tool error] You called an unknown tool `{name}`."),
                             );
                             return Some((Ok(ev), (src, st)));
                         }
@@ -153,7 +153,8 @@ pub fn adapt(
                     };
                     log::info!(
                         "DirectBackend adapter: emitting ToolCall name={} id={}",
-                        name, tool_use_id,
+                        name,
+                        tool_use_id,
                     );
                     let ev = encode::build_tool_call_message_action(
                         &st.task_id,
@@ -164,11 +165,8 @@ pub fn adapt(
                     return Some((Ok(ev), (src, st)));
                 }
                 Some(Ok(DriverStreamChunk::ToolUseSoftError { message })) => {
-                    let ev = encode::build_inline_text_message(
-                        &st.task_id,
-                        &st.request_id,
-                        &message,
-                    );
+                    let ev =
+                        encode::build_inline_text_message(&st.task_id, &st.request_id, &message);
                     return Some((Ok(ev), (src, st)));
                 }
                 Some(Ok(stop @ DriverStreamChunk::Stop { .. })) => {
@@ -182,7 +180,10 @@ pub fn adapt(
                     {
                         log::info!(
                             "DirectBackend adapter: captured Stop reason={:?} in_tokens={:?} out_tokens={:?} model={}",
-                            stop_reason, input_tokens, output_tokens, model_id,
+                            stop_reason,
+                            input_tokens,
+                            output_tokens,
+                            model_id,
                         );
                     }
                     st.stop = Some(stop);

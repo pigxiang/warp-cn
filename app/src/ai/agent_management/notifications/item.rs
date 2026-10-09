@@ -1,12 +1,12 @@
 use enum_iterator::Sequence;
 use instant::Instant;
 use uuid::Uuid;
+use warp_i18n::t;
 use warpui::EntityId;
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::artifacts::Artifact;
 use crate::terminal::CLIAgent;
-use warp_i18n::t;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NotificationId(Uuid);

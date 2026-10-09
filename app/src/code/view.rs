@@ -69,10 +69,10 @@ use crate::terminal::cli_agent::{
 use crate::terminal::view::CliAgentRouting;
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
+use crate::util::bindings::BindingDescriptionFluentExt;
 use crate::util::path::{display_name_with_host, display_path_with_host};
 use crate::view_components::{DismissibleToast, MarkdownToggleEvent, MarkdownToggleView};
 use crate::workspace::util::get_context_target_terminal_view;
-use crate::util::bindings::BindingDescriptionFluentExt;
 use crate::workspace::{ActiveSession, TabBarDropTargetData, ToastStack, WorkspaceAction};
 use crate::{TelemetryEvent, send_telemetry_from_ctx};
 

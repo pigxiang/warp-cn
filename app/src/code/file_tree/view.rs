@@ -18,10 +18,10 @@ use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::{HostId, send_telemetry_from_ctx};
+use warp_i18n::t;
 use warp_util::path::LineAndColumnArg;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::clipboard::ClipboardContent;
-use warpui::ui_components::components::UiComponent;
 use warpui::elements::{
     AcceptedByDropTarget, Align, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container,
     CrossAxisAlignment, Dismiss, Draggable, DraggableState, Empty, Flex, FormattedTextElement,
@@ -34,6 +34,7 @@ use warpui::fonts::{Properties, Style, Weight};
 use warpui::keymap::FixedBinding;
 use warpui::platform::Cursor;
 use warpui::text_layout::TextAlignment;
+use warpui::ui_components::components::UiComponent;
 use warpui::{
     AppContext, BlurContext, Element, Entity, EventContext, ModelHandle, SingletonEntity as _,
     TypedActionView, View, ViewContext, ViewHandle, WeakViewHandle, id,
@@ -61,7 +62,6 @@ use crate::util::openable_file_type::{
 use crate::util::openable_file_type::{
     resolve_file_target_to_open_in_warp, resolve_file_target_with_editor_choice,
 };
-use warp_i18n::t;
 
 mod editing;
 mod render;

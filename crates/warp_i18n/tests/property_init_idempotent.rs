@@ -3,10 +3,10 @@
 //! Covers spec requirement:
 //! - (b) init() and set_locale are idempotent
 
+use std::sync::{Mutex, OnceLock};
+
 use proptest::prelude::*;
-use std::sync::Mutex;
-use std::sync::OnceLock;
-use warp_i18n::{Locale, global, init, set_locale, current_locale};
+use warp_i18n::{Locale, current_locale, global, init, set_locale};
 
 fn lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();

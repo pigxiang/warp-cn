@@ -61,5 +61,8 @@ proptest! {
 fn unknown_language_string_rejected_by_serde() {
     let s = r#"{"language": "ja-JP"}"#;
     let result: Result<FakeSettings, _> = serde_json::from_str(s);
-    assert!(result.is_err(), "unknown language string must be rejected by serde");
+    assert!(
+        result.is_err(),
+        "unknown language string must be rejected by serde"
+    );
 }

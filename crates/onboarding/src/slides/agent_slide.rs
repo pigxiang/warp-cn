@@ -56,8 +56,10 @@ impl std::fmt::Display for AgentAutonomy {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentDevelopmentSettings {
-    /// The selected model's ID.
-    pub selected_model_id: LLMId,
+    /// The model the user explicitly picked. `None` leaves the profile following the server's
+    /// default model, which can change after onboarding (e.g. when a ChatGPT subscription is
+    /// connected).
+    pub selected_model_id: Option<LLMId>,
     pub autonomy: Option<AgentAutonomy>,
     /// Whether the CLI agent toolbar is enabled (maps to `should_render_cli_agent_footer`).
     pub cli_agent_toolbar_enabled: bool,
@@ -69,10 +71,10 @@ pub struct AgentDevelopmentSettings {
     pub show_agent_notifications: bool,
 }
 
-impl AgentDevelopmentSettings {
-    pub fn new(default_model_id: LLMId) -> Self {
+impl Default for AgentDevelopmentSettings {
+    fn default() -> Self {
         Self {
-            selected_model_id: default_model_id,
+            selected_model_id: None,
             autonomy: Some(AgentAutonomy::default()),
             cli_agent_toolbar_enabled: true,
             session_default: crate::SessionDefault::Agent,
@@ -295,11 +297,7 @@ impl AgentSlide {
         Container::new(col.finish()).with_margin_top(40.).finish()
     }
 
-    fn render_section_header(
-        &self,
-        title: String,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
+    fn render_section_header(&self, title: String, appearance: &Appearance) -> Box<dyn Element> {
         appearance
             .ui_builder()
             .paragraph(title)
@@ -318,7 +316,10 @@ impl AgentSlide {
         settings: &AgentDevelopmentSettings,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let header = self.render_section_header(warp_i18n::t!("onboarding-agent-section-default-model"), appearance);
+        let header = self.render_section_header(
+            warp_i18n::t!("onboarding-agent-section-default-model"),
+            appearance,
+        );
 
         let expanded = self.is_model_list_expanded;
         let chip = self.render_collapsed_model_chip(appearance, settings, app, expanded);
@@ -376,10 +377,11 @@ impl AgentSlide {
         let background_for_text = theme.background().into_solid();
         let ui_font_family = appearance.ui_font_family();
 
-        let models = self.onboarding_state.as_ref(app).models();
+        let state = self.onboarding_state.as_ref(app);
+        let models = state.models();
         let selected = models
             .iter()
-            .find(|m| m.id == settings.selected_model_id)
+            .find(|m| m.id == *state.effective_model_id())
             .or_else(|| models.first());
 
         let (title_text, icon) = match selected {
@@ -481,7 +483,7 @@ impl AgentSlide {
 
         let state = self.onboarding_state.as_ref(app);
         let highlighted_id = self.highlighted_model_id.clone();
-        let selected_id = state.agent_settings().selected_model_id.clone();
+        let selected_id = state.effective_model_id().clone();
         let models = state.models();
 
         let mut col = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
@@ -664,7 +666,10 @@ impl AgentSlide {
     }
 
     fn render_autonomy_workspace_enforced(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let header = self.render_section_header(warp_i18n::t!("onboarding-agent-section-autonomy"), appearance);
+        let header = self.render_section_header(
+            warp_i18n::t!("onboarding-agent-section-autonomy"),
+            appearance,
+        );
 
         let theme = appearance.theme();
         let background_for_text = theme.background().into_solid();
@@ -723,7 +728,10 @@ impl AgentSlide {
         appearance: &Appearance,
         settings: &AgentDevelopmentSettings,
     ) -> Box<dyn Element> {
-        let header = self.render_section_header(warp_i18n::t!("onboarding-agent-section-autonomy"), appearance);
+        let header = self.render_section_header(
+            warp_i18n::t!("onboarding-agent-section-autonomy"),
+            appearance,
+        );
 
         // The rows now take the full column width (vs. the previous three-across layout),
         // so they no longer need the extra height that came from cramped subtitle wrapping.
@@ -894,7 +902,7 @@ impl AgentSlide {
             // Seed the highlight from the current selection so keyboard nav
             // starts on the selected row.
             let state = self.onboarding_state.as_ref(ctx);
-            let selected_id = state.agent_settings().selected_model_id.clone();
+            let selected_id = state.effective_model_id().clone();
             if let Some(index) = state.models().iter().position(|m| m.id == selected_id) {
                 self.dropdown_scroll_state.scroll_to_position(ScrollTarget {
                     position_id: model_row_position_id(index),
@@ -915,7 +923,7 @@ impl AgentSlide {
         let (model_ids, selected_id) = {
             let state = self.onboarding_state.as_ref(ctx);
             let ids: Vec<LLMId> = state.models().iter().map(|m| m.id.clone()).collect();
-            (ids, state.agent_settings().selected_model_id.clone())
+            (ids, state.effective_model_id().clone())
         };
         let count = model_ids.len();
         if count == 0 {

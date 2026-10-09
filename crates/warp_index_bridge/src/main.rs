@@ -126,9 +126,9 @@ impl WarpIndexBridge {
 
         let mut snapshots = Vec::new();
         if dir.is_dir() {
-            for entry in std::fs::read_dir(&dir).map_err(|e| McpError::internal_error(
-                format!("read_dir failed: {e}"), None,
-            ))? {
+            for entry in std::fs::read_dir(&dir)
+                .map_err(|e| McpError::internal_error(format!("read_dir failed: {e}"), None))?
+            {
                 let Ok(entry) = entry else { continue };
                 let filename = entry.file_name().to_string_lossy().to_string();
                 let Some(digest_str) = filename.strip_prefix("snapshot_") else {
@@ -241,4 +241,3 @@ mod tests {
         assert!(filename[9..].parse::<u64>().is_ok());
     }
 }
-

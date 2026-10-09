@@ -5,9 +5,8 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use warp_core::settings::{
-    macros::define_settings_group, RespectUserSyncSetting, SupportedPlatforms, SyncToCloud,
-};
+use warp_core::settings::macros::define_settings_group;
+use warp_core::settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 use warpui::{AppContext, SingletonEntity};
 
 #[derive(

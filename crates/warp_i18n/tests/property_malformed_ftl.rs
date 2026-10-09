@@ -4,8 +4,8 @@
 //! - (f) malformed FTL MUST be rejected at parse time by the fluent-syntax parser,
 //!   which is the same library used by build.rs for compile-time validation.
 
-use proptest::prelude::*;
 use fluent_syntax::parser;
+use proptest::prelude::*;
 
 /// (f) fluent-syntax parser rejects known-invalid patterns.
 proptest! {

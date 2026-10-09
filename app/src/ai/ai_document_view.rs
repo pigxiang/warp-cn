@@ -7,6 +7,7 @@ use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::icons;
 use warp_core::ui::icons::ICON_DIMENSIONS;
 use warp_core::ui::theme::Fill as ThemeFill;
+use warp_i18n::t;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     ChildAnchor, ChildView, ConstrainedBox, Container, CrossAxisAlignment, Flex, Hoverable,
@@ -60,7 +61,6 @@ use crate::view_components::action_button::{
 };
 use crate::workspace::ToastStack;
 use crate::{BlocklistAIHistoryModel, send_telemetry_from_ctx};
-use warp_i18n::t;
 
 pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([EditableBinding::new(

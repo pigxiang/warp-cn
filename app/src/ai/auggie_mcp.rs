@@ -6,13 +6,14 @@
 
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use regex::Regex;
-use rmcp::{transport::ConfigureCommandExt as _, ServiceExt as _};
+use rmcp::ServiceExt as _;
+use rmcp::transport::ConfigureCommandExt as _;
 use serde_json::json;
 use tokio::io::AsyncBufReadExt as _;
 use tokio::sync::{Mutex, OnceCell};
@@ -342,7 +343,7 @@ fn cancel_connection(connection: AuggieMcpConnection) {
     }
 }
 
-fn make_client_info() -> rmcp::model::ClientInfo {
+fn make_client_info() -> rmcp::model::ClientConfig {
     rmcp::model::InitializeRequestParams::new(
         Default::default(),
         rmcp::model::Implementation::new(
@@ -364,8 +365,8 @@ fn map_service_error(err: rmcp::ServiceError) -> AuggieMcpError {
 fn text_from_call_tool_result(result: &rmcp::model::CallToolResult) -> String {
     let mut text_blocks = Vec::new();
     for content in &result.content {
-        match &content.raw {
-            rmcp::model::RawContent::Text(text_content) => {
+        match content {
+            rmcp::model::ContentBlock::Text(text_content) => {
                 text_blocks.push(text_content.text.clone());
             }
             other => {

@@ -95,3 +95,5 @@ settings-appearance-cmd-suffix-focus-follows-mouse = focus follows mouse
 settings-appearance-cmd-suffix-zen-mode = zen mode
 settings-appearance-cmd-suffix-vertical-tabs = vertical tab layout
 settings-appearance-cmd-suffix-ligatures = ligature rendering
+settings-appearance-window-backdrop = Window backdrop
+settings-appearance-backdrop-not-visible = Backdrop is not visible at opacity 100%

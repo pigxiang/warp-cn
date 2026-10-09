@@ -27,9 +27,9 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use ai::direct_backend::{current_snapshot, DirectProviderKind};
 use ai::LLMId;
-use anyhow::{anyhow, Context};
+use ai::direct_backend::{DirectProviderKind, current_snapshot};
+use anyhow::{Context, anyhow};
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -270,7 +270,11 @@ async fn fetch_gemini(base_url: &str, api_key: &str) -> anyhow::Result<Vec<LLMIn
                     .any(|s| s == "generateContent" || s == "streamGenerateContent")
         })
         .map(|m| {
-            let id = m.name.strip_prefix("models/").unwrap_or(&m.name).to_string();
+            let id = m
+                .name
+                .strip_prefix("models/")
+                .unwrap_or(&m.name)
+                .to_string();
             let display = m.display_name.unwrap_or_else(|| id.clone());
             build_info(LLMProvider::Google, &id, &display)
         })
@@ -394,7 +398,10 @@ mod tests {
         let body = r#"{"data":[{"id":"claude-sonnet-4-6","display_name":"Claude Sonnet 4.6"}]}"#;
         let parsed: AnthropicModelsResponse = serde_json::from_str(body).unwrap();
         assert_eq!(parsed.data[0].id, "claude-sonnet-4-6");
-        assert_eq!(parsed.data[0].display_name.as_deref(), Some("Claude Sonnet 4.6"));
+        assert_eq!(
+            parsed.data[0].display_name.as_deref(),
+            Some("Claude Sonnet 4.6")
+        );
     }
 
     #[test]

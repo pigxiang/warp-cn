@@ -330,7 +330,7 @@ impl platform::Delegate for AppDelegate {
         _window_id: WindowId,
         on_error_callback: SendNotificationErrorCallback,
     ) {
-        use warp_i18n::notification::{truncate, MACOS_MAX};
+        use warp_i18n::notification::{MACOS_MAX, truncate};
         let title = truncate(notification_content.title(), MACOS_MAX);
         let body = truncate(notification_content.body(), MACOS_MAX);
         unsafe {

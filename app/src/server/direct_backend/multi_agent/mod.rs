@@ -20,9 +20,9 @@ mod sse_integration_tests;
 use std::sync::Arc;
 use std::time::Duration;
 
+use futures::StreamExt;
 #[cfg(not(target_family = "wasm"))]
 use futures::stream::BoxStream;
-use futures::StreamExt;
 use uuid::Uuid;
 use warp_multi_agent_api as api;
 
@@ -87,18 +87,12 @@ pub struct DriverOutput {
 pub enum DriverStreamChunk {
     /// Token(s) for an assistant text block. The adapter will start a new
     /// AgentOutput message on first `block_idx` and append on subsequent ones.
-    TextDelta {
-        block_idx: u32,
-        text: String,
-    },
+    TextDelta { block_idx: u32, text: String },
     /// Chain-of-thought tokens emitted by reasoning models (DeepSeek-R1 /
     /// o1-style). Rendered as a separate `AgentReasoning` message so it
     /// shows up as a foldable thinking block instead of being concatenated
     /// onto the visible reply.
-    ReasoningDelta {
-        block_idx: u32,
-        text: String,
-    },
+    ReasoningDelta { block_idx: u32, text: String },
     /// A tool_use block has begun. Adapter ignores; here for tracing.
     #[allow(dead_code)]
     ToolUseStart {
@@ -116,9 +110,7 @@ pub enum DriverStreamChunk {
     },
     /// Soft tool error (parse failure / unknown name). Adapter surfaces it as
     /// inline `[tool error]` text so the model can self-correct next turn.
-    ToolUseSoftError {
-        message: String,
-    },
+    ToolUseSoftError { message: String },
     /// Terminal chunk. After this, no more chunks; the stream MUST be closed.
     Stop {
         stop_reason: Option<String>,
@@ -192,10 +184,7 @@ pub(super) async fn aggregate_stream_to_output(
                     }
                 };
                 match tool_schema::parse_input(kind, parsed_input) {
-                    Ok(tool) => blocks.push(DecodedBlock::ToolUse {
-                        tool_use_id,
-                        tool,
-                    }),
+                    Ok(tool) => blocks.push(DecodedBlock::ToolUse { tool_use_id, tool }),
                     Err(e) => blocks.push(DecodedBlock::Text(format!(
                         "[tool error] `{name}` malformed input: {e}"
                     ))),
@@ -242,11 +231,10 @@ pub(super) async fn aggregate_stream_to_output(
 /// tool descriptions) is JSON-encoded so embedded newlines, quotes, or
 /// instruction-like text from a malicious MCP server cannot escape the
 /// listing format and become prompt injection.
-pub(super) fn compose_system_prompt(
-    base: &str,
-    mcp: Option<&api::request::McpContext>,
-) -> String {
-    let Some(ctx) = mcp else { return base.to_string() };
+pub(super) fn compose_system_prompt(base: &str, mcp: Option<&api::request::McpContext>) -> String {
+    let Some(ctx) = mcp else {
+        return base.to_string();
+    };
     if ctx.servers.is_empty() {
         return base.to_string();
     }
@@ -321,9 +309,9 @@ pub(super) fn prost_value_to_serde_json(v: &prost_types::Value) -> serde_json::V
             .unwrap_or(serde_json::Value::Null),
         Some(Kind::StringValue(s)) => serde_json::Value::String(s.clone()),
         Some(Kind::StructValue(s)) => prost_struct_to_serde_json(s),
-        Some(Kind::ListValue(l)) => serde_json::Value::Array(
-            l.values.iter().map(prost_value_to_serde_json).collect(),
-        ),
+        Some(Kind::ListValue(l)) => {
+            serde_json::Value::Array(l.values.iter().map(prost_value_to_serde_json).collect())
+        }
     }
 }
 
@@ -401,7 +389,11 @@ pub fn run(request: &api::Request) -> AIOutputStream<api::ResponseEvent> {
         provider.kind,
         provider.model_id,
         decoded.turns.len(),
-        decoded.mcp_context.as_ref().map(|m| m.servers.len()).unwrap_or(0),
+        decoded
+            .mcp_context
+            .as_ref()
+            .map(|m| m.servers.len())
+            .unwrap_or(0),
         decoded.existing_task_id.is_some(),
     );
 
@@ -428,11 +420,7 @@ pub fn run(request: &api::Request) -> AIOutputStream<api::ResponseEvent> {
         // subsequent AppendToMessageContent events against.
         prelude.push(encode::build_create_task_action(task_id.clone()));
     }
-    let prelude_stream = futures::stream::iter(
-        prelude
-            .into_iter()
-            .map(Ok::<_, Arc<AIApiError>>),
-    );
+    let prelude_stream = futures::stream::iter(prelude.into_iter().map(Ok::<_, Arc<AIApiError>>));
 
     let body_stream = futures::stream::once(async move {
         let chunks = match provider.kind {

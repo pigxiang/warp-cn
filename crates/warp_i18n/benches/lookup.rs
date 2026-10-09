@@ -3,8 +3,9 @@
 //! Run with `cargo bench -p warp_i18n`. Criterion reports mean / std-dev / outliers; the
 //! Phase-5 perf-regression task gates on these numbers.
 
-use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
+
+use criterion::{Criterion, criterion_group, criterion_main};
 use warp_i18n::{FluentValue, Locale, args_from, init, render, set_locale};
 
 fn bench_lookup(c: &mut Criterion) {

@@ -22,6 +22,7 @@ misc-cycle-suggestions = Cycle suggestions
 misc-mermaid-rendering = Rendering Mermaid diagram…
 misc-no-images = No images
 misc-loading = Loading...
+misc-failed-to-load-image = Failed to load image
 
 # Notebook menus
 misc-notebook-untitled = Untitled

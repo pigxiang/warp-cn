@@ -95,13 +95,22 @@ impl AuthSession {
     }
 
     pub async fn get_or_refresh_access_token(&self) -> Result<AuthToken> {
-        if cfg!(feature = "skip_login") {
-            bail!("skip_login enabled; failing all authenticated requests");
-        }
-
         let Some(credentials) = self.auth_state.credentials() else {
             bail!("missing authentication credentials");
         };
+
+        // warp-cn fork: `skip_login` is a default feature here (it backs the
+        // BYO/direct-backend builds), so blanket-failing every authenticated
+        // request also breaks test-credential requests, which have no real login
+        // to bypass in the first place. Only fail credentials that would
+        // actually reach Warp's servers.
+        #[cfg(feature = "skip_login")]
+        let is_test_credential = matches!(credentials, Credentials::Test);
+        #[cfg(not(feature = "skip_login"))]
+        let is_test_credential = false;
+        if cfg!(feature = "skip_login") && !is_test_credential {
+            bail!("skip_login enabled; failing all authenticated requests");
+        }
 
         match credentials {
             Credentials::ApiKey { key, .. } => Ok(AuthToken::ApiKey(key)),

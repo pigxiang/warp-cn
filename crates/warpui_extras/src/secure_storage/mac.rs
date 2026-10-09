@@ -7,9 +7,12 @@
 //! AES-256-GCM encrypted files under the application's state directory,
 //! mirroring the Linux disk fallback.
 
-use std::{fs::OpenOptions, io::Write, os::unix::fs::OpenOptionsExt, path::PathBuf};
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::PathBuf;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use rand::RngCore;
 use ring::aead;
 

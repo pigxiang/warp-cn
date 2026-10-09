@@ -9,19 +9,18 @@
 
 use std::collections::HashMap;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use futures::StreamExt;
 use reqwest::Client;
 use reqwest_eventsource::{Event as SseEvent, RequestBuilderExt};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
 use super::decode::NormalizedTurn;
-use super::tool_schema;
-use super::{DecodedBlock, DriverChunkStream, DriverOutput, DriverStreamChunk};
-use crate::server::direct_backend::common::truncate_for_log;
+use super::{DecodedBlock, DriverChunkStream, DriverOutput, DriverStreamChunk, tool_schema};
 use crate::server::direct_backend::ResolvedProvider;
+use crate::server::direct_backend::common::truncate_for_log;
 
 const SYSTEM_PROMPT: &str = "You are a helpful coding assistant embedded in the Warp terminal. \
      The user is working in a software project on their local machine. \
@@ -113,24 +112,30 @@ pub async fn call_streaming(
             match st.es.next().await {
                 None => {
                     st.finished = true;
-                    return Some((Ok(DriverStreamChunk::Stop {
-                        stop_reason: st.stop_reason.clone(),
-                        input_tokens: st.input_tokens,
-                        output_tokens: st.output_tokens,
-                        input_cache_read: None,
-                        model_id: st.model_id.clone(),
-                    }), st));
-                }
-                Some(Err(e)) => {
-                    if matches!(e, reqwest_eventsource::Error::StreamEnded) {
-                        st.finished = true;
-                        return Some((Ok(DriverStreamChunk::Stop {
+                    return Some((
+                        Ok(DriverStreamChunk::Stop {
                             stop_reason: st.stop_reason.clone(),
                             input_tokens: st.input_tokens,
                             output_tokens: st.output_tokens,
                             input_cache_read: None,
                             model_id: st.model_id.clone(),
-                        }), st));
+                        }),
+                        st,
+                    ));
+                }
+                Some(Err(e)) => {
+                    if matches!(e, reqwest_eventsource::Error::StreamEnded) {
+                        st.finished = true;
+                        return Some((
+                            Ok(DriverStreamChunk::Stop {
+                                stop_reason: st.stop_reason.clone(),
+                                input_tokens: st.input_tokens,
+                                output_tokens: st.output_tokens,
+                                input_cache_read: None,
+                                model_id: st.model_id.clone(),
+                            }),
+                            st,
+                        ));
                     }
                     st.finished = true;
                     return Some((Err(anyhow!("Gemini SSE: {e}")), st));
@@ -183,7 +188,10 @@ fn parse_gemini_chunk(data: &str, st: &mut StreamState) -> Vec<DriverStreamChunk
     let parsed: GeminiResponse = match serde_json::from_str(data) {
         Ok(v) => v,
         Err(e) => {
-            log::warn!("Gemini SSE: skipping malformed chunk: {e}; data={}", truncate_for_log(data, 256));
+            log::warn!(
+                "Gemini SSE: skipping malformed chunk: {e}; data={}",
+                truncate_for_log(data, 256)
+            );
             return vec![];
         }
     };
@@ -268,7 +276,11 @@ fn project_contents(turns: &[NormalizedTurn]) -> Vec<Value> {
                 }
                 json!({"role": "user", "parts": parts})
             }
-            NormalizedTurn::Assistant { text, tool_uses, reasoning: _ } => {
+            NormalizedTurn::Assistant {
+                text,
+                tool_uses,
+                reasoning: _,
+            } => {
                 let mut parts: Vec<Value> = Vec::new();
                 if let Some(t) = text {
                     if !t.is_empty() {
@@ -389,7 +401,11 @@ fn sanitize_for_gemini(value: Value) -> Value {
                     has_properties = true;
                 }
                 match k.as_str() {
-                    "additionalProperties" | "minItems" | "maxItems" | "minimum" | "maximum"
+                    "additionalProperties"
+                    | "minItems"
+                    | "maxItems"
+                    | "minimum"
+                    | "maximum"
                     | "default" => continue,
                     _ => {
                         out.insert(k, sanitize_for_gemini(v));
@@ -401,9 +417,7 @@ fn sanitize_for_gemini(value: Value) -> Value {
             }
             Value::Object(out)
         }
-        Value::Array(items) => {
-            Value::Array(items.into_iter().map(sanitize_for_gemini).collect())
-        }
+        Value::Array(items) => Value::Array(items.into_iter().map(sanitize_for_gemini).collect()),
         other => other,
     }
 }

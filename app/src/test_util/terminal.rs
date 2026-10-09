@@ -21,6 +21,7 @@ use crate::ai::blocklist::agent_view::orchestration_pill_bar_model::Orchestratio
 use crate::ai::blocklist::local_agent_task_sync_model::LocalAgentTaskSyncModel;
 use crate::ai::blocklist::orchestration_event_streamer::OrchestrationEventStreamer;
 use crate::ai::blocklist::orchestration_events::OrchestrationEventService;
+use crate::ai::blocklist::pending_cli_harness_prompt_queue::PendingCliHarnessPromptQueue;
 use crate::ai::blocklist::{
     BlocklistAIHistoryModel, BlocklistAIPermissions, QueuedQueryModel, SerializedBlockListItem,
 };
@@ -75,6 +76,7 @@ use crate::{AgentNotificationsModel, experiments};
 /// Initializes all of the necessary models to use a terminal view.
 pub fn initialize_app_for_terminal_view(app: &mut App) {
     initialize_history_persistence_for_tests(app);
+    crate::test_util::use_english_locale();
 
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     // Register a disabled `IapManager` (no IAP state) so code paths that read
@@ -117,6 +119,7 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
     app.add_singleton_model(OrchestrationEventService::new);
     app.add_singleton_model(LocalAgentTaskSyncModel::new);
+    app.add_singleton_model(PendingCliHarnessPromptQueue::new);
     app.add_singleton_model(OrchestrationEventStreamer::new);
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());
     app.add_singleton_model(BlocklistAIPermissions::new);

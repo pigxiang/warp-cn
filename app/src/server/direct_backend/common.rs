@@ -2,7 +2,7 @@
 //! the JSON-payload parsers for `generate_commands` / `generate_metadata`,
 //! the ```json fence stripper, and the BYOK unlimited request-limit stub.
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use chrono::Utc;
 use serde_json::Value;
 use warp_graphql::scalars::time::ServerTimestamp;
@@ -36,8 +36,7 @@ Return ONLY a JSON object with these keys:
 If the command has no arguments, return `arguments: []`. No Markdown, no commentary."#;
 
 /// System prompt for the AI Chat side panel / # natural-language conversations.
-pub const DIALOGUE_SYSTEM_PROMPT: &str =
-    "You are Warp's terminal assistant. Answer the user's question concisely. \
+pub const DIALOGUE_SYSTEM_PROMPT: &str = "You are Warp's terminal assistant. Answer the user's question concisely. \
      Use Markdown formatting for code blocks; keep responses focused on the terminal context.";
 
 pub fn parse_commands_payload(raw: &str) -> anyhow::Result<Vec<AIGeneratedCommand>> {

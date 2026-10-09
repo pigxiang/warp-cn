@@ -3,9 +3,11 @@
 //! Tests use the global singleton because that is the only supported entry path; calls
 //! are sequenced with a `Mutex` so the suite remains deterministic under `cargo test`.
 
-use crate::*;
-use parking_lot::Mutex;
 use std::sync::OnceLock;
+
+use parking_lot::Mutex;
+
+use crate::*;
 
 fn lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();

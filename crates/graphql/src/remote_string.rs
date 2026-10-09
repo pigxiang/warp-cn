@@ -15,8 +15,9 @@
 //!   removing the wrapper requires an explicit `into_string()` call, which the lint can
 //!   audit.
 
-use crate::schema;
 use std::fmt;
+
+use crate::schema;
 
 #[derive(cynic::Scalar, Debug, Clone, PartialEq, Eq, Hash)]
 #[cynic(graphql_type = "String")]
