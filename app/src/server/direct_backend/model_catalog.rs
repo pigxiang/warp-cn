@@ -36,6 +36,7 @@ use serde::Deserialize;
 use crate::ai::llms::{
     AvailableLLMs, LLMContextWindow, LLMInfo, LLMProvider, LLMUsageMetadata, ModelsByFeature,
 };
+use crate::server::direct_backend::common::api_url;
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -140,7 +141,7 @@ struct OpenAiModelEntry {
 }
 
 async fn fetch_openai_like(base_url: &str, api_key: &str) -> anyhow::Result<Vec<LLMInfo>> {
-    let url = format!("{base_url}/v1/models");
+    let url = api_url(base_url, "v1", "models");
     let client = Client::builder()
         .timeout(HTTP_TIMEOUT)
         .build()
@@ -185,7 +186,7 @@ struct AnthropicModelEntry {
 }
 
 async fn fetch_anthropic(base_url: &str, api_key: &str) -> anyhow::Result<Vec<LLMInfo>> {
-    let url = format!("{base_url}/v1/models");
+    let url = api_url(base_url, "v1", "models");
     let client = Client::builder()
         .timeout(HTTP_TIMEOUT)
         .build()
@@ -237,7 +238,7 @@ struct GeminiModelEntry {
 }
 
 async fn fetch_gemini(base_url: &str, api_key: &str) -> anyhow::Result<Vec<LLMInfo>> {
-    let url = format!("{base_url}/v1beta/models");
+    let url = api_url(base_url, "v1beta", "models");
     let client = Client::builder()
         .timeout(HTTP_TIMEOUT)
         .build()

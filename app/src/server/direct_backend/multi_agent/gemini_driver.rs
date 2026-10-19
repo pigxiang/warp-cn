@@ -20,7 +20,7 @@ use uuid::Uuid;
 use super::decode::NormalizedTurn;
 use super::tool_schema;
 use super::{DecodedBlock, DriverChunkStream, DriverOutput, DriverStreamChunk};
-use crate::server::direct_backend::common::truncate_for_log;
+use crate::server::direct_backend::common::{self, truncate_for_log};
 use crate::server::direct_backend::ResolvedProvider;
 
 const SYSTEM_PROMPT: &str = "You are a helpful coding assistant embedded in the Warp terminal. \
@@ -74,9 +74,10 @@ pub async fn call_streaming(
 
     // `?alt=sse` is REQUIRED. Without it Gemini returns a JSON array of
     // generation chunks, not an SSE stream.
-    let url = format!(
-        "{}/v1beta/models/{}:streamGenerateContent?alt=sse",
-        provider.base_url, provider.model_id
+    let url = common::api_url(
+        &provider.base_url,
+        "v1beta",
+        &format!("models/{}:streamGenerateContent?alt=sse", provider.model_id),
     );
 
     let client = Client::builder()

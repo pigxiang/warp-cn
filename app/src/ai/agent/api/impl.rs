@@ -13,6 +13,10 @@ use crate::server::server_api::{AIApiError, ServerApi};
 use crate::server::team_scope::RequestTeamScope;
 use crate::terminal::model::session::SessionType;
 
+#[cfg_attr(
+    feature = "direct_llm_backend",
+    allow(unreachable_code, unused_variables)
+)]
 pub async fn generate_multi_agent_output(
     server_api: Arc<ServerApi>,
     mut params: RequestParams,
@@ -148,12 +152,12 @@ pub async fn generate_multi_agent_output(
         mcp_context: params.mcp_context.map(Into::into),
     };
 
-    // warp-cn fork (M4.2.1): Direct mode short-circuit. Drives the
-    // user-configured provider (`WARP_CN_DIRECT_PROVIDER` + `WARP_CN_API_KEY`)
-    // instead of `app.warp.dev/ai/multi-agent`; see
-    // `app/src/server/direct_backend/multi_agent/`.
+    // warp-cn fork (M4.2.1): the Warp cloud Agent Mode backend is disabled —
+    // every agent request is served by the user-configured provider through
+    // `app/src/server/direct_backend/multi_agent/`. The cloud call below is
+    // deliberately unreachable while `direct_llm_backend` is compiled in.
     #[cfg(feature = "direct_llm_backend")]
-    if FeatureFlag::DirectLlmBackend.is_enabled() {
+    {
         let stream = crate::server::direct_backend::multi_agent::run(&request);
         return Ok(Box::pin(stream.take_until(cancellation_rx)));
     }

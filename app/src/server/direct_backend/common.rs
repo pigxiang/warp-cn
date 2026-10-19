@@ -169,6 +169,47 @@ pub fn truncate_for_log(s: &str, max: usize) -> String {
     }
 }
 
+/// Builds the request URL for `path` under `base_url`.
+///
+/// Gateways disagree on whether the API version belongs to the base URL:
+/// OpenAI serves `https://api.openai.com/v1/chat/completions`, while Volcano
+/// Ark serves the same Chat Completions API at
+/// `https://ark.cn-beijing.volces.com/api/v3/chat/completions` — no `/v1`
+/// segment at all. Appending `/{version}/{path}` unconditionally 404s on the
+/// latter, so the version segment is only inserted when the base URL does not
+/// already end in one (`v1`, `v2`, `v3`, `v1beta`, …) and does not already
+/// carry the full path.
+pub fn api_url(base_url: &str, version: &str, path: &str) -> String {
+    let base = base_url.trim().trim_end_matches('/');
+    if base.ends_with(path) {
+        return base.to_owned();
+    }
+    if ends_with_version_segment(base) {
+        format!("{base}/{path}")
+    } else {
+        format!("{base}/{version}/{path}")
+    }
+}
+
+/// Whether the URL's last path segment is an API version tag. Hosts never
+/// qualify: `api.openai.com` and `ark.cn-beijing.volces.com` fail the digit
+/// check that `v3` and `v1beta` pass.
+fn ends_with_version_segment(url: &str) -> bool {
+    let Some(last) = url.rsplit('/').next() else {
+        return false;
+    };
+    let Some(version) = last.strip_prefix('v') else {
+        return false;
+    };
+    let digit_len = version
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(version.len());
+    digit_len > 0
+        && version[digit_len..]
+            .chars()
+            .all(|c| c.is_ascii_alphabetic())
+}
+
 /// Direct mode bypasses Warp Credits entirely; we still have to populate the
 /// `RequestLimitInfo` field on `GenerateDialogueResult::Success` so downstream
 /// rate-limit UI doesn't surface "you're out of credits".
@@ -191,3 +232,7 @@ pub fn byok_unlimited_request_limit() -> RequestLimitInfo {
         embedding_generation_batch_size: 100,
     }
 }
+
+#[cfg(test)]
+#[path = "common_tests.rs"]
+mod tests;

@@ -17,6 +17,10 @@ pub mod tool_schema;
 #[cfg(test)]
 mod sse_integration_tests;
 
+#[cfg(test)]
+#[path = "mod_test.rs"]
+mod tests;
+
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -53,8 +57,9 @@ const STUB_MESSAGE: &str = "Direct LLM mode is enabled (warp-cn fork). Agent Mod
      Chat side panel or `#` natural-language commands while M4 follow-up \
      phases ship real tool support.";
 
-const NO_PROVIDER: &str = "Direct LLM Agent Mode (M4.2) needs provider credentials. \
-     Set `WARP_CN_DIRECT_PROVIDER=anthropic|openai|openai-compatible|gemini` \
+const NO_PROVIDER: &str = "Direct LLM Agent Mode (M4.2) has no provider to call. Pick a model \
+     from a Custom Endpoint that has both a URL and an API key, or set \
+     `WARP_CN_DIRECT_PROVIDER=anthropic|openai|openai-compatible|gemini` \
      and `WARP_CN_API_KEY=...` in your environment, then restart Warp.";
 
 /// One block produced by a driver: either a plain text reply or a parsed
@@ -375,11 +380,6 @@ pub fn run(request: &api::Request) -> AIOutputStream<api::ResponseEvent> {
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    let mut provider = match resolve_provider() {
-        Some(p) => p,
-        None => return error_stream(conversation_id, NO_PROVIDER.into()),
-    };
-
     let decoded = decode::decode(request);
     if !decoded.has_user_input {
         return error_stream(
@@ -388,13 +388,10 @@ pub fn run(request: &api::Request) -> AIOutputStream<api::ResponseEvent> {
         );
     }
 
-    // Picker selection overrides the per-provider default. Without this the
-    // dynamic catalog ID (e.g. `deepseek-v4-flash`) shown in `/MODEL` would
-    // be ignored and DeepSeek would reject the request because we shipped
-    // the OpenAI default `gpt-4o-mini`.
-    if let Some(base) = decoded.base_model.as_deref() {
-        provider.model_id = base.to_owned();
-    }
+    let provider = match resolve_provider(request, decoded.base_model.as_deref()) {
+        Ok(provider) => provider,
+        Err(message) => return error_stream(conversation_id, message),
+    };
 
     log::info!(
         "DirectBackend run: provider={:?} model={} turns={} mcp_servers={} existing_task={}",
@@ -571,17 +568,110 @@ pub(super) fn sanitize_error(e: &anyhow::Error) -> String {
     format!("Direct LLM Agent Mode failed: {s}")
 }
 
-fn resolve_provider() -> Option<ResolvedProvider> {
-    // Priority 1: in-process snapshot of `DirectBackendConfig` (UI-driven).
+fn resolve_provider(
+    request: &api::Request,
+    base_model: Option<&str>,
+) -> Result<ResolvedProvider, String> {
+    // Priority 1: the selection points at a user-configured Custom Endpoint,
+    // whose URL and key ship inline with the request. This is the only source
+    // that can serve third-party gateways registered in Settings → AI → API
+    // Keys, and it needs no ambient Direct-backend configuration.
+    if let Some(resolved) = resolve_from_custom_model(request, base_model) {
+        return resolved;
+    }
+
+    // Priority 2: in-process snapshot of `DirectBackendConfig` (UI-driven).
     // The snapshot is published whenever the model persists, so changes
     // through the settings page take effect for the next agent turn without
     // requiring a restart or env-var hack.
-    if let Some(p) = resolve_from_snapshot() {
-        return Some(p);
+    let mut provider = resolve_from_snapshot()
+        // Priority 3: env-vars. Original M2-era escape hatch for headless
+        // dev/QA flows that pre-date the settings UI.
+        .or_else(resolve_from_env)
+        .ok_or_else(|| NO_PROVIDER.to_owned())?;
+
+    // Picker selection overrides the per-provider default. Without this the
+    // dynamic catalog ID (e.g. `deepseek-v4-flash`) shown in `/MODEL` would
+    // be ignored and DeepSeek would reject the request because we shipped
+    // the OpenAI default `gpt-4o-mini`.
+    if let Some(base) = base_model {
+        provider.model_id = base.to_owned();
     }
-    // Priority 2: env-vars. Original M2-era escape hatch for headless
-    // dev/QA flows that pre-date the settings UI.
-    resolve_from_env()
+    Ok(provider)
+}
+
+/// Resolve a `/MODEL` selection that names a Custom Endpoint model.
+///
+/// `Settings.custom_model_providers` carries one entry per configured endpoint
+/// (base URL, API key, wire schema) and `Settings.model_config.base` carries the
+/// selected model's `config_key`, so the mapping the Warp cloud performs
+/// server-side happens here instead. `Err` carries a user-facing message for
+/// endpoints this build cannot drive; `None` means the selection isn't a custom
+/// model and the ambient configuration should be consulted instead.
+fn resolve_from_custom_model(
+    request: &api::Request,
+    base_model: Option<&str>,
+) -> Option<Result<ResolvedProvider, String>> {
+    use api::request::settings::custom_model_providers::CustomEndpointSchema;
+
+    let selected = base_model?;
+    let providers = request
+        .settings
+        .as_ref()?
+        .custom_model_providers
+        .as_ref()?
+        .providers
+        .iter()
+        .find(|provider| {
+            provider
+                .models
+                .iter()
+                .any(|model| model.config_key == selected)
+        })?;
+    let model = providers
+        .models
+        .iter()
+        .find(|model| model.config_key == selected)?;
+
+    let kind = match CustomEndpointSchema::try_from(providers.schema) {
+        Ok(CustomEndpointSchema::OpenaiChatCompletions) => DirectProviderKind::OpenAiCompatible,
+        Ok(CustomEndpointSchema::AnthropicMessages) => DirectProviderKind::Anthropic,
+        Ok(CustomEndpointSchema::OpenaiResponses) => {
+            return Some(Err(format!(
+                "The custom endpoint `{}` speaks the OpenAI Responses API, which Direct LLM \
+                 Agent Mode can't drive yet. Set its schema to `OpenAI Chat Completions` in \
+                 Settings → AI → API Keys.",
+                providers.base_url
+            )));
+        }
+        Err(unknown) => {
+            return Some(Err(format!(
+                "The custom endpoint `{}` declares an unknown schema ({unknown}).",
+                providers.base_url
+            )));
+        }
+    };
+
+    let base_url = providers.base_url.trim().trim_end_matches('/').to_owned();
+    if base_url.is_empty() {
+        return Some(Err(
+            "The selected custom model has no endpoint URL. Set one in Settings → AI → API Keys."
+                .to_owned(),
+        ));
+    }
+    let api_key = providers.api_key.trim();
+    if api_key.is_empty() {
+        return Some(Err(format!(
+            "The custom endpoint `{base_url}` has no API key. Add one in Settings → AI → API Keys."
+        )));
+    }
+
+    Some(Ok(ResolvedProvider {
+        kind,
+        api_key: api_key.to_owned(),
+        base_url,
+        model_id: model.slug.trim().to_owned(),
+    }))
 }
 
 fn resolve_from_snapshot() -> Option<ResolvedProvider> {

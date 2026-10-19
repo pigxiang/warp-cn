@@ -853,9 +853,9 @@ skip_login = ["warp_server_client/skip_login"]
 # Anthropic / Gemini / OpenAI-compatible gateways) and bypass Warp cloud auth.
 # Implies `skip_login` (so the app starts without forcing a login flow), and
 # `local_computer_use` + `agent_mode_computer_use` (so Claude can drive the
-# desktop in fully-offline mode). The runtime FeatureFlag::DirectLlmBackend is
-# what gates request routing at the call sites; this cargo feature only
-# controls compile-time inclusion of the bypass paths.
+# desktop in fully-offline mode). This cargo feature also decides whether the
+# Warp cloud Agent Mode backend is reachable: when it is compiled in, every
+# agent request is served by the local Direct LLM backend instead.
 direct_llm_backend = [
     "skip_login",
     "local_computer_use",

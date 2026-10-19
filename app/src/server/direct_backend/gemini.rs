@@ -20,8 +20,8 @@ use crate::ai_assistant::{
 use crate::drive::workflows::ai_assist::{GeneratedCommandMetadata, GeneratedCommandMetadataError};
 
 use super::common::{
-    byok_unlimited_request_limit, parse_commands_payload, parse_metadata_payload, truncate_for_log,
-    COMMANDS_SYSTEM_PROMPT, DIALOGUE_SYSTEM_PROMPT, METADATA_SYSTEM_PROMPT,
+    api_url, byok_unlimited_request_limit, parse_commands_payload, parse_metadata_payload,
+    truncate_for_log, COMMANDS_SYSTEM_PROMPT, DIALOGUE_SYSTEM_PROMPT, METADATA_SYSTEM_PROMPT,
 };
 use super::{LlmBackend, ResolvedProvider};
 
@@ -39,9 +39,10 @@ impl GeminiBackend {
     }
 
     fn generate_url(&self) -> String {
-        format!(
-            "{}/v1beta/models/{}:generateContent",
-            self.provider.base_url, self.provider.model_id
+        api_url(
+            &self.provider.base_url,
+            "v1beta",
+            &format!("models/{}:generateContent", self.provider.model_id),
         )
     }
 

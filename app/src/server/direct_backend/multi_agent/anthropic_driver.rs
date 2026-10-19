@@ -19,7 +19,7 @@ use serde_json::{json, Value};
 use super::decode::NormalizedTurn;
 use super::tool_schema;
 use super::{DecodedBlock, DriverChunkStream, DriverOutput, DriverStreamChunk};
-use crate::server::direct_backend::common::truncate_for_log;
+use crate::server::direct_backend::common::{self, truncate_for_log};
 use crate::server::direct_backend::ResolvedProvider;
 
 const ANTHROPIC_VERSION: &str = "2023-06-01";
@@ -79,7 +79,7 @@ pub async fn call_streaming(
         stream: true,
     };
 
-    let url = format!("{}/v1/messages", provider.base_url);
+    let url = common::api_url(&provider.base_url, "v1", "messages");
     let client = Client::builder()
         .timeout(super::HTTP_TIMEOUT)
         .build()
