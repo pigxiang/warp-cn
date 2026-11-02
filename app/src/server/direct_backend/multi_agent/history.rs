@@ -1,12 +1,13 @@
 //! Per-conversation transcript retention for the stateless direct LLM backend.
 //!
 //! Upstream, `warp-server` owns the task transcript, so a follow-up request
-//! only carries the delta: the assistant's `ToolCall` messages plus the
-//! matching `ToolCallResult` inputs. Provider calls are stateless HTTP
-//! requests, so replaying that delta alone opens the conversation on an
-//! `assistant` message with no user turn — Ark/GLM answers with an opaque
+//! carries the current task's `ToolCall` messages plus their `ToolCallResult`
+//! inputs, but not the earlier turns of the conversation. Provider calls are
+//! stateless HTTP requests, so replaying that alone opens the conversation on
+//! an `assistant` message with no user turn — Ark/GLM answer with an opaque
 //! `InvalidParameter` 400 and Anthropic rejects the shape outright. The
-//! transcript is kept here and each delta is spliced onto the cached prefix.
+//! transcript is kept here and spliced onto the request's batch, whose tool
+//! items repeat what the cached turns already sent.
 
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -58,6 +59,12 @@ impl Transcripts {
         let mut merged = cached[..cached.len() - overlap].to_vec();
         merged.extend(incoming);
 
+        let duplicates = dedupe_replayed_tool_items(&mut merged);
+        if duplicates > 0 {
+            log::warn!(
+                "DirectBackend history: {conversation_id} dropped {duplicates} duplicate tool item(s)"
+            );
+        }
         let trimmed = enforce_budget(&mut merged);
         if trimmed > 0 {
             log::warn!(
@@ -149,6 +156,50 @@ fn turn_key(turn: &NormalizedTurn) -> u64 {
     hasher.finish()
 }
 
+/// Drops tool calls and tool results an earlier turn of the transcript already
+/// carries, then drops turns left with nothing to send.
+///
+/// The client ships the whole current task transcript on every follow-up
+/// (`task_context.tasks[*].messages`), so each request's tool batch is a
+/// superset of what was already put on the wire. [`align`] cannot see that:
+/// its turn key hashes the whole batch's ids, which grow every step. Without
+/// this, every step is replayed once per following turn and the provider
+/// payload grows quadratically.
+fn dedupe_replayed_tool_items(turns: &mut Vec<NormalizedTurn>) -> usize {
+    let mut called: HashSet<String> = HashSet::new();
+    let mut answered: HashSet<String> = HashSet::new();
+    let mut dropped = 0usize;
+    for turn in turns.iter_mut() {
+        match turn {
+            NormalizedTurn::Assistant { tool_uses, .. } => {
+                let before = tool_uses.len();
+                tool_uses.retain(|call| called.insert(call.tool_use_id.clone()));
+                dropped += before - tool_uses.len();
+            }
+            NormalizedTurn::User { tool_results, .. } => {
+                let before = tool_results.len();
+                tool_results.retain(|result| answered.insert(result.tool_use_id.clone()));
+                dropped += before - tool_results.len();
+            }
+        }
+    }
+    turns.retain(is_populated);
+    dropped
+}
+
+/// A turn with neither prose nor tool traffic renders as an empty message,
+/// which providers reject.
+fn is_populated(turn: &NormalizedTurn) -> bool {
+    match turn {
+        NormalizedTurn::User { text, tool_results } => text.is_some() || !tool_results.is_empty(),
+        NormalizedTurn::Assistant {
+            text,
+            tool_uses,
+            reasoning,
+        } => text.is_some() || !tool_uses.is_empty() || reasoning.is_some(),
+    }
+}
+
 /// Drops the oldest turns until both the turn count and the text budget fit.
 fn enforce_budget(turns: &mut Vec<NormalizedTurn>) -> usize {
     let mut dropped = 0usize;
@@ -201,14 +252,7 @@ fn strip_orphaned_tool_results(turns: &mut Vec<NormalizedTurn>) -> usize {
         }
     }
 
-    turns.retain(|turn| match turn {
-        NormalizedTurn::User { text, tool_results } => text.is_some() || !tool_results.is_empty(),
-        NormalizedTurn::Assistant {
-            text,
-            tool_uses,
-            reasoning,
-        } => text.is_some() || !tool_uses.is_empty() || reasoning.is_some(),
-    });
+    turns.retain(is_populated);
     stripped
 }
 

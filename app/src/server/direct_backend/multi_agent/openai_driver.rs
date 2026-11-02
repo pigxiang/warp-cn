@@ -6,10 +6,10 @@
 //! carries `usage` for token accounting.
 
 use std::collections::HashMap;
+use std::error::Error as _;
 
 use anyhow::{anyhow, Context};
 use futures::StreamExt;
-use reqwest::Client;
 use reqwest_eventsource::{Event as SseEvent, RequestBuilderExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -81,10 +81,7 @@ pub async fn call_streaming(
     };
 
     let url = common::api_url(&provider.base_url, "v1", "chat/completions");
-    let client = Client::builder()
-        .timeout(super::HTTP_TIMEOUT)
-        .build()
-        .context("OpenAI agent client init")?;
+    let client = super::streaming_client().context("OpenAI agent client init")?;
     let req = client
         .post(&url)
         .bearer_auth(&provider.api_key)
@@ -279,7 +276,34 @@ async fn describe_sse_error(e: reqwest_eventsource::Error) -> String {
             let truncated: String = body.chars().take(500).collect();
             format!("invalid content-type {ct:?}: {truncated}")
         }
-        other => format!("{other}"),
+        other => describe_transport_error(&other),
+    }
+}
+
+/// Reqwest labels a deadline that fires while the body is still streaming as a
+/// plain decode failure (`error decoding response body`), which reads like the
+/// provider sent malformed SSE frames. Only the source chain says which
+/// deadline fired, so walk it and name a timeout explicitly.
+fn describe_transport_error(e: &reqwest_eventsource::Error) -> String {
+    let mut parts: Vec<String> = vec![e.to_string()];
+    let mut timed_out = false;
+    let mut cause = e.source();
+    while let Some(current) = cause {
+        if let Some(http) = current.downcast_ref::<reqwest::Error>() {
+            timed_out |= http.is_timeout();
+        }
+        parts.push(current.to_string());
+        cause = current.source();
+    }
+    if timed_out {
+        format!(
+            "provider stream timed out (idle {}s, total {}s): {}",
+            super::HTTP_IDLE_TIMEOUT.as_secs(),
+            super::HTTP_TOTAL_TIMEOUT.as_secs(),
+            parts.join(": "),
+        )
+    } else {
+        parts.join(": ")
     }
 }
 

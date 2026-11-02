@@ -11,7 +11,6 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Context};
 use futures::StreamExt;
-use reqwest::Client;
 use reqwest_eventsource::{Event as SseEvent, EventSource, RequestBuilderExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -80,10 +79,7 @@ pub async fn call_streaming(
     };
 
     let url = common::api_url(&provider.base_url, "v1", "messages");
-    let client = Client::builder()
-        .timeout(super::HTTP_TIMEOUT)
-        .build()
-        .context("Anthropic agent client init")?;
+    let client = super::streaming_client().context("Anthropic agent client init")?;
     let req = client
         .post(&url)
         .header("x-api-key", &provider.api_key)
