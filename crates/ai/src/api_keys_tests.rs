@@ -326,7 +326,7 @@ fn custom_endpoint_definitions_reject_duplicate_model_config_keys() {
 }
 
 #[test]
-fn custom_endpoint_url_requires_public_https() {
+fn custom_endpoint_url_policy_follows_direct_mode() {
     for valid in [
         "https://api.example.com/v1",
         "https://openrouter.ai/api/v1",
@@ -334,19 +334,41 @@ fn custom_endpoint_url_requires_public_https() {
     ] {
         assert_eq!(validate_custom_endpoint_url(valid), Ok(()));
     }
-    for invalid in [
-        "http://api.example.com/v1",
-        "https://localhost:8080",
-        "https://127.0.0.1/v1",
-        "https://10.0.0.1/v1",
-        "https://[::1]/v1",
-        "not a url",
-    ] {
-        assert!(
-            validate_custom_endpoint_url(invalid).is_err(),
-            "{invalid} should be rejected"
+
+    if cfg!(feature = "direct_llm_backend") {
+        for valid in [
+            "http://api.example.com/v1",
+            "http://192.168.106.85:12345/v1",
+            "https://localhost:8080",
+            "https://10.0.0.1/v1",
+            "https://[::1]/v1",
+        ] {
+            assert_eq!(
+                validate_custom_endpoint_url(valid),
+                Ok(()),
+                "{valid} should be accepted when this process dials the endpoint"
+            );
+        }
+        assert_eq!(
+            validate_custom_endpoint_url("ftp://files.example.com"),
+            Err("URL must use HTTP or HTTPS")
         );
+    } else {
+        for invalid in [
+            "http://api.example.com/v1",
+            "https://localhost:8080",
+            "https://127.0.0.1/v1",
+            "https://10.0.0.1/v1",
+            "https://[::1]/v1",
+        ] {
+            assert!(
+                validate_custom_endpoint_url(invalid).is_err(),
+                "{invalid} should be rejected"
+            );
+        }
     }
+
+    assert!(validate_custom_endpoint_url("not a url").is_err());
 }
 
 #[test]

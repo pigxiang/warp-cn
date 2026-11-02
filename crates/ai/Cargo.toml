@@ -10,6 +10,9 @@ jemalloc = []
 local_fs = []
 test-util = []
 crash_reporting = ["dep:sentry"]
+# warp-cn fork: this process calls user-configured endpoints directly, which
+# makes LAN/self-hosted gateways a valid custom-endpoint target.
+direct_llm_backend = []
 
 [dependencies]
 async-channel.workspace = true
