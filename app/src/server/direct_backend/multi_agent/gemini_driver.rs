@@ -11,7 +11,6 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Context};
 use futures::StreamExt;
-use reqwest::Client;
 use reqwest_eventsource::{Event as SseEvent, RequestBuilderExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
@@ -80,10 +79,7 @@ pub async fn call_streaming(
         &format!("models/{}:streamGenerateContent?alt=sse", provider.model_id),
     );
 
-    let client = Client::builder()
-        .timeout(super::HTTP_TIMEOUT)
-        .build()
-        .context("Gemini agent client init")?;
+    let client = super::streaming_client().context("Gemini agent client init")?;
     let req = client
         .post(&url)
         .header("x-goog-api-key", &provider.api_key)

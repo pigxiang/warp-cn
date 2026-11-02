@@ -55,6 +55,26 @@ fn role_of(turn: &NormalizedTurn) -> &'static str {
     }
 }
 
+fn call_ids(turns: &[NormalizedTurn]) -> Vec<String> {
+    let mut ids = Vec::new();
+    for turn in turns {
+        if let NormalizedTurn::Assistant { tool_uses, .. } = turn {
+            ids.extend(tool_uses.iter().map(|call| call.tool_use_id.clone()));
+        }
+    }
+    ids
+}
+
+fn result_ids(turns: &[NormalizedTurn]) -> Vec<String> {
+    let mut ids = Vec::new();
+    for turn in turns {
+        if let NormalizedTurn::User { tool_results, .. } = turn {
+            ids.extend(tool_results.iter().map(|result| result.tool_use_id.clone()));
+        }
+    }
+    ids
+}
+
 #[test]
 fn first_user_turn_survives_the_tool_followup() {
     let mut store = Transcripts::default();
@@ -143,6 +163,48 @@ fn the_text_budget_evicts_oldest_turns_first() {
     assert_eq!(transcript_chars(&merged), 7 * 30_000 + "last".len());
     assert_eq!(leading_text(&merged).as_deref(), Some(big.as_str()));
     assert_eq!(role_of(merged.last().unwrap()), "user");
+}
+
+#[test]
+fn a_batch_that_repeats_earlier_steps_contributes_only_the_new_step() {
+    let mut store = Transcripts::default();
+    store.merge("conv-g", vec![user_text("go")]);
+    store.merge("conv-g", vec![assistant_calls(&["c1"]), user_results(&["c1"])]);
+
+    let merged = store.merge(
+        "conv-g",
+        vec![
+            assistant_calls(&["c1", "c2"]),
+            user_results(&["c2", "c1"]),
+            user_text("next"),
+        ],
+    );
+    assert_eq!(
+        merged.iter().map(role_of).collect::<Vec<_>>(),
+        vec!["user", "assistant", "user", "assistant", "user", "user"]
+    );
+    assert_eq!(call_ids(&merged), vec!["c1", "c2"]);
+    assert_eq!(result_ids(&merged), vec!["c1", "c2"]);
+}
+
+#[test]
+fn cumulative_batches_keep_the_transcript_linear() {
+    let mut store = Transcripts::default();
+    store.merge("conv-h", vec![user_text("go")]);
+
+    let ids: Vec<String> = (1..=10).map(|i| format!("c{i}")).collect();
+    let mut merged = Vec::new();
+    for step in 1..=10 {
+        let batch: Vec<&str> = ids[..step].iter().map(String::as_str).collect();
+        merged = store.merge(
+            "conv-h",
+            vec![assistant_calls(&batch), user_results(&batch)],
+        );
+    }
+
+    assert_eq!(merged.len(), 1 + 2 * ids.len());
+    assert_eq!(call_ids(&merged).len(), ids.len());
+    assert_eq!(result_ids(&merged).len(), ids.len());
 }
 
 #[test]

@@ -46,11 +46,32 @@ cfg_if::cfg_if! {
     }
 }
 
-/// Hard ceiling on a single provider HTTP call. Without this any of the
-/// drivers' `reqwest::Client::send().await` calls could hang indefinitely on
-/// a stalled proxy / TCP connection / never-ending body, leaving the UI
-/// waiting on a stream that emitted `Init` but never `Finished`.
-pub(super) const HTTP_TIMEOUT: Duration = Duration::from_secs(120);
+/// Ceiling on establishing the transport to a provider (TCP + TLS).
+pub(super) const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Ceiling on one read from a provider. The deadline starts when the request is
+/// issued, so it also bounds waiting for response headers, and it resets after
+/// every body chunk — which is what keeps a long agent turn (large transcript
+/// prefill, then a slow local decode) alive while the provider keeps talking.
+pub(super) const HTTP_IDLE_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// Backstop so a provider that trickles keep-alives forever can't leave the UI
+/// waiting on a stream that emitted `Init` but never `Finished`. Deliberately
+/// far above a legitimate generation: reqwest surfaces a total-deadline hit
+/// mid-body as `error decoding response body`, which reads like the provider
+/// sent corrupt data.
+pub(super) const HTTP_TOTAL_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+
+/// Shared client for the streaming drivers. The per-call deadline must not be
+/// `Client::timeout` — that one covers the whole body and severs healthy
+/// streams at a fixed wall clock regardless of progress.
+pub(super) fn streaming_client() -> Result<reqwest::Client, reqwest::Error> {
+    reqwest::Client::builder()
+        .connect_timeout(HTTP_CONNECT_TIMEOUT)
+        .read_timeout(HTTP_IDLE_TIMEOUT)
+        .timeout(HTTP_TOTAL_TIMEOUT)
+        .build()
+}
 
 #[allow(dead_code)] // legacy stub path; preserved for explicit fallback callers.
 const STUB_MESSAGE: &str = "Direct LLM mode is enabled (warp-cn fork). Agent Mode tool calling \
