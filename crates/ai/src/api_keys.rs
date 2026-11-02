@@ -370,13 +370,28 @@ impl schemars::JsonSchema for CustomEndpointDefinitions {
 
 pub fn validate_custom_endpoint_url(value: &str) -> Result<(), &'static str> {
     let parsed = Url::parse(value).map_err(|_| "Invalid URL")?;
-    if parsed.scheme() != "https" {
-        return Err("URL must use HTTPS");
-    }
-    let Some(host) = parsed.host_str().filter(|host| !host.is_empty()) else {
-        return Err("URL must include a host");
+    // warp-cn fork: under `direct_llm_backend` the endpoint is dialed from this
+    // process, so a LAN/self-hosted gateway on plain HTTP is the normal setup.
+    // Upstream relays custom endpoints through Warp cloud, where both the
+    // cleartext and the internal-address cases are SSRF vectors.
+    let direct_mode = cfg!(feature = "direct_llm_backend");
+    let scheme_is_allowed = if direct_mode {
+        matches!(parsed.scheme(), "https" | "http")
+    } else {
+        parsed.scheme() == "https"
     };
-    if is_restricted_host(host) {
+    if !scheme_is_allowed {
+        return Err(if direct_mode {
+            "URL must use HTTP or HTTPS"
+        } else {
+            "URL must use HTTPS"
+        });
+    }
+    let host = parsed.host_str().filter(|host| !host.is_empty());
+    if host.is_none() {
+        return Err("URL must include a host");
+    }
+    if !direct_mode && is_restricted_host(host.unwrap()) {
         return Err("URL must not use a local or private host");
     }
     Ok(())

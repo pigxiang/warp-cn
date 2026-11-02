@@ -860,6 +860,7 @@ direct_llm_backend = [
     "skip_login",
     "local_computer_use",
     "agent_mode_computer_use",
+    "ai/direct_llm_backend",
 ]
 # This feature should only be enabled when building a self-contained binary with the bundle script.
 standalone = ["warp_assets/standalone", "warp_core/standalone"]

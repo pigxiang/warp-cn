@@ -192,7 +192,16 @@ impl UserWorkspaces {
     /// Whether custom inference endpoints are enabled for the current user.
     /// Anonymous or logged-out users are not allowed to use custom inference.
     /// Controlled by the BYO_ENDPOINT billing policy.
+    ///
+    /// warp-cn fork: when `direct_llm_backend` is compiled in, inference is served
+    /// by this process, so neither the login requirement nor the BYO_ENDPOINT
+    /// paywall may hide the user's own endpoints — this fork's builds run
+    /// logged-out. Upstream behavior is preserved when the feature is off.
     pub fn is_byo_endpoint_enabled(&self, app: &AppContext) -> bool {
+        if cfg!(feature = "direct_llm_backend") {
+            return true;
+        }
+
         if AuthStateProvider::as_ref(app)
             .get()
             .is_anonymous_or_logged_out()

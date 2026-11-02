@@ -151,7 +151,14 @@ impl CustomEndpointModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Please include 'https://'", ctx);
+            editor.set_placeholder_text(
+                if cfg!(feature = "direct_llm_backend") {
+                    "Include 'https://' or 'http://host:port' (LAN endpoints allowed)"
+                } else {
+                    "Please include 'https://'"
+                },
+                ctx,
+            );
             if let Some(ep) = endpoint {
                 editor.set_buffer_text(&ep.url, ctx);
             }
