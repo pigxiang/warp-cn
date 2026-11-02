@@ -91,8 +91,12 @@ pub async fn call_streaming(
         .header("accept", "text/event-stream")
         .json(&body);
     log::info!(
-        "DirectBackend OpenAI: opening SSE url={} model={} messages={} tools={}",
-        url, provider.model_id, body.messages.len(), body.tools.len(),
+        "DirectBackend OpenAI: opening SSE url={} model={} messages={} tools={} shape=[{}]",
+        url,
+        provider.model_id,
+        body.messages.len(),
+        body.tools.len(),
+        message_shape(&body.messages),
     );
     let event_source = req.eventsource().context("OpenAI SSE init")?;
 
@@ -502,6 +506,45 @@ fn ensure_tool_results_complete(messages: &mut Vec<Value>) {
     }
 }
 
+/// Compact structural summary of an outgoing message list. Gateways answer a
+/// malformed turn with an opaque `InvalidParameter` 400 that names no field, so
+/// this is logged with every request to make the next failure diagnosable from
+/// the log alone.
+fn message_shape(messages: &[Value]) -> String {
+    messages
+        .iter()
+        .map(|message| {
+            let role = message
+                .get("role")
+                .and_then(|r| r.as_str())
+                .unwrap_or("?");
+            let mut traits: Vec<String> = Vec::new();
+            match message.get("content") {
+                None => traits.push("no-content".to_owned()),
+                Some(Value::Null) => traits.push("null-content".to_owned()),
+                Some(Value::String(s)) if s.is_empty() => traits.push("empty-content".to_owned()),
+                Some(_) => {}
+            }
+            if let Some(calls) = message.get("tool_calls").and_then(|c| c.as_array()) {
+                let ids: Vec<&str> = calls
+                    .iter()
+                    .filter_map(|c| c.get("id").and_then(|i| i.as_str()))
+                    .collect();
+                traits.push(format!("tool_calls[{}]:{}", calls.len(), ids.join(",")));
+            }
+            if let Some(id) = message.get("tool_call_id").and_then(|v| v.as_str()) {
+                traits.push(format!("for={id}"));
+            }
+            if traits.is_empty() {
+                role.to_owned()
+            } else {
+                format!("{role}({})", traits.join(" "))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" -> ")
+}
+
 fn project_messages(turns: &[NormalizedTurn], system: &str) -> Vec<Value> {
     let mut out = Vec::with_capacity(turns.len() + 1);
     out.push(json!({"role": "system", "content": system}));
@@ -564,13 +607,21 @@ fn project_messages(turns: &[NormalizedTurn], system: &str) -> Vec<Value> {
                 } else {
                     let mut msg = serde_json::Map::new();
                     msg.insert("role".into(), json!("assistant"));
+                    // `content` is omitted rather than sent as `null` when the
+                    // model produced no visible text alongside its tool calls —
+                    // which is the normal shape for a reasoning model that
+                    // emits CoT and then calls tools. GLM-family chat templates
+                    // render `content` unconditionally, and Ark's gateway
+                    // rejects an explicit null with a bare
+                    // `InvalidParameter` / "A parameter specified in the
+                    // request is not valid" 400. GLM's own reference client
+                    // builds the assistant message the same way: only attach
+                    // `content` when there is content.
                     match text.as_deref() {
                         Some(t) if !t.is_empty() => {
                             msg.insert("content".into(), json!(t));
                         }
-                        _ => {
-                            msg.insert("content".into(), Value::Null);
-                        }
+                        _ => {}
                     }
                     if let Some(r) = reasoning.as_ref() {
                         msg.insert("reasoning_content".into(), json!(r));
@@ -621,3 +672,7 @@ struct UsageBlock {
     #[serde(default)]
     completion_tokens: Option<u32>,
 }
+
+#[cfg(test)]
+#[path = "openai_driver_tests.rs"]
+mod tests;
