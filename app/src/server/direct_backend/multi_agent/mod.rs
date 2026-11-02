@@ -11,6 +11,7 @@ pub mod anthropic_driver;
 pub mod decode;
 pub mod encode;
 pub mod gemini_driver;
+pub mod history;
 pub mod openai_driver;
 pub mod tool_schema;
 
@@ -393,20 +394,24 @@ pub fn run(request: &api::Request) -> AIOutputStream<api::ResponseEvent> {
         Err(message) => return error_stream(conversation_id, message),
     };
 
-    log::info!(
-        "DirectBackend run: provider={:?} model={} turns={} mcp_servers={} existing_task={}",
-        provider.kind,
-        provider.model_id,
-        decoded.turns.len(),
-        decoded.mcp_context.as_ref().map(|m| m.servers.len()).unwrap_or(0),
-        decoded.existing_task_id.is_some(),
-    );
-
     let conv_id = if decoded.conversation_id.is_empty() {
         conversation_id
     } else {
-        decoded.conversation_id
+        decoded.conversation_id.clone()
     };
+
+    let new_turns = decoded.turns.len();
+    let turns = history::merge(&conv_id, decoded.turns);
+
+    log::info!(
+        "DirectBackend run: provider={:?} model={} new={} sent={} mcp={} existing_task={}",
+        provider.kind,
+        provider.model_id,
+        new_turns,
+        turns.len(),
+        decoded.mcp_context.as_ref().map(|m| m.servers.len()).unwrap_or(0),
+        decoded.existing_task_id.is_some(),
+    );
 
     // Emit StreamInit BEFORE awaiting the driver so the UI doesn't appear hung.
     let (init, request_id) = encode::build_init_event(conv_id);
@@ -415,7 +420,6 @@ pub fn run(request: &api::Request) -> AIOutputStream<api::ResponseEvent> {
         .existing_task_id
         .clone()
         .unwrap_or_else(|| Uuid::new_v4().to_string());
-    let turns = decoded.turns;
     let mcp_context = decoded.mcp_context;
 
     let mut prelude: Vec<api::ResponseEvent> = Vec::with_capacity(2);
