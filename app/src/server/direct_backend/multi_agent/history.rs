@@ -24,6 +24,11 @@ const MAX_TURNS_PER_CONVERSATION: usize = 120;
 /// shell-output dumps, and upstream context-window management lives in
 /// `warp-server`, so nothing else bounds what this path would send.
 const MAX_TRANSCRIPT_CHARS: usize = 240_000;
+/// Floor for a stale tool result once the transcript has to fit
+/// [`MAX_TRANSCRIPT_CHARS`]. Shrinking a payload keeps a call paired with its
+/// result; evicting the step instead makes the model re-run the whole command,
+/// because the client re-announces every tool call the task has made.
+const MIN_TOOL_RESULT_CHARS: usize = 1_200;
 
 /// Stand-in prompt for a transcript that opens mid-step, e.g. because the
 /// owning user turn was dropped by [`MAX_TURNS_PER_CONVERSATION`].
@@ -35,6 +40,11 @@ static TRANSCRIPTS: OnceLock<Mutex<Transcripts>> = OnceLock::new();
 #[derive(Default)]
 struct Transcripts {
     by_conversation: HashMap<String, Vec<NormalizedTurn>>,
+    /// Call ids already put on the wire per conversation. The client ships the
+    /// task's whole tool batch on every follow-up, so "already sent" has to
+    /// outlive the retention window — otherwise a step the char budget evicted
+    /// comes back as a call with no result.
+    sent_call_ids: HashMap<String, HashSet<String>>,
     /// Oldest first; evicted from the front once too many conversations are
     /// retained. Time-based expiry is avoided because this path also compiles
     /// for wasm, where a monotonic clock is not guaranteed.
@@ -55,15 +65,28 @@ impl Transcripts {
             .get(conversation_id)
             .cloned()
             .unwrap_or_default();
+        let known = self
+            .sent_call_ids
+            .get(conversation_id)
+            .cloned()
+            .unwrap_or_default();
         let overlap = align(&cached, &incoming);
         let mut merged = cached[..cached.len() - overlap].to_vec();
         merged.extend(incoming);
+        // The first `cached.len()` merged turns are the transcript we already
+        // put on the wire, including an aligned re-send of the tail. Only what
+        // comes after that is new.
+        let sent_len = cached.len();
 
-        let duplicates = dedupe_replayed_tool_items(&mut merged);
+        let duplicates = dedupe_replayed_tool_items(&mut merged, sent_len, &known);
         if duplicates > 0 {
             log::warn!(
                 "DirectBackend history: {conversation_id} dropped {duplicates} duplicate tool item(s)"
             );
+        }
+        let elided = compact_stale_tool_results(&mut merged, sent_len);
+        if elided > 0 {
+            log::warn!("DirectBackend history: {conversation_id} elided {elided} stale result(s)");
         }
         let trimmed = enforce_budget(&mut merged);
         if trimmed > 0 {
@@ -76,12 +99,27 @@ impl Transcripts {
             log::warn!("DirectBackend history: stripped {orphaned} orphaned tool result(s)");
         }
         ensure_user_lead(&mut merged);
+        self.remember_sent_calls(conversation_id, &merged);
 
         self.by_conversation
             .insert(conversation_id.to_owned(), merged.clone());
         self.touch(conversation_id);
         self.evict();
         merged
+    }
+
+    fn remember_sent_calls(&mut self, conversation_id: &str, turns: &[NormalizedTurn]) {
+        let sent = self
+            .sent_call_ids
+            .entry(conversation_id.to_owned())
+            .or_default();
+        for turn in turns {
+            if let NormalizedTurn::Assistant { tool_uses, .. } = turn {
+                for call in tool_uses {
+                    sent.insert(call.tool_use_id.clone());
+                }
+            }
+        }
     }
 
     fn touch(&mut self, conversation_id: &str) {
@@ -94,6 +132,7 @@ impl Transcripts {
             match self.lru.pop_front() {
                 Some(stale) => {
                     self.by_conversation.remove(&stale);
+                    self.sent_call_ids.remove(&stale);
                 }
                 None => break,
             }
@@ -161,19 +200,28 @@ fn turn_key(turn: &NormalizedTurn) -> u64 {
 ///
 /// The client ships the whole current task transcript on every follow-up
 /// (`task_context.tasks[*].messages`), so each request's tool batch is a
-/// superset of what was already put on the wire. [`align`] cannot see that:
-/// its turn key hashes the whole batch's ids, which grow every step. Without
-/// this, every step is replayed once per following turn and the provider
-/// payload grows quadratically.
-fn dedupe_replayed_tool_items(turns: &mut Vec<NormalizedTurn>) -> usize {
+/// superset of what was already put on the wire. [`align`] cannot see that: its
+/// turn key hashes the whole batch's ids, which grow every step. `known` adds
+/// the ids of steps the retention budget has since evicted, so an evicted step
+/// is not resurrected as a call with no result. Turns before `sent_len` are the
+/// transcript already put on the wire and always define the baseline.
+fn dedupe_replayed_tool_items(
+    turns: &mut Vec<NormalizedTurn>,
+    sent_len: usize,
+    known: &HashSet<String>,
+) -> usize {
     let mut called: HashSet<String> = HashSet::new();
     let mut answered: HashSet<String> = HashSet::new();
     let mut dropped = 0usize;
-    for turn in turns.iter_mut() {
+    for (idx, turn) in turns.iter_mut().enumerate() {
+        let replayed = idx >= sent_len;
         match turn {
             NormalizedTurn::Assistant { tool_uses, .. } => {
                 let before = tool_uses.len();
-                tool_uses.retain(|call| called.insert(call.tool_use_id.clone()));
+                tool_uses.retain(|call| {
+                    let sent_earlier = known.contains(&call.tool_use_id);
+                    called.insert(call.tool_use_id.clone()) && !(replayed && sent_earlier)
+                });
                 dropped += before - tool_uses.len();
             }
             NormalizedTurn::User { tool_results, .. } => {
@@ -200,15 +248,83 @@ fn is_populated(turn: &NormalizedTurn) -> bool {
     }
 }
 
-/// Drops the oldest turns until both the turn count and the text budget fit.
+/// Elides tool-result payloads until the transcript fits
+/// [`MAX_TRANSCRIPT_CHARS`], keeping every call paired with its result. Stale
+/// turns shrink first; the request's fresh results are only touched when that
+/// is not enough, so a payload larger than the whole budget is elided rather
+/// than evicting the step that owns it.
+fn compact_stale_tool_results(turns: &mut [NormalizedTurn], keep_from: usize) -> usize {
+    if transcript_chars(turns) <= MAX_TRANSCRIPT_CHARS {
+        return 0;
+    }
+    let mut elided = compact_until(turns, keep_from);
+    let all = turns.len();
+    if transcript_chars(turns) > MAX_TRANSCRIPT_CHARS {
+        elided += compact_until(turns, all);
+    }
+    elided
+}
+
+fn compact_until(turns: &mut [NormalizedTurn], limit: usize) -> usize {
+    let mut elided = 0usize;
+    for idx in 0..limit.min(turns.len()) {
+        if transcript_chars(turns) <= MAX_TRANSCRIPT_CHARS {
+            break;
+        }
+        if let NormalizedTurn::User { tool_results, .. } = &mut turns[idx] {
+            for result in tool_results.iter_mut() {
+                if let Some(shrunk) = elide_middle(&result.content, MIN_TOOL_RESULT_CHARS) {
+                    result.content = shrunk;
+                    elided += 1;
+                }
+            }
+        }
+    }
+    elided
+}
+
+/// Keeps the head and tail of `text` and replaces the middle, or returns `None`
+/// when `text` is already within `budget` characters.
+fn elide_middle(text: &str, budget: usize) -> Option<String> {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.len() <= budget {
+        return None;
+    }
+    let head_len = budget / 2;
+    let tail_len = budget - head_len;
+    let head: String = chars[..head_len].iter().collect();
+    let tail: String = chars[chars.len() - tail_len..].iter().collect();
+    Some(format!(
+        "{head}\n[... {} characters elided by the direct backend's transcript budget ...]\n{tail}",
+        chars.len() - budget,
+    ))
+}
+
+/// Drops the oldest turns until both the turn count and the text budget fit,
+/// taking a tool call with the turns that answer it so the provider never sees
+/// a call with no result after it.
 fn enforce_budget(turns: &mut Vec<NormalizedTurn>) -> usize {
     let mut dropped = 0usize;
     while turns.len() > 1
         && (turns.len() > MAX_TURNS_PER_CONVERSATION
             || transcript_chars(turns) > MAX_TRANSCRIPT_CHARS)
     {
-        turns.drain(..1);
-        dropped += 1;
+        let mut take = 1usize;
+        if let Some(NormalizedTurn::Assistant { tool_uses, .. }) = turns.first()
+            && !tool_uses.is_empty()
+        {
+            while take < turns.len()
+                && matches!(
+                    &turns[take],
+                    NormalizedTurn::User { text: None, tool_results }
+                        if !tool_results.is_empty()
+                )
+            {
+                take += 1;
+            }
+        }
+        turns.drain(..take);
+        dropped += take;
     }
     dropped
 }
