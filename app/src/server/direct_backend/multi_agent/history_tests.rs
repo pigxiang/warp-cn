@@ -75,6 +75,48 @@ fn result_ids(turns: &[NormalizedTurn]) -> Vec<String> {
     ids
 }
 
+fn user_result_with_content(id: &str, content: &str) -> NormalizedTurn {
+    NormalizedTurn::User {
+        text: None,
+        tool_results: vec![ToolResult {
+            tool_use_id: id.to_owned(),
+            tool_kind: ToolKind::RunShellCommand,
+            content: content.to_owned(),
+            is_error: false,
+        }],
+    }
+}
+
+/// Call ids with no `tool` result immediately after their turn — the shape
+/// providers reject or that forces a fabricated retry stub.
+fn unpaired_call_ids(turns: &[NormalizedTurn]) -> Vec<String> {
+    let mut unpaired = Vec::new();
+    let mut idx = 0usize;
+    while idx < turns.len() {
+        if let NormalizedTurn::Assistant { tool_uses, .. } = &turns[idx] {
+            let called: Vec<String> = tool_uses
+                .iter()
+                .map(|call| call.tool_use_id.clone())
+                .collect();
+            let mut answered: Vec<String> = Vec::new();
+            let mut next = idx + 1;
+            while let Some(NormalizedTurn::User {
+                text: None,
+                tool_results,
+            }) = turns.get(next)
+            {
+                answered.extend(tool_results.iter().map(|result| result.tool_use_id.clone()));
+                next += 1;
+            }
+            unpaired.extend(called.into_iter().filter(|id| !answered.contains(id)));
+            idx = next;
+        } else {
+            idx += 1;
+        }
+    }
+    unpaired
+}
+
 #[test]
 fn first_user_turn_survives_the_tool_followup() {
     let mut store = Transcripts::default();
@@ -205,6 +247,83 @@ fn cumulative_batches_keep_the_transcript_linear() {
     assert_eq!(merged.len(), 1 + 2 * ids.len());
     assert_eq!(call_ids(&merged).len(), ids.len());
     assert_eq!(result_ids(&merged).len(), ids.len());
+}
+
+#[test]
+fn oversized_results_are_elided_and_keep_their_call_paired() {
+    let mut store = Transcripts::default();
+    store.merge("conv-j", vec![user_text("go")]);
+
+    let mut merged = Vec::new();
+    for step in 1..=8 {
+        let id = format!("c{step}");
+        merged = store.merge(
+            "conv-j",
+            vec![
+                assistant_calls(&[id.as_str()]),
+                user_result_with_content(&id, &"x".repeat(60_000)),
+            ],
+        );
+    }
+
+    assert!(transcript_chars(&merged) <= MAX_TRANSCRIPT_CHARS);
+    assert_eq!(call_ids(&merged), (1..=8).map(|i| format!("c{i}")).collect::<Vec<_>>());
+    assert!(
+        unpaired_call_ids(&merged).is_empty(),
+        "eliding must not orphan a call",
+    );
+}
+
+#[test]
+fn a_result_larger_than_the_whole_budget_is_elided_not_evicted() {
+    let mut store = Transcripts::default();
+    store.merge("conv-k", vec![user_text("go")]);
+
+    let merged = store.merge(
+        "conv-k",
+        vec![
+            assistant_calls(&["c1"]),
+            user_result_with_content("c1", &"y".repeat(300_000)),
+        ],
+    );
+    assert!(call_ids(&merged).contains(&"c1".to_owned()));
+    assert!(transcript_chars(&merged) <= MAX_TRANSCRIPT_CHARS);
+    assert!(unpaired_call_ids(&merged).is_empty());
+}
+
+#[test]
+fn re_announced_calls_stay_dropped_after_the_turn_cap_evicts_a_step() {
+    let mut store = Transcripts::default();
+    store.merge("conv-l", vec![user_text("go")]);
+
+    let mut merged = Vec::new();
+    let mut ids: Vec<String> = Vec::new();
+    for step in 1..=MAX_TURNS_PER_CONVERSATION / 2 + 3 {
+        let id = format!("c{step}");
+        ids.push(id.clone());
+        merged = store.merge(
+            "conv-l",
+            vec![assistant_calls(&[id.as_str()]), user_results(&[id.as_str()])],
+        );
+    }
+    // The synthetic lead note [`ensure_user_lead`] may add one turn on top.
+    assert!(
+        merged.len() <= MAX_TURNS_PER_CONVERSATION + 1,
+        "the turn cap must have evicted the oldest steps, len={}",
+        merged.len()
+    );
+    let all: Vec<&str> = ids.iter().map(String::as_str).collect();
+    let after = store.merge("conv-l", vec![assistant_calls(&all), user_results(&all)]);
+
+    let before_ids = call_ids(&merged);
+    let after_ids = call_ids(&after);
+    assert!(
+        after_ids.iter().all(|id| before_ids.contains(id)),
+        "a re-announced call must not come back: {after_ids:?}",
+    );
+    assert!(after_ids.len() <= before_ids.len());
+    assert_eq!(after_ids.last().map(String::as_str), Some("c63"));
+    assert!(unpaired_call_ids(&after).is_empty());
 }
 
 #[test]
