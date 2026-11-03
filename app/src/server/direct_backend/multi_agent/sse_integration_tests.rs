@@ -296,6 +296,64 @@ async fn openai_assembles_tool_call_across_chunks() {
     assert_eq!(complete.2["path"], "src");
 }
 
+const OPENAI_BAD_TOOL_INPUT_SSE: &str = "\
+data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"read_files\",\"arguments\":\"{\\\"files\\\":\\\"AGENTS.md\\\"}\"}}]}}]}\n\
+\n\
+data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\
+\n\
+data: [DONE]\n\
+\n";
+
+/// A turn that only produced an unparseable tool call used to end as
+/// `[tool error]` text with no retry. Both calls must reach the wire, and the
+/// re-ask's answer is the only thing the chunk stream surfaces.
+#[tokio::test]
+async fn openai_re_asks_once_after_a_malformed_tool_call() {
+    let mut server = Server::new_async().await;
+    let bad = server
+        .mock("POST", "/v1/chat/completions")
+        .with_status(200)
+        .with_header("content-type", "text/event-stream")
+        .with_body(OPENAI_BAD_TOOL_INPUT_SSE)
+        .expect(1)
+        .create_async()
+        .await;
+    let good = server
+        .mock("POST", "/v1/chat/completions")
+        .with_status(200)
+        .with_header("content-type", "text/event-stream")
+        .with_body(OPENAI_HAPPY_SSE)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let p = provider(DirectProviderKind::OpenAiCompatible, server.url(), "gpt-test");
+    let stream = super::call_streaming_with_reask(p, vec![user_turn("read the files")], None);
+    let chunks: Vec<_> = collect_chunks(stream)
+        .await
+        .into_iter()
+        .map(|r| r.expect("chunk ok"))
+        .collect();
+
+    bad.assert_async().await;
+    good.assert_async().await;
+
+    let texts: Vec<&str> = chunks
+        .iter()
+        .filter_map(|c| match c {
+            DriverStreamChunk::TextDelta { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(texts, vec!["Hi", " there"]);
+    assert!(
+        !chunks
+            .iter()
+            .any(|c| matches!(c, DriverStreamChunk::ToolUseSoftError { .. })),
+        "the swallowed tool error must not surface when the re-ask recovers",
+    );
+}
+
 // ── Gemini ──────────────────────────────────────────────────────────────────
 
 // Gemini SSE ships cumulative text; driver must compute deltas via slicing.
