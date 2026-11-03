@@ -238,12 +238,8 @@ fn drain_and_finish(st: &mut StreamState) {
                 }
             }
         };
-        st.pending_tools.push_back(DriverStreamChunk::ToolUseComplete {
-            block_idx: idx as u32,
-            tool_use_id: acc.id,
-            name: acc.name,
-            parsed_input,
-        });
+        st.pending_tools
+            .push_back(completed_or_soft_error(idx as u32, acc.id, acc.name, parsed_input));
     }
     st.pending_tools.push_back(DriverStreamChunk::Stop {
         stop_reason: st.stop_reason.clone(),
@@ -253,6 +249,40 @@ fn drain_and_finish(st: &mut StreamState) {
         model_id: st.model_id.clone(),
     });
     st.finished = true;
+}
+
+/// Turns a finished tool call into either a `ToolUseComplete` chunk or a soft
+/// error when the arguments don't match the advertised schema.
+///
+/// Validating here rather than only in the adapter is what makes the
+/// malformed-call re-ask in [`super`] possible: the adapter is downstream of
+/// the provider call, so a failure it detects ends the agent turn instead of
+/// letting the model correct itself.
+fn completed_or_soft_error(
+    block_idx: u32,
+    tool_use_id: String,
+    name: String,
+    parsed_input: Value,
+) -> DriverStreamChunk {
+    let kind = match tool_schema::from_name(&name) {
+        Some(kind) => kind,
+        None => {
+            return DriverStreamChunk::ToolUseSoftError {
+                message: format!("[tool error] You called an unknown tool `{name}`."),
+            };
+        }
+    };
+    match tool_schema::parse_input(kind, parsed_input.clone()) {
+        Ok(_) => DriverStreamChunk::ToolUseComplete {
+            block_idx,
+            tool_use_id,
+            name,
+            parsed_input,
+        },
+        Err(e) => DriverStreamChunk::ToolUseSoftError {
+            message: format!("[tool error] Your `{name}` tool call had malformed input: {e}"),
+        },
+    }
 }
 
 /// Surface the gateway's response body for `400/401/4xx/5xx`. Without this
@@ -446,12 +476,12 @@ fn parse_openai_chunk(data: &str, st: &mut StreamState) -> Vec<DriverStreamChunk
                             }
                         }
                     };
-                    out.push(DriverStreamChunk::ToolUseComplete {
-                        block_idx: idx as u32,
-                        tool_use_id: acc.id,
-                        name: acc.name,
+                    out.push(completed_or_soft_error(
+                        idx as u32,
+                        acc.id,
+                        acc.name,
                         parsed_input,
-                    });
+                    ));
                 }
             }
         }

@@ -388,6 +388,136 @@ pub(super) fn serde_json_to_prost_value(v: &serde_json::Value) -> prost_types::V
     prost_types::Value { kind: Some(kind) }
 }
 
+/// A turn whose only tool call fails to parse ends as `[tool error]` text with
+/// no tool call for the client to execute, so the agent loop stops and the
+/// "please fix and retry" the message promises never happens. Re-open the
+/// provider call with the correction before falling back to that text.
+const MALFORMED_TOOL_REASKS: usize = 1;
+
+async fn open_driver_stream(
+    provider: &ResolvedProvider,
+    turns: &[decode::NormalizedTurn],
+    mcp: Option<&api::request::McpContext>,
+) -> anyhow::Result<DriverChunkStream> {
+    match provider.kind {
+        DirectProviderKind::Anthropic => anthropic_driver::call_streaming(provider, turns, mcp).await,
+        DirectProviderKind::OpenAi | DirectProviderKind::OpenAiCompatible => {
+            openai_driver::call_streaming(provider, turns, mcp).await
+        }
+        DirectProviderKind::Gemini => gemini_driver::call_streaming(provider, turns, mcp).await,
+    }
+}
+
+struct ReaskState {
+    provider: ResolvedProvider,
+    turns: Vec<decode::NormalizedTurn>,
+    mcp: Option<api::request::McpContext>,
+    attempt: Option<DriverChunkStream>,
+    visible_text: String,
+    malformed: Option<String>,
+    produced_tool: bool,
+    reasks_left: usize,
+}
+
+/// Feeds a malformed tool call back to the provider in the same agent turn.
+///
+/// The corrective note is only re-sent while the turn produced no visible text
+/// and no executable tool call, so a partial answer is never followed by a
+/// second answer, and only the final attempt's `[tool error]` text reaches the
+/// UI.
+fn call_streaming_with_reask(
+    provider: ResolvedProvider,
+    turns: Vec<decode::NormalizedTurn>,
+    mcp: Option<api::request::McpContext>,
+) -> DriverChunkStream {
+    let state = ReaskState {
+        provider,
+        turns,
+        mcp,
+        attempt: None,
+        visible_text: String::new(),
+        malformed: None,
+        produced_tool: false,
+        reasks_left: MALFORMED_TOOL_REASKS,
+    };
+    let s = futures::stream::unfold(state, |mut st| async move {
+        loop {
+            if st.attempt.is_none() {
+                match open_driver_stream(&st.provider, &st.turns, st.mcp.as_ref()).await {
+                    Ok(next) => st.attempt = Some(next),
+                    Err(e) => return Some((Err(e), st)),
+                }
+            }
+            let item = {
+                let attempt = st.attempt.as_mut().expect("opened above");
+                attempt.next().await
+            };
+            match item {
+                Some(Ok(DriverStreamChunk::ToolUseSoftError { message })) => {
+                    if st.reasks_left == 0 {
+                        return Some((Ok(DriverStreamChunk::ToolUseSoftError { message }), st));
+                    }
+                    st.malformed = Some(message);
+                }
+                Some(Ok(DriverStreamChunk::TextDelta { block_idx, text })) => {
+                    st.visible_text.push_str(&text);
+                    return Some((Ok(DriverStreamChunk::TextDelta { block_idx, text }), st));
+                }
+                Some(Ok(chunk @ DriverStreamChunk::ToolUseComplete { .. })) => {
+                    st.produced_tool = true;
+                    return Some((Ok(chunk), st));
+                }
+                Some(Ok(chunk)) => return Some((Ok(chunk), st)),
+                Some(Err(e)) => return Some((Err(e), st)),
+                None => {
+                    st.attempt = None;
+                    let message = st.malformed.take()?;
+                    if st.visible_text.is_empty()
+                        && !st.produced_tool
+                        && st.reasks_left > 0
+                    {
+                        st.reasks_left -= 1;
+                        log::warn!(
+                            "DirectBackend re-ask: retrying the turn after a malformed tool call",
+                        );
+                        append_reask_note(&mut st.turns, &message);
+                        st.visible_text.clear();
+                        st.produced_tool = false;
+                        continue;
+                    }
+                    return Some((Ok(DriverStreamChunk::ToolUseSoftError { message }), st));
+                }
+            }
+        }
+    });
+    cfg_if::cfg_if! {
+        if #[cfg(target_family = "wasm")] {
+            s.boxed_local()
+        } else {
+            s.boxed()
+        }
+    }
+}
+
+/// Appends the corrective note, folding it into the trailing user turn so the
+/// provider never sees two consecutive user messages.
+fn append_reask_note(turns: &mut Vec<decode::NormalizedTurn>, message: &str) {
+    let note = format!(
+        "{message} Re-send the call with arguments that match the tool's schema. \
+         Do not apologize and do not answer from the tool's assumed output."
+    );
+    match turns.last_mut() {
+        Some(decode::NormalizedTurn::User {
+            text: Some(existing),
+            ..
+        }) => *existing = format!("{existing}\n\n{note}"),
+        _ => turns.push(decode::NormalizedTurn::User {
+            text: Some(note),
+            tool_results: vec![],
+        }),
+    }
+}
+
 /// Public entry. Emits `StreamInit` synchronously (so the UI can scaffold
 /// its bubble while we wait on the LLM), pre-emits `CreateTask` for first-turn
 /// flows, then opens the provider's SSE stream and adapts each chunk into
@@ -457,38 +587,12 @@ pub fn run(request: &api::Request) -> AIOutputStream<api::ResponseEvent> {
     );
 
     let body_stream = futures::stream::once(async move {
-        let chunks = match provider.kind {
-            DirectProviderKind::Anthropic => {
-                anthropic_driver::call_streaming(&provider, &turns, mcp_context.as_ref()).await
-            }
-            DirectProviderKind::OpenAi | DirectProviderKind::OpenAiCompatible => {
-                openai_driver::call_streaming(&provider, &turns, mcp_context.as_ref()).await
-            }
-            DirectProviderKind::Gemini => {
-                gemini_driver::call_streaming(&provider, &turns, mcp_context.as_ref()).await
-            }
-        };
-        match chunks {
-            Ok(stream) => {
-                cfg_if::cfg_if! {
-                    if #[cfg(target_family = "wasm")] {
-                        adapter::adapt(stream, task_id, request_id).boxed_local()
-                    } else {
-                        adapter::adapt(stream, task_id, request_id).boxed()
-                    }
-                }
-            }
-            Err(e) => {
-                log::error!("DirectBackend agent mode init error: {e:#}");
-                let single = encode::build_finished_error(sanitize_error(&e));
-                let s = futures::stream::iter(vec![Ok::<_, Arc<AIApiError>>(single)]);
-                cfg_if::cfg_if! {
-                    if #[cfg(target_family = "wasm")] {
-                        s.boxed_local()
-                    } else {
-                        s.boxed()
-                    }
-                }
+        let chunks = call_streaming_with_reask(provider, turns, mcp_context);
+        cfg_if::cfg_if! {
+            if #[cfg(target_family = "wasm")] {
+                adapter::adapt(chunks, task_id, request_id).boxed_local()
+            } else {
+                adapter::adapt(chunks, task_id, request_id).boxed()
             }
         }
     })

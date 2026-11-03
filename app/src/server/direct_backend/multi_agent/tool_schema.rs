@@ -18,6 +18,37 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use warp_multi_agent_api as api;
 
+/// Small models behind OpenAI-compatible gateways routinely double-encode
+/// structured arguments — `{"files": "[{...}]"}` where the schema declares an
+/// array, or a whole argument object delivered as one JSON string. Unwrap such
+/// a string only where the schema expects an array or object; free-text fields
+/// like `run_shell_command.command` must keep their literal content.
+fn unwrap_encoded(value: Value) -> Value {
+    if let Value::String(text) = &value
+        && let Ok(parsed @ (Value::Array(_) | Value::Object(_))) = serde_json::from_str(text)
+    {
+        log::warn!("DirectBackend tool input was double-encoded; unwrapped it");
+        return parsed;
+    }
+    value
+}
+
+fn lenient_seq<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::de::DeserializeOwned,
+{
+    let value = unwrap_encoded(Value::deserialize(deserializer)?);
+    Vec::<T>::deserialize(value).map_err(serde::de::Error::custom)
+}
+
+fn lenient_json<'de, D>(deserializer: D) -> Result<Value, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(unwrap_encoded(Value::deserialize(deserializer)?))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolKind {
     ReadFiles,
@@ -135,6 +166,7 @@ pub fn schema(kind: ToolKind) -> &'static str {
 
 /// Parse the model's `tool_use.input` JSON into the proto `Tool` variant.
 pub fn parse_input(kind: ToolKind, value: Value) -> anyhow::Result<api::message::tool_call::Tool> {
+    let value = unwrap_encoded(value);
     Ok(match kind {
         ToolKind::ReadFiles => api::message::tool_call::Tool::ReadFiles(parse_read_files(value)?),
         ToolKind::RunShellCommand => {
@@ -308,12 +340,13 @@ const READ_FILES_SCHEMA: &str = r#"{
 
 #[derive(Deserialize)]
 struct ReadFilesInput {
+    #[serde(deserialize_with = "lenient_seq")]
     files: Vec<ReadFilesFile>,
 }
 #[derive(Deserialize)]
 struct ReadFilesFile {
     path: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_seq")]
     lines: Vec<LineRangeInput>,
 }
 #[derive(Deserialize)]
@@ -570,6 +603,7 @@ const GREP_SCHEMA: &str = r#"{
 
 #[derive(Deserialize)]
 struct GrepInput {
+    #[serde(deserialize_with = "lenient_seq")]
     queries: Vec<String>,
     path: String,
 }
@@ -654,6 +688,7 @@ const FILE_GLOB_SCHEMA: &str = r#"{
 
 #[derive(Deserialize)]
 struct FileGlobInput {
+    #[serde(deserialize_with = "lenient_seq")]
     patterns: Vec<String>,
     #[serde(default)]
     search_dir: String,
@@ -767,11 +802,11 @@ const APPLY_FILE_DIFFS_SCHEMA: &str = r#"{
 #[derive(Deserialize)]
 struct ApplyFileDiffsInput {
     summary: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_seq")]
     diffs: Vec<DiffInput>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_seq")]
     new_files: Vec<NewFileInput>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_seq")]
     deleted_files: Vec<DeleteFileInput>,
 }
 #[derive(Deserialize)]
@@ -967,12 +1002,14 @@ const ASK_USER_SCHEMA: &str = r#"{
 
 #[derive(Deserialize)]
 struct AskUserInput {
+    #[serde(deserialize_with = "lenient_seq")]
     questions: Vec<AskUserQuestionItem>,
 }
 #[derive(Deserialize)]
 struct AskUserQuestionItem {
     question_id: String,
     question: String,
+    #[serde(deserialize_with = "lenient_seq")]
     options: Vec<String>,
     #[serde(default)]
     recommended_option_index: i32,
@@ -1483,7 +1520,7 @@ struct CallMcpToolInput {
     name: String,
     #[serde(default)]
     server_id: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_json")]
     arguments: Value,
 }
 
@@ -1597,6 +1634,39 @@ mod tests {
         let v = json!({"files": [{"path": "src/lib.rs"}]});
         let proto = parse_read_files(v).unwrap();
         assert_eq!(proto.files[0].name, "src/lib.rs");
+    }
+
+    #[test]
+    fn read_files_accepts_a_stringified_files_array() {
+        let v = json!({"files": "[{\"path\": \"AGENTS.md\"}]"});
+        let proto = parse_read_files(v).unwrap();
+        assert_eq!(proto.files.len(), 1);
+        assert_eq!(proto.files[0].name, "AGENTS.md");
+    }
+
+    #[test]
+    fn read_files_accepts_a_stringified_argument_object() {
+        let v = Value::String(r#"{"files": [{"path": "src/lib.rs"}]}"#.to_owned());
+        let proto = parse_input(ToolKind::ReadFiles, v).unwrap();
+        let api::message::tool_call::Tool::ReadFiles(read) = proto else {
+            panic!("expected a read_files tool call");
+        };
+        assert_eq!(read.files[0].name, "src/lib.rs");
+    }
+
+    #[test]
+    fn json_looking_shell_command_text_is_kept_literal() {
+        let v = json!({"command": "{\"a\": 1}", "risk_category": "read_only"});
+        let proto = parse_run_shell_command(v).unwrap();
+        assert_eq!(proto.command, "{\"a\": 1}");
+    }
+
+    #[test]
+    fn call_mcp_tool_accepts_stringified_arguments() {
+        let v = json!({"name": "search", "server_id": "srv-1", "arguments": "{\"q\": \"todo\"}"});
+        let proto = parse_call_mcp_tool(v).unwrap();
+        let args = proto.args.expect("args struct");
+        assert!(args.fields.contains_key("q"));
     }
 
     #[test]
