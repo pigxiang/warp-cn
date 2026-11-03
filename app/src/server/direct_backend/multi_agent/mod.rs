@@ -8,6 +8,7 @@
 
 pub mod adapter;
 pub mod anthropic_driver;
+pub mod context;
 pub mod decode;
 pub mod encode;
 pub mod gemini_driver;
@@ -555,11 +556,12 @@ pub fn run(request: &api::Request) -> AIOutputStream<api::ResponseEvent> {
     let turns = history::merge(&conv_id, decoded.turns);
 
     log::info!(
-        "DirectBackend run: provider={:?} model={} new={} sent={} mcp={} existing_task={}",
+        "DirectBackend run: provider={:?} model={} new={} sent={} attached={} mcp={} existing_task={}",
         provider.kind,
         provider.model_id,
         new_turns,
         turns.len(),
+        decoded.attached_context_chars,
         decoded.mcp_context.as_ref().map(|m| m.servers.len()).unwrap_or(0),
         decoded.existing_task_id.is_some(),
     );

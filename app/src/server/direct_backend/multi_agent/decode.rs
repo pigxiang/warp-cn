@@ -9,6 +9,10 @@
 //! Anything outside our Tier-1/2 tool surface downgrades the history to "drop
 //! everything except the last user text" — providers refuse chats with
 //! dangling tool_use blocks and we can't fabricate missing tool_results.
+//!
+//! warp-server renders attached blocks, selected text and environment context into
+//! the prompt server-side; [`context`] does it here, and the render rides in front
+//! of the user's own text.
 
 use serde_json::Value;
 use warp_multi_agent_api as api;
@@ -65,6 +69,10 @@ pub struct DecodedRequest {
     pub history_compatible: bool,
     /// `true` if at least one user input was extracted.
     pub has_user_input: bool,
+    /// Size of the attached-context render that was folded into this request's user turn. The
+    /// direct backend has no server-side prompt assembly, so this is the only handle on whether
+    /// a user's attached block actually reached the provider.
+    pub attached_context_chars: usize,
     /// MCP context (servers + their resources/tools) carried through to each
     /// driver so the system prompt can advertise valid `server_id` values
     /// for the `read_mcp_resource` / `call_mcp_tool` Tier-3 tools.
@@ -113,15 +121,41 @@ pub fn decode(req: &api::Request) -> DecodedRequest {
         }
     }
 
-    if let Some(input) = req.input.as_ref() {
-        if let Some(api::request::input::Type::UserInputs(inputs)) = input.r#type.as_ref() {
-            for ui in &inputs.inputs {
-                if let Some(inner) = ui.input.as_ref() {
-                    project_user_input(inner, &mut atoms, &mut compat, &mut has_user_input);
-                }
+    let mut attached_context = req
+        .input
+        .as_ref()
+        .and_then(super::context::render_for_input);
+    let attached_chars = attached_context
+        .as_ref()
+        .map_or(0, |rendered| rendered.chars().count());
+
+    if let Some(input) = req.input.as_ref()
+        && let Some(api::request::input::Type::UserInputs(inputs)) = input.r#type.as_ref()
+    {
+        for ui in &inputs.inputs {
+            if let Some(inner) = ui.input.as_ref() {
+                project_user_input(
+                    inner,
+                    &mut attached_context,
+                    &mut atoms,
+                    &mut compat,
+                    &mut has_user_input,
+                );
             }
         }
     }
+    // A tool-result-only input has no user turn to carry the request's context, and the turn
+    // that was answered already went out with it on the first request of the step.
+    let attached_context_chars = match attached_context {
+        Some(dropped) => {
+            let dropped_chars = dropped.chars().count();
+            log::debug!(
+                "DirectBackend: no user query to carry {dropped_chars} chars of attached context"
+            );
+            0
+        }
+        None => attached_chars,
+    };
 
     let turns = if compat {
         coalesce(atoms)
@@ -157,6 +191,7 @@ pub fn decode(req: &api::Request) -> DecodedRequest {
         turns,
         history_compatible: compat,
         has_user_input,
+        attached_context_chars,
         mcp_context: req.mcp_context.clone(),
         base_model,
     }
@@ -218,6 +253,15 @@ fn coalesce(atoms: Vec<Atom>) -> Vec<NormalizedTurn> {
     out
 }
 
+/// Attached context rides in front of the user's own text so the model reads it as part of the
+/// question it was attached to. Taken once per request.
+fn prefix_query(attached_context: &mut Option<String>, query: &str) -> String {
+    match attached_context.take() {
+        Some(context) => format!("{context}\n\n{query}"),
+        None => query.to_owned(),
+    }
+}
+
 fn project_history_message(
     msg: &api::Message,
     out: &mut Vec<Atom>,
@@ -228,7 +272,8 @@ fn project_history_message(
     match msg.message.as_ref() {
         Some(M::UserQuery(uq)) => {
             if !uq.query.is_empty() {
-                out.push(Atom::UserText(uq.query.clone()));
+                let mut attached = super::context::render_for_history_query(uq);
+                out.push(Atom::UserText(prefix_query(&mut attached, &uq.query)));
                 *has_user_input = true;
             }
         }
@@ -274,6 +319,7 @@ fn project_history_message(
 
 fn project_user_input(
     input: &api::request::input::user_inputs::user_input::Input,
+    attached_context: &mut Option<String>,
     out: &mut Vec<Atom>,
     compat: &mut bool,
     has_user_input: &mut bool,
@@ -282,16 +328,16 @@ fn project_user_input(
     match input {
         I::UserQuery(uq) => {
             if !uq.query.is_empty() {
-                out.push(Atom::UserText(uq.query.clone()));
+                out.push(Atom::UserText(prefix_query(attached_context, &uq.query)));
                 *has_user_input = true;
             }
         }
         I::CliAgentUserQuery(cli) => {
-            if let Some(uq) = cli.user_query.as_ref() {
-                if !uq.query.is_empty() {
-                    out.push(Atom::UserText(uq.query.clone()));
-                    *has_user_input = true;
-                }
+            if let Some(uq) = cli.user_query.as_ref()
+                && !uq.query.is_empty()
+            {
+                out.push(Atom::UserText(prefix_query(attached_context, &uq.query)));
+                *has_user_input = true;
             }
         }
         I::ToolCallResult(tcr) => match tcr.result.as_ref() {
@@ -498,6 +544,138 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
+    fn attached_block_rides_in_front_of_the_user_query() {
+        let req = api::Request {
+            input: Some(query_input(
+                "why did this fail?",
+                Some(api::InputContext {
+                    executed_shell_commands: vec![api::ExecutedShellCommand {
+                        command: "cargo build".into(),
+                        output: "error: could not compile".into(),
+                        exit_code: 101,
+                        command_id: "b1".into(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }),
+            )),
+            ..Default::default()
+        };
+        let d = decode(&req);
+        assert_eq!(d.turns.len(), 1);
+        assert!(d.attached_context_chars > 0);
+        if let NormalizedTurn::User { text, .. } = &d.turns[0] {
+            let text = text.as_deref().unwrap();
+            assert!(text.starts_with("<user-attached-context>"));
+            assert!(text.contains("command: cargo build"));
+            assert!(text.contains("error: could not compile"));
+            assert!(text.ends_with("why did this fail?"));
+        } else {
+            panic!("expected User turn");
+        }
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn attached_context_is_not_repeated_on_a_tool_result_turn() {
+        let attached = api::InputContext {
+            directory: Some(api::input_context::Directory {
+                pwd: "/repo".into(),
+                home: String::new(),
+                pwd_file_symbols_indexed: false,
+            }),
+            executed_shell_commands: vec![api::ExecutedShellCommand {
+                command: "cargo build".into(),
+                output: "error: could not compile".into(),
+                exit_code: 101,
+                command_id: "b1".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let req = api::Request {
+            input: Some(api::request::Input {
+                context: Some(attached),
+                r#type: Some(api::request::input::Type::UserInputs(
+                    api::request::input::UserInputs {
+                        inputs: vec![api::request::input::user_inputs::UserInput {
+                            input: Some(
+                                api::request::input::user_inputs::user_input::Input::ToolCallResult(
+                                    api::request::input::ToolCallResult {
+                                        tool_call_id: "t1".into(),
+                                        result: Some(
+                                            api::request::input::tool_call_result::Result::ReadFiles(
+                                                api::ReadFilesResult { result: None },
+                                            ),
+                                        ),
+                                    },
+                                ),
+                            ),
+                        }],
+                    },
+                )),
+            }),
+            ..Default::default()
+        };
+        let d = decode(&req);
+        assert_eq!(d.attached_context_chars, 0, "dropped renders are not counted");
+        let last = d.turns.last().expect("one tool-result turn");
+        if let NormalizedTurn::User { text, tool_results } = last {
+            assert!(text.is_none(), "no environment context on a tool turn");
+            assert_eq!(tool_results.len(), 1);
+        } else {
+            panic!("expected last turn to be User");
+        }
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn replayed_history_query_keeps_the_block_attached_to_it() {
+        let history = api::Message {
+            id: "m".into(),
+            task_id: "t".into(),
+            request_id: "r".into(),
+            timestamp: None,
+            server_message_data: String::new(),
+            citations: vec![],
+            fetched_memories: vec![],
+            message: Some(api::message::Message::UserQuery(api::message::UserQuery {
+                query: "why did that fail?".into(),
+                context: Some(api::InputContext {
+                    executed_shell_commands: vec![api::ExecutedShellCommand {
+                        command: "make".into(),
+                        output: "gcc: error".into(),
+                        exit_code: 2,
+                        command_id: "b2".into(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })),
+        };
+        let req = api::Request {
+            task_context: Some(api::request::TaskContext {
+                tasks: vec![api::Task {
+                    id: "task-1".into(),
+                    messages: vec![history],
+                    ..Default::default()
+                }],
+            }),
+            ..Default::default()
+        };
+        let d = decode(&req);
+        if let NormalizedTurn::User { text, .. } = &d.turns[0] {
+            let text = text.as_deref().unwrap();
+            assert!(text.contains("gcc: error"));
+            assert!(text.ends_with("why did that fail?"));
+        } else {
+            panic!("expected User turn");
+        }
+    }
+
+    #[test]
     fn multiple_tool_results_group_into_one_user_turn() {
         let req = api::Request {
             input: Some(api::request::Input {
@@ -551,6 +729,26 @@ mod tests {
             assert_eq!(tool_results[1].tool_use_id, "t2");
         } else {
             panic!("expected last turn to be User");
+        }
+    }
+
+    fn query_input(query: &str, context: Option<api::InputContext>) -> api::request::Input {
+        api::request::Input {
+            context,
+            r#type: Some(api::request::input::Type::UserInputs(
+                api::request::input::UserInputs {
+                    inputs: vec![api::request::input::user_inputs::UserInput {
+                        input: Some(
+                            api::request::input::user_inputs::user_input::Input::UserQuery(
+                                api::request::input::UserQuery {
+                                    query: query.into(),
+                                    ..Default::default()
+                                },
+                            ),
+                        ),
+                    }],
+                },
+            )),
         }
     }
 }
