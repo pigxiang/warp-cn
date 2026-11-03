@@ -1855,6 +1855,64 @@ fn assert_no_orphaned_wide_chars(grid: &GridHandler, visible_row: VisibleRow) {
 }
 
 #[test]
+fn cjk_symbols_mode_widens_ambiguous_input_in_grid() {
+    char_width::set_char_width_mode(char_width::CharWidthMode::CjkSymbols);
+    let mut grid = GridHandler::new_for_test(5, 10);
+    grid.input('①'); // Cols 0 (WIDE_CHAR) and 1 (SPACER).
+    grid.input('x'); // Col 2.
+
+    assert!(
+        grid.grid_storage()[VisibleRow(0)][0]
+            .flags
+            .contains(Flags::WIDE_CHAR)
+    );
+    assert!(
+        grid.grid_storage()[VisibleRow(0)][1]
+            .flags
+            .contains(Flags::WIDE_CHAR_SPACER)
+    );
+    assert_eq!(grid.grid_storage()[VisibleRow(0)][2].c, 'x');
+    assert_eq!(grid.cursor_point().col, 3);
+
+    grid.input('─'); // Still one cell in CjkSymbols mode.
+    assert_eq!(grid.cursor_point().col, 4);
+    assert!(
+        !grid.grid_storage()[VisibleRow(0)][3]
+            .flags
+            .contains(Flags::WIDE_CHAR)
+    );
+    char_width::set_char_width_mode(char_width::CharWidthMode::Off);
+}
+
+#[test]
+fn off_and_all_ambiguous_modes_bracket_ambiguous_grid_input() {
+    let mut grid = GridHandler::new_for_test(5, 10);
+    grid.input('α');
+    assert_eq!(grid.cursor_point().col, 1);
+    assert!(
+        !grid.grid_storage()[VisibleRow(0)][0]
+            .flags
+            .contains(Flags::WIDE_CHAR)
+    );
+
+    char_width::set_char_width_mode(char_width::CharWidthMode::AllAmbiguous);
+    let mut grid = GridHandler::new_for_test(5, 10);
+    grid.input('α');
+    assert_eq!(grid.cursor_point().col, 2);
+    assert!(
+        grid.grid_storage()[VisibleRow(0)][0]
+            .flags
+            .contains(Flags::WIDE_CHAR)
+    );
+    assert!(
+        grid.grid_storage()[VisibleRow(0)][1]
+            .flags
+            .contains(Flags::WIDE_CHAR_SPACER)
+    );
+    char_width::set_char_width_mode(char_width::CharWidthMode::Off);
+}
+
+#[test]
 fn test_input_overwriting_wide_char_spacer_resets_wide_char() {
     // Input a wide char at col 0-1, move cursor to col 1 (the spacer),
     // then input a narrow char.  The WIDE_CHAR at col 0 must be cleared.

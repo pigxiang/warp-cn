@@ -29,6 +29,7 @@ enum CursorState {
 }
 pub mod cell;
 mod cell_type;
+pub mod char_width;
 mod dimensions;
 pub mod flat_storage;
 pub mod hyperlink_registry;

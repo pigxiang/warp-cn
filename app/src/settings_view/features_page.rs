@@ -99,8 +99,9 @@ use crate::terminal::session_settings::{
     SessionSettingsChangedEvent, ShouldConfirmCloseSession,
 };
 use crate::terminal::settings::{
-    AsyncFindEnabled, MaximumGridSize, Osc52ClipboardAccess, Osc52ClipboardAccessSetting,
-    ShowTerminalZeroStateBlock, TerminalSettings, TerminalSettingsChangedEvent, UseAudibleBell,
+    AmbiguousWidthMode, AmbiguousWidthSetting, AsyncFindEnabled, MaximumGridSize,
+    Osc52ClipboardAccess, Osc52ClipboardAccessSetting, ShowTerminalZeroStateBlock,
+    TerminalSettings, TerminalSettingsChangedEvent, UseAudibleBell,
 };
 use crate::terminal::{BlockListSettings, PreserveInputFocusOnBlockSelection, SnackbarEnabled};
 use crate::undo_close::UndoCloseSettings;
@@ -827,6 +828,7 @@ pub enum FeaturesPageAction {
     SetPreferredGraphicsBackend(Option<GraphicsBackend>),
     SetNewTabPlacement(NewTabPlacement),
     SetOsc52ClipboardAccess(Osc52ClipboardAccess),
+    SetAmbiguousWidth(AmbiguousWidthMode),
     SetDefaultSessionMode(DefaultSessionMode),
     SetDefaultTabConfig(String),
     SearchForKeybinding(String),
@@ -1252,6 +1254,10 @@ impl FeaturesPageAction {
                 action: "SetOsc52ClipboardAccess".to_string(),
                 value: format!("{access:?}"),
             },
+            Self::SetAmbiguousWidth(mode) => TelemetryEvent::FeaturesPageAction {
+                action: "SetAmbiguousWidth".to_string(),
+                value: format!("{mode:?}"),
+            },
             Self::SetDefaultSessionMode(mode) => TelemetryEvent::FeaturesPageAction {
                 action: "SetDefaultSessionMode".to_string(),
                 value: format!("{mode:?}"),
@@ -1458,6 +1464,7 @@ pub struct FeaturesPageView {
     graphics_backend_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
     new_tab_placement_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
     osc52_clipboard_access_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
+    ambiguous_width_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
     default_session_mode_dropdown: ViewHandle<FilterableDropdown<FeaturesPageAction>>,
     tab_behavior: Tracked<TabBehavior>,
     completions_keystroke: Tracked<String>,
@@ -2035,6 +2042,11 @@ impl TypedActionView for FeaturesPageView {
                     );
                 });
             }
+            SetAmbiguousWidth(mode) => {
+                TerminalSettings::handle(ctx).update(ctx, |terminal_settings, ctx| {
+                    report_if_error!(terminal_settings.ambiguous_width.set_value(*mode, ctx));
+                });
+            }
             SetDefaultSessionMode(mode) => self.set_default_session_mode(mode, ctx),
             SetDefaultTabConfig(path) => {
                 AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
@@ -2396,6 +2408,12 @@ impl FeaturesPageView {
                         ctx,
                     );
                 }
+                if matches!(
+                    event,
+                    TerminalSettingsChangedEvent::AmbiguousWidthSetting { .. }
+                ) {
+                    Self::update_ambiguous_width_dropdown(me.ambiguous_width_dropdown.clone(), ctx);
+                }
                 ctx.notify()
             },
         );
@@ -2478,6 +2496,9 @@ impl FeaturesPageView {
 
         let osc52_clipboard_access_dropdown = ctx.add_typed_action_view(Dropdown::new);
         Self::update_osc52_clipboard_access_dropdown(osc52_clipboard_access_dropdown.clone(), ctx);
+
+        let ambiguous_width_dropdown = ctx.add_typed_action_view(Dropdown::new);
+        Self::update_ambiguous_width_dropdown(ambiguous_width_dropdown.clone(), ctx);
 
         ctx.subscribe_to_model(&TabSettings::handle(ctx), |me, _, event, ctx| {
             if matches!(event, TabSettingsChangedEvent::NewTabPlacement { .. }) {
@@ -2763,6 +2784,7 @@ impl FeaturesPageView {
             graphics_backend_dropdown,
             new_tab_placement_dropdown,
             osc52_clipboard_access_dropdown,
+            ambiguous_width_dropdown,
             default_session_mode_dropdown,
             tab_behavior: Default::default(),
 
@@ -3064,6 +3086,7 @@ impl FeaturesPageView {
         terminal_widgets.push(Box::new(SmartSelectWidget::default()));
         terminal_widgets.push(Box::new(CopyOnSelectWidget::default()));
         terminal_widgets.push(Box::new(Osc52ClipboardAccessWidget::default()));
+        terminal_widgets.push(Box::new(AmbiguousWidthWidget::default()));
         terminal_widgets.push(Box::new(NewTabPlacementWidget::default()));
 
         let mut system_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![];
@@ -3742,6 +3765,39 @@ impl FeaturesPageView {
                         DropdownItem::new(
                             val.as_dropdown_label(),
                             FeaturesPageAction::SetOsc52ClipboardAccess(val),
+                        )
+                    })
+                    .collect(),
+                ctx,
+            );
+            dropdown.set_selected_by_index(selected_index, ctx);
+        });
+    }
+
+    fn update_ambiguous_width_dropdown(
+        dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        dropdown.update(ctx, |dropdown, ctx| {
+            let values = vec![
+                AmbiguousWidthMode::Off,
+                AmbiguousWidthMode::CjkSymbols,
+                AmbiguousWidthMode::AllAmbiguous,
+            ];
+            let current_value = *TerminalSettings::as_ref(ctx).ambiguous_width;
+
+            let selected_index = values
+                .iter()
+                .position(|val| *val == current_value)
+                .unwrap_or(0);
+
+            dropdown.set_items(
+                values
+                    .into_iter()
+                    .map(|val| {
+                        DropdownItem::new(
+                            val.as_dropdown_label(),
+                            FeaturesPageAction::SetAmbiguousWidth(val),
                         )
                     })
                     .collect(),
@@ -7450,6 +7506,48 @@ impl SettingsWidget for Osc52ClipboardAccessWidget {
             ),
             None,
             &view.osc52_clipboard_access_dropdown,
+        )
+    }
+}
+
+#[derive(Default)]
+struct AmbiguousWidthWidget {}
+
+impl SettingsWidget for AmbiguousWidthWidget {
+    type View = FeaturesPageView;
+
+    fn should_render(&self, _app: &AppContext) -> bool {
+        FeatureFlag::EastAsianAmbiguousWidth.is_enabled()
+    }
+
+    fn search_terms(&self) -> &str {
+        "east asian ambiguous width cjk fullwidth halfwidth character cell column"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        render_dropdown_item(
+            appearance,
+            "East Asian character width",
+            Some(
+                "Controls whether East Asian Ambiguous characters occupy one or two terminal cells. Only affects newly printed output.",
+            ),
+            None,
+            LocalOnlyIconState::for_setting(
+                AmbiguousWidthSetting::storage_key(),
+                AmbiguousWidthSetting::sync_to_cloud(),
+                &mut view
+                    .button_mouse_states
+                    .local_only_icon_tooltip_states
+                    .borrow_mut(),
+                app,
+            ),
+            None,
+            &view.ambiguous_width_dropdown,
         )
     }
 }

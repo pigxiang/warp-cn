@@ -9,7 +9,6 @@ use std::ops::{Range, RangeInclusive};
 
 use lazy_static::lazy_static;
 use num_traits::Float as _;
-use unicode_width::UnicodeWidthChar;
 use warp_core::features::FeatureFlag;
 use warp_errors::{ReportErrorLogMode, report_error};
 use warpui::assets::asset_cache::{AssetCache, AssetSource, AssetState};
@@ -30,6 +29,7 @@ use super::block_filter::{BLOCK_FILTER_DOTTED_LINE_DASH, BLOCK_FILTER_DOTTED_LIN
 use super::blockgrid_renderer::GridRenderParams;
 use super::model::char_or_str::CharOrStr;
 use super::model::grid::RespectDisplayedOutput;
+use super::model::grid::char_width;
 use super::model::grid::grid_handler::{ContainsPoint, GridHandler, Link};
 use super::model::image_map::{ImagePlacementData, StoredImageMetadata};
 use super::model::terminal_model::RangeInModel;
@@ -668,8 +668,7 @@ fn render_grid_without_ligatures<'a>(
                     marked_text_cell.flags = Flags::UNDERLINE;
                     let cell_type = CellType::marked_text_char();
 
-                    if marked_text_character
-                        .width()
+                    if char_width::display_width(marked_text_character)
                         .is_some_and(|width| width >= 2)
                     {
                         marked_text_cell.flags = marked_text_cell.flags.union(Flags::WIDE_CHAR);
@@ -1239,8 +1238,7 @@ fn render_grid_with_ligatures<'a>(
                         ctx,
                     );
 
-                    if marked_text_character
-                        .width()
+                    if char_width::display_width(marked_text_character)
                         .is_some_and(|width| width >= 2)
                     {
                         marked_text_cell.flags = marked_text_cell.flags.union(Flags::WIDE_CHAR);

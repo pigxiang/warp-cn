@@ -32,6 +32,7 @@ use crate::model::ansi::{
 };
 use crate::model::cell::{Cell, Flags};
 use crate::model::char_or_str::CharOrStr;
+use crate::model::grid::char_width;
 use crate::model::grid::indexing::IndexRegion as _;
 use crate::model::grid::{Dimensions as _, cell, grapheme_cursor};
 use crate::model::image_map::{ImagePlacementData, ImageType, StoredImageMetadata};
@@ -192,7 +193,7 @@ impl ansi::Handler for GridHandler {
             );
         }
         // Number of cells the char will occupy.
-        let Some(width) = c.width() else {
+        let Some(width) = char_width::display_width(c) else {
             return;
         };
 

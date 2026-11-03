@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use settings::macros::define_settings_group;
 use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 use warp_core::features::FeatureFlag;
+use warp_terminal::model::grid::char_width::{CharWidthMode, set_char_width_mode};
 use warpui::units::Pixels;
 use warpui::{AppContext, SingletonEntity};
 
@@ -47,6 +48,54 @@ impl Osc52ClipboardAccess {
             Self::Deny => "Deny",
             Self::WriteOnly => "Write only",
             Self::ReadWrite => "Read and write",
+        }
+    }
+}
+
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+    settings_value::SettingsValue,
+)]
+#[schemars(
+    description = "How East Asian Ambiguous characters occupy terminal grid cells.",
+    rename_all = "snake_case"
+)]
+pub enum AmbiguousWidthMode {
+    #[default]
+    #[schemars(description = "Ambiguous characters occupy one cell (standard behavior).")]
+    Off,
+    #[schemars(
+        description = "Only symbols rendered fullwidth by CJK fonts (enclosed alphanumerics, circled CJK symbols) occupy two cells."
+    )]
+    CjkSymbols,
+    #[schemars(
+        description = "Every East Asian Ambiguous character, including box-drawing and arrows, occupies two cells."
+    )]
+    AllAmbiguous,
+}
+
+impl AmbiguousWidthMode {
+    pub fn as_dropdown_label(self) -> &'static str {
+        match self {
+            Self::Off => "Narrow",
+            Self::CjkSymbols => "Fullwidth symbols",
+            Self::AllAmbiguous => "Fullwidth ambiguous",
+        }
+    }
+
+    fn as_char_width_mode(self) -> CharWidthMode {
+        match self {
+            Self::Off => CharWidthMode::Off,
+            Self::CjkSymbols => CharWidthMode::CjkSymbols,
+            Self::AllAmbiguous => CharWidthMode::AllAmbiguous,
         }
     }
 }
@@ -193,6 +242,16 @@ define_settings_group!(TerminalSettings, settings: [
         toml_path: "terminal.osc52_clipboard_access",
         description: "Controls whether terminal programs can access the system clipboard via OSC 52 escape sequences. Options: deny (default), write_only, read_write.",
     },
+    ambiguous_width: AmbiguousWidthSetting {
+        type: AmbiguousWidthMode,
+        default: AmbiguousWidthMode::default(),
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        surface: settings::SettingSurfaces::GUI,
+        private: false,
+        toml_path: "terminal.ambiguous_width",
+        description: "How East Asian Ambiguous characters occupy terminal grid cells. Options: off, cjk_symbols (default), all_ambiguous. Only affects newly printed output.",
+    },
     // Opt-in toggle for running terminal find on a background thread. Only consulted on
     // channels where `FeatureFlag::AsyncFind` is off; channels with the flag on force the
     // feature on and hide this toggle. See `is_async_find_enabled` for the composite check.
@@ -246,6 +305,18 @@ impl TerminalSettings {
             SpacingMode::Compact => TerminalSpacing::compact(line_height_ratio, ctx),
         }
     }
+}
+
+/// Applies the user's ambiguous-width setting to the terminal grid, gated by
+/// the feature flag. Grid cell layout is decided at write time, so a mode
+/// change only affects subsequently printed characters.
+pub fn apply_ambiguous_width_setting(ctx: &AppContext) {
+    let mode = if FeatureFlag::EastAsianAmbiguousWidth.is_enabled() {
+        (*TerminalSettings::as_ref(ctx).ambiguous_width).as_char_width_mode()
+    } else {
+        CharWidthMode::Off
+    };
+    set_char_width_mode(mode);
 }
 
 #[cfg(test)]

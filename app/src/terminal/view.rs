@@ -469,7 +469,9 @@ use crate::terminal::session_settings::{
     DEFAULT_THRESHOLD_FOR_LONG_RUNNING_NOTIFICATION, NotificationsMode, NotificationsSettings,
     SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection,
 };
-use crate::terminal::settings::{TerminalSettings, TerminalSettingsChangedEvent};
+use crate::terminal::settings::{
+    TerminalSettings, TerminalSettingsChangedEvent, apply_ambiguous_width_setting,
+};
 use crate::terminal::shared_session::manager::Manager;
 use crate::terminal::shared_session::role_change_modal::{
     RoleChangeCloseSource, RoleChangeOpenSource,
@@ -3714,9 +3716,13 @@ impl TerminalView {
                         me.refresh_size(ctx);
                     }
                 }
+                TerminalSettingsChangedEvent::AmbiguousWidthSetting { .. } => {
+                    apply_ambiguous_width_setting(ctx);
+                }
                 _ => {}
             },
         );
+        apply_ambiguous_width_setting(ctx);
 
         ctx.subscribe_to_model(&PaneSettings::handle(ctx), |_, _, event, ctx| {
             if matches!(

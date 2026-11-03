@@ -13,6 +13,7 @@ use crate::terminal::model::terminal_model::{WithinBlock, WithinModel};
 cfg_if::cfg_if! {
     if #[cfg(feature = "local_fs")] {
         use crate::{
+            terminal::model::grid::char_width,
             terminal::model::grid::grid_handler,
             terminal::ShellLaunchData,
             util::file::{FileLink, absolute_path_if_valid, ShellPathType},
@@ -20,7 +21,6 @@ cfg_if::cfg_if! {
         };
         use std::path::PathBuf;
         use unicode_general_category::{get_general_category, GeneralCategory};
-        use unicode_width::UnicodeWidthChar;
         use warp_util::path::CleanPathResult;
         use warp_util::path::LineAndColumnArg;
     }
@@ -103,7 +103,7 @@ fn path_without_trailing_sentence_punctuation(
         }
 
         trimmed = new_trimmed;
-        removed_width += UnicodeWidthChar::width(c).unwrap_or(1);
+        removed_width += char_width::display_width(c).unwrap_or(1);
     }
 
     (removed_width > 0).then_some(TrimmedSentencePunctuation {

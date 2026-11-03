@@ -1013,6 +1013,11 @@ pub enum FeatureFlag {
     /// mirrors kept in the persistent build cache instead of cloning each one
     /// from the remote. Disabling it restores direct, network-only checkouts.
     GitMirrorCache,
+
+    /// warp-cn fork: lets East Asian Ambiguous characters occupy two terminal
+    /// cells, selectable between CJK-symbol-only and strict full-class modes
+    /// in Settings. Off keeps upstream one-cell behavior.
+    EastAsianAmbiguousWidth,
 }
 
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =
@@ -1095,6 +1100,7 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::GitMirrorCache,
     FeatureFlag::CloudAgentExecutionConfig,
     FeatureFlag::FactoryDeferredRepositories,
+    FeatureFlag::EastAsianAmbiguousWidth,
 ];
 
 /// Features enabled for feature preview build users (e.g.: Friends of Warp).
@@ -1132,10 +1138,16 @@ pub const RELEASE_FLAGS: &[FeatureFlag] = &[
     // client (not just cloud agents) to execute them via `crates/computer_use`.
     FeatureFlag::AgentModeComputerUse,
     FeatureFlag::LocalComputerUse,
+    // warp-cn fork: default two-cell treatment of fullwidth-rendered East
+    // Asian symbols for CJK users.
+    FeatureFlag::EastAsianAmbiguousWidth,
 ];
 
 /// Flags that we want to allow to switch at runtime (assuming RuntimeFeatureFlags is set)
-pub const RUNTIME_FEATURE_FLAGS: &[FeatureFlag] = &[FeatureFlag::LocalClaudeCodexChildHarnesses];
+pub const RUNTIME_FEATURE_FLAGS: &[FeatureFlag] = &[
+    FeatureFlag::LocalClaudeCodexChildHarnesses,
+    FeatureFlag::EastAsianAmbiguousWidth,
+];
 
 impl FeatureFlag {
     pub fn is_enabled(&self) -> bool {

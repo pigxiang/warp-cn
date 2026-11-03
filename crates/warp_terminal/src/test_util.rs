@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 use pathfinder_geometry::vector::Vector2F;
-use unicode_width::UnicodeWidthChar;
 
 use crate::SizeInfo;
 use crate::event_listener::ChannelEventListener;
@@ -11,6 +10,7 @@ use crate::model::ansi::{self, Handler};
 use crate::model::blockgrid::BlockGrid;
 use crate::model::cell::Flags;
 use crate::model::grid::Dimensions as _;
+use crate::model::grid::char_width;
 use crate::model::grid::grid_handler::PerformResetGridChecks;
 use crate::model::image_map::StoredImageMetadata;
 use crate::model::index::{VisiblePoint, VisibleRow};
@@ -81,7 +81,7 @@ pub fn mock_blockgrid(content: &str) -> BlockGrid {
                 // All characters in our mock blockgrid should have a minimum character width of one
                 // because any character that is rendered in the blockgrid will occupy at least one
                 // grapheme. This is true for the null-character '\0' as well.
-                .map(|c| usize::max(c.width().unwrap_or(1), 1))
+                .map(|c| usize::max(char_width::display_width(c).unwrap_or(1), 1))
                 .sum();
             sum
         })
@@ -116,7 +116,7 @@ pub fn mock_blockgrid(content: &str) -> BlockGrid {
             // All characters in our mock blockgrid should have a minimum character width of one
             // because any character that is rendered in the blockgrid will occupy at least one
             // grapheme. This is true for the null-character '\0' as well.
-            let width = usize::max(c.width().unwrap_or(1), 1);
+            let width = usize::max(char_width::display_width(c).unwrap_or(1), 1);
             if width == 2 {
                 blockgrid.grid_storage_mut()[row][index]
                     .flags_mut()

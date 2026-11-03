@@ -25,7 +25,6 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use string_offset::ByteOffset;
 use unicode_general_category::{GeneralCategory, get_general_category};
-use unicode_width::UnicodeWidthChar;
 use urlocator::{UrlLocation, UrlLocator};
 use warp_core::features::FeatureFlag;
 use warp_core::semantic_selection::{SMART_SELECT_MATCH_WINDOW_LIMIT, SemanticSelection};
@@ -47,7 +46,7 @@ use crate::model::char_or_str::{CharOrStr, PushCharOrStr};
 use crate::model::find::{Match, RegexDFAs};
 use crate::model::grid::{
     CellType, Dimensions, FlatStorage, GridStorage, HyperlinkId, HyperlinkRegistry,
-    RespectDisplayedOutput,
+    RespectDisplayedOutput, char_width,
 };
 use crate::model::image_map::ImageMap;
 use crate::model::index::{Direction, IndexRange, Point, VisibleRow};
@@ -1594,7 +1593,7 @@ impl GridHandler {
 
                     fragments.push(Fragment {
                         content: cell.c.into(),
-                        total_cell_width: UnicodeWidthChar::width(cell.c).unwrap_or(1),
+                        total_cell_width: char_width::display_width(cell.c).unwrap_or(1),
                     });
                 // Otherwise we append the current cell to the last fragment
                 } else {
@@ -2721,7 +2720,11 @@ impl GridHandler {
     fn marked_text_cell_length(&self) -> usize {
         self.marked_text
             .as_ref()
-            .map(|s| s.chars().map(|c| c.width().unwrap_or(0)).sum())
+            .map(|s| {
+                s.chars()
+                    .map(|c| char_width::display_width(c).unwrap_or(0))
+                    .sum()
+            })
             .unwrap_or(0)
     }
 
