@@ -619,7 +619,7 @@ fn project_messages(turns: &[NormalizedTurn], system: &str) -> Vec<Value> {
                     }));
                 }
             }
-            NormalizedTurn::Assistant { text, tool_uses, reasoning } => {
+            NormalizedTurn::Assistant { text, tool_uses, reasoning, .. } => {
                 let tool_calls: Vec<Value> = tool_uses
                     .iter()
                     .map(|u| {

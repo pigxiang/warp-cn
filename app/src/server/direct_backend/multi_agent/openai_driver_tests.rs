@@ -25,6 +25,7 @@ fn tool_call_only_assistant() -> NormalizedTurn {
             input: json!({"command": "ls -la"}),
         }],
         reasoning: Some("Let me explore the workspace first.".into()),
+        message_ids: vec![],
     }
 }
 
@@ -62,6 +63,7 @@ fn tool_call_turn_keeps_visible_text_when_the_model_produced_some() {
                 input: json!({"command": "ls -la"}),
             }],
             reasoning: None,
+            message_ids: vec![],
         }],
         "system",
     );
@@ -81,6 +83,7 @@ fn plain_assistant_turn_always_carries_content() {
             text: Some("Hello!".into()),
             tool_uses: vec![],
             reasoning: None,
+            message_ids: vec![],
         }],
         "system",
     );

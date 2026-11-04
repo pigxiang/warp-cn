@@ -45,6 +45,11 @@ struct Transcripts {
     /// outlive the retention window — otherwise a step the char budget evicted
     /// comes back as a call with no result.
     sent_call_ids: HashMap<String, HashSet<String>>,
+    /// Task-message ids whose prose (text/reasoning) already went on the wire.
+    /// Like [`Self::sent_call_ids`], this outlives the retention window; the
+    /// follow-up batch replays the current task's messages, and replayed prose
+    /// is what made the model parrot its own preamble forever.
+    sent_message_ids: HashMap<String, HashSet<String>>,
     /// Oldest first; evicted from the front once too many conversations are
     /// retained. Time-based expiry is avoided because this path also compiles
     /// for wasm, where a monotonic clock is not guaranteed.
@@ -70,7 +75,20 @@ impl Transcripts {
             .get(conversation_id)
             .cloned()
             .unwrap_or_default();
+        let known_msgs = self
+            .sent_message_ids
+            .get(conversation_id)
+            .cloned()
+            .unwrap_or_default();
         let overlap = align(&cached, &incoming);
+        log::trace!(
+            "DirectBackend history merge: conv={conversation_id} cached={} incoming={} overlap={} cached_keys={:?} incoming_keys={:?}",
+            cached.len(),
+            incoming.len(),
+            overlap,
+            key_digest(&cached),
+            key_digest(&incoming),
+        );
         let mut merged = cached[..cached.len() - overlap].to_vec();
         merged.extend(incoming);
         // The first `cached.len()` merged turns are the transcript we already
@@ -78,10 +96,10 @@ impl Transcripts {
         // comes after that is new.
         let sent_len = cached.len();
 
-        let duplicates = dedupe_replayed_tool_items(&mut merged, sent_len, &known);
+        let duplicates = dedupe_replayed_items(&mut merged, sent_len, &known, &known_msgs);
         if duplicates > 0 {
             log::warn!(
-                "DirectBackend history: {conversation_id} dropped {duplicates} duplicate tool item(s)"
+                "DirectBackend history: {conversation_id} dropped {duplicates} replayed item(s)"
             );
         }
         let elided = compact_stale_tool_results(&mut merged, sent_len);
@@ -99,7 +117,7 @@ impl Transcripts {
             log::warn!("DirectBackend history: stripped {orphaned} orphaned tool result(s)");
         }
         ensure_user_lead(&mut merged);
-        self.remember_sent_calls(conversation_id, &merged);
+        self.remember_sent_ids(conversation_id, &merged);
 
         self.by_conversation
             .insert(conversation_id.to_owned(), merged.clone());
@@ -108,15 +126,27 @@ impl Transcripts {
         merged
     }
 
-    fn remember_sent_calls(&mut self, conversation_id: &str, turns: &[NormalizedTurn]) {
+    fn remember_sent_ids(&mut self, conversation_id: &str, turns: &[NormalizedTurn]) {
         let sent = self
             .sent_call_ids
             .entry(conversation_id.to_owned())
             .or_default();
+        let sent_msgs = self
+            .sent_message_ids
+            .entry(conversation_id.to_owned())
+            .or_default();
         for turn in turns {
-            if let NormalizedTurn::Assistant { tool_uses, .. } = turn {
+            if let NormalizedTurn::Assistant {
+                tool_uses,
+                message_ids,
+                ..
+            } = turn
+            {
                 for call in tool_uses {
                     sent.insert(call.tool_use_id.clone());
+                }
+                for id in message_ids {
+                    sent_msgs.insert(id.clone());
                 }
             }
         }
@@ -133,6 +163,7 @@ impl Transcripts {
                 Some(stale) => {
                     self.by_conversation.remove(&stale);
                     self.sent_call_ids.remove(&stale);
+                    self.sent_message_ids.remove(&stale);
                 }
                 None => break,
             }
@@ -163,6 +194,11 @@ fn align(cached: &[NormalizedTurn], incoming: &[NormalizedTurn]) -> usize {
     0
 }
 
+/// Turn-key digests for the trace-level merge alignment log.
+fn key_digest(turns: &[NormalizedTurn]) -> Vec<u64> {
+    turns.iter().map(turn_key).collect()
+}
+
 /// Identity of a turn for alignment. Tool-call ids identify a step; one call's
 /// result text is rendered separately by the history projection and the input
 /// projection, so content is deliberately left out of the key.
@@ -180,7 +216,10 @@ fn turn_key(turn: &NormalizedTurn) -> u64 {
             }
         }
         NormalizedTurn::Assistant {
-            text, tool_uses, ..
+            text,
+            tool_uses,
+            message_ids,
+            ..
         } => {
             1u8.hash(&mut hasher);
             if tool_uses.is_empty() {
@@ -190,39 +229,66 @@ fn turn_key(turn: &NormalizedTurn) -> u64 {
                     tool_use.tool_use_id.hash(&mut hasher);
                 }
             }
+            for id in message_ids {
+                id.hash(&mut hasher);
+            }
         }
     }
     hasher.finish()
 }
 
-/// Drops tool calls and tool results an earlier turn of the transcript already
-/// carries, then drops turns left with nothing to send.
+/// Drops tool calls, tool results, and prose that an earlier turn of the
+/// transcript already carries, then drops turns left with nothing to send.
 ///
 /// The client ships the whole current task transcript on every follow-up
-/// (`task_context.tasks[*].messages`), so each request's tool batch is a
-/// superset of what was already put on the wire. [`align`] cannot see that: its
-/// turn key hashes the whole batch's ids, which grow every step. `known` adds
-/// the ids of steps the retention budget has since evicted, so an evicted step
-/// is not resurrected as a call with no result. Turns before `sent_len` are the
-/// transcript already put on the wire and always define the baseline.
-fn dedupe_replayed_tool_items(
+/// (`task_context.tasks[*].messages`), so each request's batch is a superset of
+/// what was already put on the wire. [`align`] cannot see that: replayed steps
+/// arrive without their interleaved tool-result turns, so turn chains never
+/// match. `known` adds the call ids and `known_msgs` the task-message ids of
+/// steps already sent (including ones the retention budget has since evicted);
+/// a replayed assistant turn with only known ids loses its text/reasoning —
+/// leaving it in is what fed the model copies of its own preamble until it
+/// started repeating them verbatim. Turns before `sent_len` are the transcript
+/// already put on the wire and always define the baseline.
+fn dedupe_replayed_items(
     turns: &mut Vec<NormalizedTurn>,
     sent_len: usize,
     known: &HashSet<String>,
+    known_msgs: &HashSet<String>,
 ) -> usize {
     let mut called: HashSet<String> = HashSet::new();
     let mut answered: HashSet<String> = HashSet::new();
+    let mut seen_msgs: HashSet<&str> = HashSet::new();
     let mut dropped = 0usize;
     for (idx, turn) in turns.iter_mut().enumerate() {
         let replayed = idx >= sent_len;
         match turn {
-            NormalizedTurn::Assistant { tool_uses, .. } => {
+            NormalizedTurn::Assistant {
+                text,
+                tool_uses,
+                reasoning,
+                message_ids,
+            } => {
                 let before = tool_uses.len();
                 tool_uses.retain(|call| {
                     let sent_earlier = known.contains(&call.tool_use_id);
                     called.insert(call.tool_use_id.clone()) && !(replayed && sent_earlier)
                 });
                 dropped += before - tool_uses.len();
+                if replayed
+                    && !message_ids.is_empty()
+                    && message_ids
+                        .iter()
+                        .all(|id| known_msgs.contains(id) || seen_msgs.contains(id.as_str()))
+                {
+                    if text.take().is_some() {
+                        dropped += 1;
+                    }
+                    if reasoning.take().is_some() {
+                        dropped += 1;
+                    }
+                }
+                seen_msgs.extend(message_ids.iter().map(String::as_str));
             }
             NormalizedTurn::User { tool_results, .. } => {
                 let before = tool_results.len();
@@ -244,6 +310,7 @@ fn is_populated(turn: &NormalizedTurn) -> bool {
             text,
             tool_uses,
             reasoning,
+            ..
         } => text.is_some() || !tool_uses.is_empty() || reasoning.is_some(),
     }
 }

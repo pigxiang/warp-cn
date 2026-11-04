@@ -17,7 +17,9 @@
 use serde_json::Value;
 use warp_multi_agent_api as api;
 
-use super::tool_schema::{message_result_to_text, proto_to_history, request_result_to_text, ToolKind};
+use super::tool_schema::{
+    ToolKind, message_result_to_text, proto_to_history, request_result_to_text,
+};
 
 /// One tool call inside an assistant turn.
 #[derive(Debug, Clone)]
@@ -52,6 +54,12 @@ pub enum NormalizedTurn {
         /// next request, otherwise they reject with HTTP 400. Other
         /// providers (Anthropic / Gemini) ignore this.
         reasoning: Option<String>,
+        /// Task-message ids that produced `text`/`reasoning`. The task batch
+        /// replays every step of the current task on each follow-up request,
+        /// so [`super::history`] drops the prose of a replayed turn once these
+        /// ids have already gone on the wire — the transcript must carry each
+        /// assistant sentence to the provider exactly once.
+        message_ids: Vec<String>,
     },
 }
 
@@ -89,9 +97,21 @@ pub struct DecodedRequest {
 enum Atom {
     UserText(String),
     UserToolResult(ToolResult),
-    AssistantText(String),
-    AssistantReasoning(String),
-    AssistantToolUse(ToolUse),
+    AssistantText {
+        message_id: String,
+        request_id: String,
+        text: String,
+    },
+    AssistantReasoning {
+        message_id: String,
+        request_id: String,
+        text: String,
+    },
+    AssistantToolUse {
+        message_id: String,
+        request_id: String,
+        tool: ToolUse,
+    },
 }
 
 pub fn decode(req: &api::Request) -> DecodedRequest {
@@ -115,9 +135,30 @@ pub fn decode(req: &api::Request) -> DecodedRequest {
 
     if let Some(ctx) = req.task_context.as_ref() {
         for task in &ctx.tasks {
-            for msg in &task.messages {
+            log::trace!(
+                "DirectBackend decode: task={} messages={}",
+                task.id,
+                task.messages.len()
+            );
+            for (i, msg) in task.messages.iter().enumerate() {
+                log::trace!(
+                    "DirectBackend decode: task_msg[{i}] id={} req={} {}",
+                    msg.id,
+                    msg.request_id,
+                    describe_message(msg.message.as_ref()),
+                );
                 project_history_message(msg, &mut atoms, &mut compat, &mut has_user_input);
             }
+        }
+    }
+    if let Some(input) = req.input.as_ref()
+        && let Some(api::request::input::Type::UserInputs(inputs)) = input.r#type.as_ref()
+    {
+        for (i, ui) in inputs.inputs.iter().enumerate() {
+            log::trace!(
+                "DirectBackend decode: input[{i}] {}",
+                describe_user_input(ui.input.as_ref()),
+            );
         }
     }
 
@@ -198,33 +239,66 @@ pub fn decode(req: &api::Request) -> DecodedRequest {
 }
 
 fn coalesce(atoms: Vec<Atom>) -> Vec<NormalizedTurn> {
+    fn is_user_atom(atom: &Atom) -> bool {
+        matches!(atom, Atom::UserText(_) | Atom::UserToolResult(_))
+    }
+    fn request_of(atom: &Atom) -> Option<&str> {
+        match atom {
+            Atom::AssistantText { request_id, .. }
+            | Atom::AssistantReasoning { request_id, .. }
+            | Atom::AssistantToolUse { request_id, .. } => Some(request_id.as_str()),
+            _ => None,
+        }
+    }
+
     let mut out = Vec::new();
     let mut i = 0;
     while i < atoms.len() {
-        let is_user = matches!(
-            &atoms[i],
-            Atom::UserText(_) | Atom::UserToolResult(_)
-        );
+        let is_user = is_user_atom(&atoms[i]);
+        // Task batches replay the current task's steps from previous requests.
+        // Assistant atoms must not fuse across response boundaries: each
+        // response's messages share one `request_id`, and the turn shape that
+        // reaches [`super::history::merge`] has to identify one step, whose
+        // message ids then dedupe the replay.
+        let step = request_of(&atoms[i]).map(str::to_owned);
 
         let mut text_parts: Vec<String> = Vec::new();
         let mut reasoning_parts: Vec<String> = Vec::new();
         let mut tool_uses: Vec<ToolUse> = Vec::new();
         let mut tool_results: Vec<ToolResult> = Vec::new();
+        let mut message_ids: Vec<String> = Vec::new();
 
-        while i < atoms.len() {
-            let still_user = matches!(
-                &atoms[i],
-                Atom::UserText(_) | Atom::UserToolResult(_)
-            );
-            if still_user != is_user {
-                break;
+        while i < atoms.len() && is_user_atom(&atoms[i]) == is_user {
+            if !is_user {
+                let same_step = match (step.as_deref(), request_of(&atoms[i])) {
+                    (Some(step), Some(request)) => step == request,
+                    _ => true,
+                };
+                if !same_step {
+                    break;
+                }
             }
             match atoms[i].clone() {
                 Atom::UserText(t) => text_parts.push(t),
                 Atom::UserToolResult(r) => tool_results.push(r),
-                Atom::AssistantText(t) => text_parts.push(t),
-                Atom::AssistantReasoning(r) => reasoning_parts.push(r),
-                Atom::AssistantToolUse(u) => tool_uses.push(u),
+                Atom::AssistantText {
+                    message_id, text, ..
+                } => {
+                    text_parts.push(text);
+                    push_new_id(&mut message_ids, message_id);
+                }
+                Atom::AssistantReasoning {
+                    message_id, text, ..
+                } => {
+                    reasoning_parts.push(text);
+                    push_new_id(&mut message_ids, message_id);
+                }
+                Atom::AssistantToolUse {
+                    message_id, tool, ..
+                } => {
+                    tool_uses.push(tool);
+                    push_new_id(&mut message_ids, message_id);
+                }
             }
             i += 1;
         }
@@ -247,10 +321,21 @@ fn coalesce(atoms: Vec<Atom>) -> Vec<NormalizedTurn> {
                 out.push(NormalizedTurn::User { text, tool_results });
             }
         } else if text.is_some() || !tool_uses.is_empty() || reasoning.is_some() {
-            out.push(NormalizedTurn::Assistant { text, tool_uses, reasoning });
+            out.push(NormalizedTurn::Assistant {
+                text,
+                tool_uses,
+                reasoning,
+                message_ids,
+            });
         }
     }
     out
+}
+
+fn push_new_id(ids: &mut Vec<String>, id: String) {
+    if !ids.contains(&id) {
+        ids.push(id);
+    }
 }
 
 /// Attached context rides in front of the user's own text so the model reads it as part of the
@@ -279,21 +364,33 @@ fn project_history_message(
         }
         Some(M::AgentOutput(ao)) => {
             if !ao.text.is_empty() {
-                out.push(Atom::AssistantText(ao.text.clone()));
+                out.push(Atom::AssistantText {
+                    message_id: msg.id.clone(),
+                    request_id: msg.request_id.clone(),
+                    text: ao.text.clone(),
+                });
             }
         }
         Some(M::AgentReasoning(ar)) => {
             if !ar.reasoning.is_empty() {
-                out.push(Atom::AssistantReasoning(ar.reasoning.clone()));
+                out.push(Atom::AssistantReasoning {
+                    message_id: msg.id.clone(),
+                    request_id: msg.request_id.clone(),
+                    text: ar.reasoning.clone(),
+                });
             }
         }
         Some(M::ToolCall(tc)) => match tc.tool.as_ref() {
             Some(tool) => match proto_to_history(tool) {
-                Some((tool_kind, input)) => out.push(Atom::AssistantToolUse(ToolUse {
-                    tool_use_id: tc.tool_call_id.clone(),
-                    tool_kind,
-                    input,
-                })),
+                Some((tool_kind, input)) => out.push(Atom::AssistantToolUse {
+                    message_id: msg.id.clone(),
+                    request_id: msg.request_id.clone(),
+                    tool: ToolUse {
+                        tool_use_id: tc.tool_call_id.clone(),
+                        tool_kind,
+                        input,
+                    },
+                }),
                 None => *compat = false,
             },
             None => *compat = false,
@@ -362,6 +459,43 @@ fn project_user_input(
     }
 }
 
+/// Trace-level structural dump of the incoming request, for transcript-
+/// duplication field diagnosis.
+fn describe_message(msg: Option<&api::message::Message>) -> String {
+    use api::message::Message as M;
+    match msg {
+        Some(M::UserQuery(uq)) => format!("UserQuery chars={}", uq.query.chars().count()),
+        Some(M::AgentOutput(ao)) => format!("AgentOutput chars={}", ao.text.chars().count()),
+        Some(M::AgentReasoning(ar)) => {
+            format!("AgentReasoning chars={}", ar.reasoning.chars().count())
+        }
+        Some(M::ToolCall(tc)) => format!("ToolCall id={}", tc.tool_call_id),
+        Some(M::ToolCallResult(tcr)) => format!("ToolCallResult id={}", tcr.tool_call_id),
+        Some(_) => "other".to_owned(),
+        None => "empty".to_owned(),
+    }
+}
+
+/// Trace-level structural dump of the incoming request, for transcript-
+/// duplication field diagnosis.
+fn describe_user_input(
+    input: Option<&api::request::input::user_inputs::user_input::Input>,
+) -> String {
+    use api::request::input::user_inputs::user_input::Input as I;
+    match input {
+        Some(I::UserQuery(uq)) => format!("UserQuery chars={}", uq.query.chars().count()),
+        Some(I::CliAgentUserQuery(cli)) => format!(
+            "CliAgentUserQuery chars={}",
+            cli.user_query
+                .as_ref()
+                .map_or(0, |uq| uq.query.chars().count())
+        ),
+        Some(I::ToolCallResult(tcr)) => format!("ToolCallResult id={}", tcr.tool_call_id),
+        Some(_) => "other".to_owned(),
+        None => "empty".to_owned(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,9 +525,9 @@ mod tests {
             server_message_data: String::new(),
             citations: vec![],
             fetched_memories: vec![],
-            message: Some(api::message::Message::AgentOutput(api::message::AgentOutput {
-                text: text.into(),
-            })),
+            message: Some(api::message::Message::AgentOutput(
+                api::message::AgentOutput { text: text.into() },
+            )),
         }
     }
 
@@ -454,7 +588,11 @@ mod tests {
             task_context: Some(api::request::TaskContext {
                 tasks: vec![api::Task {
                     id: "t".into(),
-                    messages: vec![user_msg("read it"), agent_msg("here goes"), agent_tool_msg("tc1")],
+                    messages: vec![
+                        user_msg("read it"),
+                        agent_msg("here goes"),
+                        agent_tool_msg("tc1"),
+                    ],
                     ..Default::default()
                 }],
             }),
@@ -462,12 +600,102 @@ mod tests {
         };
         let d = decode(&req);
         assert_eq!(d.turns.len(), 2);
-        if let NormalizedTurn::Assistant { text, tool_uses, .. } = &d.turns[1] {
+        if let NormalizedTurn::Assistant {
+            text, tool_uses, ..
+        } = &d.turns[1]
+        {
             assert_eq!(text.as_deref(), Some("here goes"));
             assert_eq!(tool_uses.len(), 1);
             assert_eq!(tool_uses[0].tool_use_id, "tc1");
         } else {
             panic!("expected grouped Assistant turn");
+        }
+    }
+
+    #[test]
+    fn assistant_turns_split_at_response_boundaries() {
+        fn step_message(
+            id: &str,
+            request_id: &str,
+            message: api::message::Message,
+        ) -> api::Message {
+            api::Message {
+                id: id.into(),
+                task_id: "t".into(),
+                request_id: request_id.into(),
+                timestamp: None,
+                server_message_data: String::new(),
+                citations: vec![],
+                fetched_memories: vec![],
+                message: Some(message),
+            }
+        }
+        let tool = |call_id: &str| {
+            api::message::Message::ToolCall(api::message::ToolCall {
+                tool_call_id: call_id.into(),
+                tool: Some(api::message::tool_call::Tool::ReadFiles(
+                    api::message::tool_call::ReadFiles {
+                        files: vec![api::message::tool_call::read_files::File {
+                            name: "x".into(),
+                            line_ranges: vec![],
+                        }],
+                    },
+                )),
+            })
+        };
+        // A follow-up batch replays step 1's messages before step 2's; without
+        // the response boundary split their prose would fuse into one turn and
+        // step 1's text could never be deduped out of the transcript.
+        let req = api::Request {
+            task_context: Some(api::request::TaskContext {
+                tasks: vec![api::Task {
+                    id: "task-1".into(),
+                    messages: vec![
+                        step_message(
+                            "ao-1",
+                            "r-1",
+                            api::message::Message::AgentOutput(api::message::AgentOutput {
+                                text: "I will map the tree.".into(),
+                            }),
+                        ),
+                        step_message("tc-1", "r-1", tool("call-1")),
+                        step_message(
+                            "ao-2",
+                            "r-2",
+                            api::message::Message::AgentOutput(api::message::AgentOutput {
+                                text: "Now I will read scripts.".into(),
+                            }),
+                        ),
+                    ],
+                    ..Default::default()
+                }],
+            }),
+            ..Default::default()
+        };
+        let d = decode(&req);
+        assert_eq!(d.turns.len(), 2);
+        let (first, second) = (&d.turns[0], &d.turns[1]);
+        if let NormalizedTurn::Assistant {
+            text,
+            tool_uses,
+            message_ids,
+            ..
+        } = first
+        {
+            assert_eq!(text.as_deref(), Some("I will map the tree."));
+            assert_eq!(tool_uses.len(), 1);
+            assert_eq!(message_ids, &["ao-1".to_owned(), "tc-1".to_owned()]);
+        } else {
+            panic!("expected first Assistant turn");
+        }
+        if let NormalizedTurn::Assistant {
+            text, tool_uses, ..
+        } = second
+        {
+            assert_eq!(text.as_deref(), Some("Now I will read scripts."));
+            assert!(tool_uses.is_empty());
+        } else {
+            panic!("expected second Assistant turn");
         }
     }
 
@@ -487,12 +715,14 @@ mod tests {
                             server_message_data: String::new(),
                             citations: vec![],
                             fetched_memories: vec![],
-                            message: Some(api::message::Message::ToolCall(api::message::ToolCall {
-                                tool_call_id: "tc".into(),
-                                tool: Some(api::message::tool_call::Tool::SearchCodebase(
-                                    api::message::tool_call::SearchCodebase::default(),
-                                )),
-                            })),
+                            message: Some(api::message::Message::ToolCall(
+                                api::message::ToolCall {
+                                    tool_call_id: "tc".into(),
+                                    tool: Some(api::message::tool_call::Tool::SearchCodebase(
+                                        api::message::tool_call::SearchCodebase::default(),
+                                    )),
+                                },
+                            )),
                         },
                         user_msg("after search"),
                     ],
@@ -619,7 +849,10 @@ mod tests {
             ..Default::default()
         };
         let d = decode(&req);
-        assert_eq!(d.attached_context_chars, 0, "dropped renders are not counted");
+        assert_eq!(
+            d.attached_context_chars, 0,
+            "dropped renders are not counted"
+        );
         let last = d.turns.last().expect("one tool-result turn");
         if let NormalizedTurn::User { text, tool_results } = last {
             assert!(text.is_none(), "no environment context on a tool turn");

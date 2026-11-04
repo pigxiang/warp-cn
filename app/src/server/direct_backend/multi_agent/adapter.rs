@@ -25,12 +25,24 @@ struct AdapterState {
     request_id: String,
     text_messages: HashMap<u32, String>,
     reasoning_messages: HashMap<u32, String>,
+    text_stats: HashMap<u32, BlockStat>,
+    reasoning_stats: HashMap<u32, BlockStat>,
     /// Captured `Stop` payload — emitted as `Finished` once the source
     /// stream closes (or as soon as we observe it, depending on adapter).
     stop: Option<DriverStreamChunk>,
     /// True after we have produced the terminal `Finished` event so further
     /// poll calls return None.
     finished: bool,
+}
+
+/// Per-block delta volume, logged at `trace` when the stream drains. A
+/// gateway that re-sends cumulative text in every chunk shows few deltas with
+/// a large total; a driver that double-feeds the adapter shows doubled counts.
+#[derive(Default)]
+struct BlockStat {
+    deltas: usize,
+    chars: usize,
+    first_excerpt: String,
 }
 
 pub fn adapt(
@@ -44,6 +56,8 @@ pub fn adapt(
         request_id,
         text_messages: HashMap::new(),
         reasoning_messages: HashMap::new(),
+        text_stats: HashMap::new(),
+        reasoning_stats: HashMap::new(),
         stop: None,
         finished: false,
     };
@@ -62,6 +76,17 @@ pub fn adapt(
                         st.text_messages.len(),
                         st.reasoning_messages.len(),
                     );
+                    let mut blocks: Vec<u32> = st.text_stats.keys().copied().collect();
+                    blocks.sort_unstable();
+                    for idx in blocks {
+                        let s = &st.text_stats[&idx];
+                        log::trace!(
+                            "DirectBackend adapter: text block={idx} deltas={} chars={} first={:?}",
+                            s.deltas,
+                            s.chars,
+                            s.first_excerpt,
+                        );
+                    }
                     st.finished = true;
                     let ev = encode::build_finished_from_stop(st.stop.take());
                     return Some((Ok(ev), (src, st)));
@@ -75,6 +100,12 @@ pub fn adapt(
                 Some(Ok(DriverStreamChunk::TextDelta { block_idx, text })) => {
                     if text.is_empty() {
                         continue;
+                    }
+                    let stat = st.text_stats.entry(block_idx).or_default();
+                    stat.deltas += 1;
+                    stat.chars += text.chars().count();
+                    if stat.first_excerpt.is_empty() {
+                        stat.first_excerpt = text.chars().take(60).collect();
                     }
                     if let Some(msg_id) = st.text_messages.get(&block_idx).cloned() {
                         let ev =
@@ -96,6 +127,9 @@ pub fn adapt(
                     if text.is_empty() {
                         continue;
                     }
+                    let stat = st.reasoning_stats.entry(block_idx).or_default();
+                    stat.deltas += 1;
+                    stat.chars += text.chars().count();
                     if let Some(msg_id) = st.reasoning_messages.get(&block_idx).cloned() {
                         let ev =
                             encode::build_append_to_reasoning(&st.task_id, &msg_id, &text);

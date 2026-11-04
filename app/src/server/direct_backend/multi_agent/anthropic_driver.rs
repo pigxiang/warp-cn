@@ -79,6 +79,18 @@ pub async fn call_streaming(
     };
 
     let url = common::api_url(&provider.base_url, "v1", "messages");
+    let roles: Vec<&str> = body
+        .messages
+        .iter()
+        .filter_map(|m| m.get("role").and_then(|r| r.as_str()))
+        .collect();
+    log::info!(
+        "DirectBackend Anthropic: opening SSE url={url} model={} messages={} tools={} roles=[{}]",
+        provider.model_id,
+        body.messages.len(),
+        body.tools.len(),
+        roles.join(","),
+    );
     let client = super::streaming_client().context("Anthropic agent client init")?;
     let req = client
         .post(&url)
@@ -405,7 +417,7 @@ fn project_messages(turns: &[NormalizedTurn]) -> Vec<Value> {
                     json!({"role": "user", "content": blocks})
                 }
             }
-            NormalizedTurn::Assistant { text, tool_uses, reasoning: _ } => {
+            NormalizedTurn::Assistant { text, tool_uses, .. } => {
                 let mut blocks: Vec<Value> = Vec::new();
                 if let Some(t) = text {
                     blocks.push(json!({"type": "text", "text": t}));

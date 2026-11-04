@@ -26,9 +26,9 @@ mod tests;
 use std::sync::Arc;
 use std::time::Duration;
 
+use futures::StreamExt;
 #[cfg(not(target_family = "wasm"))]
 use futures::stream::BoxStream;
-use futures::StreamExt;
 use uuid::Uuid;
 use warp_multi_agent_api as api;
 
@@ -115,18 +115,12 @@ pub struct DriverOutput {
 pub enum DriverStreamChunk {
     /// Token(s) for an assistant text block. The adapter will start a new
     /// AgentOutput message on first `block_idx` and append on subsequent ones.
-    TextDelta {
-        block_idx: u32,
-        text: String,
-    },
+    TextDelta { block_idx: u32, text: String },
     /// Chain-of-thought tokens emitted by reasoning models (DeepSeek-R1 /
     /// o1-style). Rendered as a separate `AgentReasoning` message so it
     /// shows up as a foldable thinking block instead of being concatenated
     /// onto the visible reply.
-    ReasoningDelta {
-        block_idx: u32,
-        text: String,
-    },
+    ReasoningDelta { block_idx: u32, text: String },
     /// A tool_use block has begun. Adapter ignores; here for tracing.
     #[allow(dead_code)]
     ToolUseStart {
@@ -144,9 +138,7 @@ pub enum DriverStreamChunk {
     },
     /// Soft tool error (parse failure / unknown name). Adapter surfaces it as
     /// inline `[tool error]` text so the model can self-correct next turn.
-    ToolUseSoftError {
-        message: String,
-    },
+    ToolUseSoftError { message: String },
     /// Terminal chunk. After this, no more chunks; the stream MUST be closed.
     Stop {
         stop_reason: Option<String>,
@@ -220,10 +212,7 @@ pub(super) async fn aggregate_stream_to_output(
                     }
                 };
                 match tool_schema::parse_input(kind, parsed_input) {
-                    Ok(tool) => blocks.push(DecodedBlock::ToolUse {
-                        tool_use_id,
-                        tool,
-                    }),
+                    Ok(tool) => blocks.push(DecodedBlock::ToolUse { tool_use_id, tool }),
                     Err(e) => blocks.push(DecodedBlock::Text(format!(
                         "[tool error] `{name}` malformed input: {e}"
                     ))),
@@ -270,11 +259,10 @@ pub(super) async fn aggregate_stream_to_output(
 /// tool descriptions) is JSON-encoded so embedded newlines, quotes, or
 /// instruction-like text from a malicious MCP server cannot escape the
 /// listing format and become prompt injection.
-pub(super) fn compose_system_prompt(
-    base: &str,
-    mcp: Option<&api::request::McpContext>,
-) -> String {
-    let Some(ctx) = mcp else { return base.to_string() };
+pub(super) fn compose_system_prompt(base: &str, mcp: Option<&api::request::McpContext>) -> String {
+    let Some(ctx) = mcp else {
+        return base.to_string();
+    };
     if ctx.servers.is_empty() {
         return base.to_string();
     }
@@ -349,9 +337,9 @@ pub(super) fn prost_value_to_serde_json(v: &prost_types::Value) -> serde_json::V
             .unwrap_or(serde_json::Value::Null),
         Some(Kind::StringValue(s)) => serde_json::Value::String(s.clone()),
         Some(Kind::StructValue(s)) => prost_struct_to_serde_json(s),
-        Some(Kind::ListValue(l)) => serde_json::Value::Array(
-            l.values.iter().map(prost_value_to_serde_json).collect(),
-        ),
+        Some(Kind::ListValue(l)) => {
+            serde_json::Value::Array(l.values.iter().map(prost_value_to_serde_json).collect())
+        }
     }
 }
 
@@ -401,7 +389,9 @@ async fn open_driver_stream(
     mcp: Option<&api::request::McpContext>,
 ) -> anyhow::Result<DriverChunkStream> {
     match provider.kind {
-        DirectProviderKind::Anthropic => anthropic_driver::call_streaming(provider, turns, mcp).await,
+        DirectProviderKind::Anthropic => {
+            anthropic_driver::call_streaming(provider, turns, mcp).await
+        }
         DirectProviderKind::OpenAi | DirectProviderKind::OpenAiCompatible => {
             openai_driver::call_streaming(provider, turns, mcp).await
         }
@@ -473,10 +463,7 @@ fn call_streaming_with_reask(
                 None => {
                     st.attempt = None;
                     let message = st.malformed.take()?;
-                    if st.visible_text.is_empty()
-                        && !st.produced_tool
-                        && st.reasks_left > 0
-                    {
+                    if st.visible_text.is_empty() && !st.produced_tool && st.reasks_left > 0 {
                         st.reasks_left -= 1;
                         log::warn!(
                             "DirectBackend re-ask: retrying the turn after a malformed tool call",
@@ -516,6 +503,89 @@ fn append_reask_note(turns: &mut Vec<decode::NormalizedTurn>, message: &str) {
             text: Some(note),
             tool_results: vec![],
         }),
+    }
+}
+
+/// Dumps a digest of every outgoing transcript turn at `trace`, and flags at
+/// `warn` the case where identical assistant text is about to be sent to the
+/// provider more than once — the shape that made the model parrot its own
+/// preamble. The warn stays as a regression sentinel for [`history`]'s replay
+/// dedupe.
+fn dump_transcript(turns: &[decode::NormalizedTurn]) {
+    use std::collections::HashMap;
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    fn digest(text: &str) -> (u64, String) {
+        let mut hasher = DefaultHasher::new();
+        text.hash(&mut hasher);
+        let chars: Vec<char> = text.chars().collect();
+        let head: String = chars.iter().take(60).collect();
+        let tail: String = chars[chars.len().saturating_sub(30)..].iter().collect();
+        (hasher.finish(), format!("{head} … {tail}"))
+    }
+
+    let mut assistant_texts: HashMap<u64, Vec<usize>> = HashMap::new();
+    for (i, turn) in turns.iter().enumerate() {
+        match turn {
+            decode::NormalizedTurn::User { text, tool_results } => {
+                if let Some(t) = text {
+                    let (h, excerpt) = digest(t);
+                    log::trace!(
+                        "DirectBackend turn[{i}] user text chars={} hash={h:x} excerpt={excerpt:?}",
+                        t.chars().count()
+                    );
+                }
+                for r in tool_results {
+                    let (h, _) = digest(&r.content);
+                    log::trace!(
+                        "DirectBackend turn[{i}] user tool_result id={} chars={} hash={h:x}",
+                        r.tool_use_id,
+                        r.content.chars().count()
+                    );
+                }
+            }
+            decode::NormalizedTurn::Assistant {
+                text,
+                tool_uses,
+                reasoning,
+                message_ids,
+            } => {
+                if let Some(t) = text {
+                    let (h, excerpt) = digest(t);
+                    log::trace!(
+                        "DirectBackend turn[{i}] assistant text chars={} hash={h:x} ids={message_ids:?} excerpt={excerpt:?}",
+                        t.chars().count()
+                    );
+                    assistant_texts.entry(h).or_default().push(i);
+                }
+                if let Some(r) = reasoning {
+                    let (h, _) = digest(r);
+                    log::trace!(
+                        "DirectBackend turn[{i}] assistant reasoning chars={} hash={h:x}",
+                        r.chars().count()
+                    );
+                }
+                for u in tool_uses {
+                    log::trace!(
+                        "DirectBackend turn[{i}] assistant tool_use id={} name={}",
+                        u.tool_use_id,
+                        tool_schema::name(u.tool_kind)
+                    );
+                }
+            }
+        }
+    }
+    let mut dupes: Vec<(u64, usize, Vec<usize>)> = assistant_texts
+        .into_iter()
+        .filter(|(_, idxs)| idxs.len() > 1)
+        .map(|(h, idxs)| (h, idxs.len(), idxs))
+        .collect();
+    dupes.sort_by_key(|(h, _, _)| *h);
+    for (h, count, idxs) in dupes {
+        log::warn!(
+            "DirectBackend transcript: same assistant text sent {count}x (hash={h:x}, turns={idxs:?})"
+        );
     }
 }
 
@@ -562,9 +632,14 @@ pub fn run(request: &api::Request) -> AIOutputStream<api::ResponseEvent> {
         new_turns,
         turns.len(),
         decoded.attached_context_chars,
-        decoded.mcp_context.as_ref().map(|m| m.servers.len()).unwrap_or(0),
+        decoded
+            .mcp_context
+            .as_ref()
+            .map(|m| m.servers.len())
+            .unwrap_or(0),
         decoded.existing_task_id.is_some(),
     );
+    dump_transcript(&turns);
 
     // Emit StreamInit BEFORE awaiting the driver so the UI doesn't appear hung.
     let (init, request_id) = encode::build_init_event(conv_id);
@@ -582,11 +657,7 @@ pub fn run(request: &api::Request) -> AIOutputStream<api::ResponseEvent> {
         // subsequent AppendToMessageContent events against.
         prelude.push(encode::build_create_task_action(task_id.clone()));
     }
-    let prelude_stream = futures::stream::iter(
-        prelude
-            .into_iter()
-            .map(Ok::<_, Arc<AIApiError>>),
-    );
+    let prelude_stream = futures::stream::iter(prelude.into_iter().map(Ok::<_, Arc<AIApiError>>));
 
     let body_stream = futures::stream::once(async move {
         let chunks = call_streaming_with_reask(provider, turns, mcp_context);

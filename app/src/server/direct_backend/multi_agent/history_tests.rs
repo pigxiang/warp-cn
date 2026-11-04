@@ -23,6 +23,23 @@ fn assistant_calls(ids: &[&str]) -> NormalizedTurn {
             })
             .collect(),
         reasoning: None,
+        message_ids: vec![],
+    }
+}
+
+fn replayed_step(msg_id: &str, text: &str, call_ids: &[&str]) -> NormalizedTurn {
+    NormalizedTurn::Assistant {
+        text: Some(text.to_owned()),
+        tool_uses: call_ids
+            .iter()
+            .map(|id| ToolUse {
+                tool_use_id: (*id).to_owned(),
+                tool_kind: ToolKind::RunShellCommand,
+                input: json!({ "command": "ls" }),
+            })
+            .collect(),
+        reasoning: Some(format!("thinking about {text}")),
+        message_ids: vec![msg_id.to_owned()],
     }
 }
 
@@ -115,6 +132,55 @@ fn unpaired_call_ids(turns: &[NormalizedTurn]) -> Vec<String> {
         }
     }
     unpaired
+}
+
+/// Assistant prose of each turn, in order.
+fn assistant_texts(turns: &[NormalizedTurn]) -> Vec<String> {
+    turns
+        .iter()
+        .filter_map(|turn| match turn {
+            NormalizedTurn::Assistant {
+                text: Some(text), ..
+            } => Some(text.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn replayed_step_prose_is_not_sent_twice() {
+    let mut store = Transcripts::default();
+    let first = store.merge("conv-a", vec![user_text("map the repo")]);
+    assert_eq!(first.len(), 1);
+
+    let second = store.merge(
+        "conv-a",
+        vec![
+            replayed_step("m1", "I will list the tree.", &["c1"]),
+            user_results(&["c1"]),
+        ],
+    );
+    assert_eq!(assistant_texts(&second), vec!["I will list the tree."]);
+
+    // The next follow-up replays step 1 alongside step 2. Step 1's prose and
+    // calls have already gone on the wire, so only step 2 may add prose —
+    // otherwise the model sees its own preamble multiply and starts repeating
+    // it every turn.
+    let third = store.merge(
+        "conv-a",
+        vec![
+            replayed_step("m1", "I will list the tree.", &["c1"]),
+            replayed_step("m2", "Now let me read the scripts.", &["c2"]),
+            user_results(&["c2"]),
+        ],
+    );
+    assert_eq!(
+        assistant_texts(&third),
+        vec!["I will list the tree.", "Now let me read the scripts."]
+    );
+    assert_eq!(call_ids(&third), vec!["c1", "c2"]);
+    assert_eq!(result_ids(&third), vec!["c1", "c2"]);
+    assert!(unpaired_call_ids(&third).is_empty());
 }
 
 #[test]
@@ -211,7 +277,10 @@ fn the_text_budget_evicts_oldest_turns_first() {
 fn a_batch_that_repeats_earlier_steps_contributes_only_the_new_step() {
     let mut store = Transcripts::default();
     store.merge("conv-g", vec![user_text("go")]);
-    store.merge("conv-g", vec![assistant_calls(&["c1"]), user_results(&["c1"])]);
+    store.merge(
+        "conv-g",
+        vec![assistant_calls(&["c1"]), user_results(&["c1"])],
+    );
 
     let merged = store.merge(
         "conv-g",
@@ -267,7 +336,10 @@ fn oversized_results_are_elided_and_keep_their_call_paired() {
     }
 
     assert!(transcript_chars(&merged) <= MAX_TRANSCRIPT_CHARS);
-    assert_eq!(call_ids(&merged), (1..=8).map(|i| format!("c{i}")).collect::<Vec<_>>());
+    assert_eq!(
+        call_ids(&merged),
+        (1..=8).map(|i| format!("c{i}")).collect::<Vec<_>>()
+    );
     assert!(
         unpaired_call_ids(&merged).is_empty(),
         "eliding must not orphan a call",
@@ -303,7 +375,10 @@ fn re_announced_calls_stay_dropped_after_the_turn_cap_evicts_a_step() {
         ids.push(id.clone());
         merged = store.merge(
             "conv-l",
-            vec![assistant_calls(&[id.as_str()]), user_results(&[id.as_str()])],
+            vec![
+                assistant_calls(&[id.as_str()]),
+                user_results(&[id.as_str()]),
+            ],
         );
     }
     // The synthetic lead note [`ensure_user_lead`] may add one turn on top.
