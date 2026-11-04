@@ -356,6 +356,87 @@ fn handles_inline_iterm_image_payload() {
     assert_eq!(metadata.image_size.y(), 1.0);
 }
 
+// The wrapper's remote InitShell must persist the local `ssh` command line and
+// the local cwd from the PreInteractiveSSHSession hook so split panes can replay them.
+#[test]
+fn ssh_wrapper_init_shell_captures_invocation_and_local_pwd() {
+    let mut terminal = TerminalModel::mock(None, None);
+    command_finished_and_precmd(&mut terminal);
+    terminal.bootstrapped(BootstrappedValue {
+        shell: "bash".into(),
+        ..Default::default()
+    });
+    command_finished_and_precmd(&mut terminal);
+    terminal.clear_screen(ClearMode::ResetAndClear);
+
+    terminal.start_command_execution();
+    for c in "ssh foo@bar -p 2222".chars() {
+        terminal.block_list_mut().active_block_for_test().input(c);
+    }
+    terminal.preexec(PreexecValue {
+        command: "ssh foo@bar -p 2222".to_owned(),
+        ..Default::default()
+    });
+    assert_eq!(
+        terminal.block_list().active_block().command_to_string(),
+        "ssh foo@bar -p 2222"
+    );
+    terminal.pre_interactive_ssh_session(PreInteractiveSSHSessionValue {
+        session_id: None,
+        pwd: Some("/a/b/c".to_owned()),
+    });
+    terminal.ssh(SSHValue {
+        remote_session_id: 42.into(),
+        ..Default::default()
+    });
+    terminal.init_shell(InitShellValue {
+        shell: "bash".into(),
+        user: "foo".into(),
+        hostname: "bar".into(),
+        session_id: 42.into(),
+        ..Default::default()
+    });
+
+    let session_info = terminal
+        .pending_session_info
+        .as_ref()
+        .expect("pending session");
+    let invocation = session_info
+        .ssh_invocation
+        .as_ref()
+        .expect("ssh invocation captured for wrapper session");
+    assert_eq!(invocation.command, "ssh foo@bar -p 2222");
+    assert_eq!(invocation.local_pwd.as_deref(), Some("/a/b/c"));
+}
+
+// A non-wrapper InitShell (e.g. a subshell warpify snippet) must not pick up a
+// stale local-pwd hint or claim an ssh invocation.
+#[test]
+fn non_wrapper_init_shell_records_no_ssh_invocation() {
+    let mut terminal = TerminalModel::mock(None, None);
+    command_finished_and_precmd(&mut terminal);
+    terminal.bootstrapped(BootstrappedValue {
+        shell: "bash".into(),
+        ..Default::default()
+    });
+    command_finished_and_precmd(&mut terminal);
+
+    terminal.pre_interactive_ssh_session(PreInteractiveSSHSessionValue {
+        session_id: None,
+        pwd: Some("/a/b/c".to_owned()),
+    });
+    terminal.init_shell(InitShellValue {
+        shell: "bash".into(),
+        ..Default::default()
+    });
+
+    let session_info = terminal
+        .pending_session_info
+        .as_ref()
+        .expect("pending session");
+    assert!(session_info.ssh_invocation.is_none());
+}
+
 // Ensures that an SSH session successfully bootstraps even if the block list is empty and that
 // the parent shell resumes after the nested shell exits.
 #[test]

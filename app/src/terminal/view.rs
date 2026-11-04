@@ -2557,6 +2557,23 @@ struct LocalSessionCanonicalPwdCache {
     canonical: CanonicalizedPath,
 }
 
+/// Plan for re-establishing a warpified SSH session in a newly split pane.
+/// Produced by [`TerminalView::ssh_split_reconnect_plan`] on the base pane.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SSHSplitReconnectPlan {
+    /// The original `ssh` command line to replay in the new pane's local shell.
+    pub ssh_command: String,
+    /// Remote directory the base session is currently in; handed to the SSH
+    /// wrapper so the remote shell starts there.
+    pub remote_startup_directory: Option<String>,
+    /// ControlMaster socket of the base session; the wrapper multiplexes
+    /// through it when it is still alive.
+    pub reuse_socket_path: Option<PathBuf>,
+    /// Local directory the base pane's `ssh` command was started from; used as
+    /// the new pane's startup directory.
+    pub local_startup_directory: Option<PathBuf>,
+}
+
 pub struct TerminalView {
     pub model: Arc<FairMutex<TerminalModel>>,
     view_handle: WeakViewHandle<Self>,
@@ -24631,6 +24648,40 @@ impl TerminalView {
                 host_id, std_path,
             )))
         }
+    }
+
+    /// Everything needed to make a split pane re-establish this view's warpified
+    /// SSH session: the original command line, the directories to land in, and
+    /// the ControlMaster socket to multiplex through.
+    pub fn ssh_split_reconnect_plan(&self, ctx: &AppContext) -> Option<SSHSplitReconnectPlan> {
+        if !FeatureFlag::SSHReconnectOnSplit.is_enabled()
+            || !*WarpifySettings::as_ref(ctx)
+                .enable_ssh_warpification
+                .value()
+        {
+            return None;
+        }
+        // Only applies while the pane's active session is still the remote one;
+        // after the user has exited back to the local shell a normal split is right.
+        let session_id = self.active_block_session_id()?;
+        let session = self.sessions.as_ref(ctx).get(session_id)?;
+        if !matches!(session.session_type(), SessionType::WarpifiedRemote { .. })
+            || !session.is_ssh_wrapper_session()
+        {
+            return None;
+        }
+        let invocation = session.ssh_invocation()?;
+
+        Some(SSHSplitReconnectPlan {
+            ssh_command: invocation.command.clone(),
+            remote_startup_directory: self.pwd(),
+            reuse_socket_path: session.ssh_wrapper_socket_path(),
+            local_startup_directory: invocation
+                .local_pwd
+                .as_ref()
+                .map(PathBuf::from)
+                .filter(|path| path.is_dir()),
+        })
     }
 
     pub fn shell_launch_data_if_local(&self, ctx: &AppContext) -> Option<ShellLaunchData> {

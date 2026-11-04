@@ -79,7 +79,7 @@ use crate::terminal::model::grid::IndexRegion;
 use crate::terminal::model::index::VisibleRow;
 use crate::terminal::model::iterm_image::{ITermImage, ITermImageMetadata};
 use crate::terminal::model::secrets::ObfuscateSecrets;
-use crate::terminal::model::session::SessionInfo;
+use crate::terminal::model::session::{SSHInvocationInfo, SessionInfo};
 use crate::terminal::shared_session::ai_agent::encode_agent_response_event;
 use crate::terminal::shared_session::{SharedSessionSource, SharedSessionStatus};
 use crate::terminal::shell::{ShellName, ShellType};
@@ -413,6 +413,11 @@ pub struct TerminalModel {
     /// stored between when an SSH connection is initiated (the `SSH` hook executed on the local
     /// machine) and when the remote shell sends the `InitShell` DCS.
     pending_ssh_wrapper_session: Option<SSHValue>,
+
+    /// The local working directory reported by the most recent
+    /// `PreInteractiveSSHSession` hook, consumed by the next wrapper-backed
+    /// `InitShell` to record where the `ssh` command was started.
+    pending_pre_interactive_ssh_pwd: Option<String>,
 
     /// The path of the shell binary used for the pending shell session, if any. This is
     /// temporarily stored between the spawning of the child shell process and bootstrap completion.
@@ -1097,6 +1102,7 @@ impl TerminalModel {
             override_colors: color::OverrideList::empty(),
             event_proxy,
             pending_ssh_wrapper_session: None,
+            pending_pre_interactive_ssh_pwd: None,
             pending_shell_launch_data: None,
             active_shell_launch_data: None,
             pending_session_info: None,
@@ -3135,7 +3141,8 @@ impl ansi::Handler for TerminalModel {
         }));
     }
 
-    fn pre_interactive_ssh_session(&mut self, _value: PreInteractiveSSHSessionValue) {
+    fn pre_interactive_ssh_session(&mut self, value: PreInteractiveSSHSessionValue) {
+        self.pending_pre_interactive_ssh_pwd = value.pwd;
         self.event_proxy
             .send_app_event(Event::PreInteractiveSSHSession);
     }
@@ -3211,12 +3218,26 @@ impl ansi::Handler for TerminalModel {
             let shell_type = ShellType::from_name(&data.shell)
                 .unwrap_or_else(|| panic!("invalid shell name: {}", data.shell));
 
+            // For SSH-wrapper sessions the active block is still the local block that
+            // invoked `ssh`; capture that command line and the local directory from the
+            // preceding PreInteractiveSSHSession hook so split panes can replay them.
+            let ssh_invocation = if self.pending_ssh_wrapper_session.is_some() {
+                let command = self.block_list().active_block().command_to_string();
+                (!command.is_empty()).then(|| SSHInvocationInfo {
+                    command,
+                    local_pwd: self.pending_pre_interactive_ssh_pwd.take(),
+                })
+            } else {
+                None
+            };
+
             let pending_session_info = SessionInfo::create_pending(
                 shell_type,
                 data,
                 subshell_info,
                 self.pending_shell_launch_data.take(),
                 self.pending_ssh_wrapper_session.take(),
+                ssh_invocation,
                 self.block_list().active_block().session_id(),
             );
             self.pending_session_info = Some(pending_session_info.clone());

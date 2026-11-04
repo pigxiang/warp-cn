@@ -1,12 +1,17 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use warp_terminal::model::ansi::InitShellValue;
 use warpui::elements::Empty;
 use warpui::platform::WindowStyle;
 use warpui::{App, AppContext, Element, Entity, ModelHandle, TypedActionView, View, ViewContext};
 
 use super::command_executor::testing::TestCommandExecutor;
-use super::{BootstrapSessionType, Session, SessionId, SessionInfo, Sessions, SessionsEvent};
+use super::{
+    BootstrapSessionType, SSHInvocationInfo, Session, SessionId, SessionInfo, Sessions,
+    SessionsEvent,
+};
+use crate::terminal::shell::ShellType;
 
 struct TestView {
     events: Vec<SessionsEvent>,
@@ -150,6 +155,45 @@ fn can_resolve_cwd_to_native_path_rejects_unix_encoded_path_on_windows() {
         SessionInfo::new_for_test().with_shell_type(crate::terminal::shell::ShellType::Bash);
     let session = Session::new(session_info, Arc::new(TestCommandExecutor::default()));
     assert!(!session.can_resolve_cwd_to_native_path("/E:/CLAUDE-BASE"));
+}
+
+#[test]
+fn ssh_wrapper_getters_expose_socket_and_invocation() {
+    let invocation = SSHInvocationInfo {
+        command: "ssh foo@bar".to_owned(),
+        local_pwd: Some("/a/b".to_owned()),
+    };
+    let session_info = SessionInfo::new_for_test()
+        .with_ssh_socket_path("/tmp/warp-ssh.sock".into())
+        .with_ssh_invocation(invocation.clone());
+    let session = Session::new(session_info, Arc::new(TestCommandExecutor::default()));
+
+    assert_eq!(
+        session.ssh_wrapper_socket_path().as_deref(),
+        Some(std::path::Path::new("/tmp/warp-ssh.sock"))
+    );
+    assert_eq!(session.ssh_invocation(), Some(&invocation));
+}
+
+#[test]
+fn create_pending_drops_ssh_invocation_for_non_wrapper_sessions() {
+    let session_info = SessionInfo::create_pending(
+        ShellType::Zsh,
+        InitShellValue {
+            session_id: 5.into(),
+            shell: "zsh".to_owned(),
+            ..Default::default()
+        },
+        None,
+        None,
+        None,
+        Some(SSHInvocationInfo {
+            command: "ssh foo@bar".to_owned(),
+            local_pwd: Some("/a/b".to_owned()),
+        }),
+        None,
+    );
+    assert!(session_info.ssh_invocation.is_none());
 }
 
 #[cfg(windows)]

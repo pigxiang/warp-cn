@@ -617,6 +617,17 @@ impl HostInfo {
     }
 }
 
+/// The interactive `ssh` invocation that spawned a Warpified remote session,
+/// captured from the local shell at bootstrap time. Used by split-pane
+/// reconnect to replay the exact command in a new pane.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SSHInvocationInfo {
+    /// The full command line as it was entered in the local shell.
+    pub command: String,
+    /// The local shell's working directory when the command was started.
+    pub local_pwd: Option<String>,
+}
+
 /// Session information sent from the shell to the Rust app after bootstrap.
 ///
 /// This is an intermediate abstraction between the [`BootstrappedValue`] read from the pty at
@@ -641,6 +652,9 @@ pub struct SessionInfo {
     pub builtins: HashSet<SmolStr>,
     pub keywords: Vec<SmolStr>,
     pub is_ssh_wrapper_session: IsSSHWrapperSession,
+    /// For sessions established by the SSH wrapper: the original `ssh` command
+    /// line and the local directory it was started from.
+    pub ssh_invocation: Option<SSHInvocationInfo>,
     pub home_dir: Option<String>,
     pub cdpath: Option<String>,
     pub editor: Option<String>,
@@ -664,6 +678,7 @@ impl SessionInfo {
         subshell_info: Option<SubshellInitializationInfo>,
         launch_data: Option<ShellLaunchData>,
         ssh_wrapper_session: Option<SSHValue>,
+        ssh_invocation: Option<SSHInvocationInfo>,
         active_block_session_id: Option<SessionId>,
     ) -> Self {
         let is_ssh_wrapper_session = match ssh_wrapper_session {
@@ -673,6 +688,11 @@ impl SessionInfo {
             },
             None => IsSSHWrapperSession::No,
         };
+
+        // The ssh invocation is only captured alongside a wrapper session; ignore a stale
+        // value for any other session type.
+        let ssh_invocation = ssh_invocation
+            .filter(|_| matches!(&is_ssh_wrapper_session, IsSSHWrapperSession::Yes { .. }));
 
         if launch_data.is_none() && is_ssh_wrapper_session == IsSSHWrapperSession::No {
             log::warn!("pending_local_shell_path was None for a local session");
@@ -702,6 +722,7 @@ impl SessionInfo {
             session_type,
             subshell_info,
             is_ssh_wrapper_session,
+            ssh_invocation,
             environment_variable_names: Default::default(),
             path: None,
             home_dir: None,
@@ -843,6 +864,7 @@ impl SessionInfo {
             cdpath: bootstrapped_value.cdpath,
             editor: bootstrapped_value.editor,
             is_ssh_wrapper_session: self.is_ssh_wrapper_session,
+            ssh_invocation: self.ssh_invocation.take(),
             subshell_info: self.subshell_info.take(),
             host_info: HostInfo {
                 os_category: bootstrapped_value.os_category,
@@ -1065,6 +1087,20 @@ impl Session {
         matches!(self.session_type(), SessionType::WarpifiedRemote { .. })
             || self.is_ssh_wrapper_session()
             || self.subshell_info().is_some()
+    }
+
+    /// The ControlMaster socket backing this session's SSH wrapper, if any.
+    pub fn ssh_wrapper_socket_path(&self) -> Option<PathBuf> {
+        match &self.info.is_ssh_wrapper_session {
+            IsSSHWrapperSession::Yes { socket_path, .. } => Some(socket_path.clone()),
+            IsSSHWrapperSession::No => None,
+        }
+    }
+
+    /// The original `ssh` command line that spawned this session, captured for
+    /// wrapper sessions at remote bootstrap time.
+    pub fn ssh_invocation(&self) -> Option<&SSHInvocationInfo> {
+        self.info.ssh_invocation.as_ref()
     }
 
     pub fn is_wsl(&self) -> bool {
@@ -1746,6 +1782,7 @@ pub mod testing {
                 builtins: HashSet::new(),
                 keywords: Vec::new(),
                 is_ssh_wrapper_session: IsSSHWrapperSession::No,
+                ssh_invocation: None,
                 home_dir: None,
                 cdpath: None,
                 host_info: Default::default(),
@@ -1817,6 +1854,11 @@ pub mod testing {
                 socket_path,
                 external_control_master: false,
             };
+            self
+        }
+
+        pub fn with_ssh_invocation(mut self, invocation: SSHInvocationInfo) -> Self {
+            self.ssh_invocation = Some(invocation);
             self
         }
 

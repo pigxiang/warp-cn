@@ -300,3 +300,24 @@ fn init_shell_hook_round_trips_through_serialization() {
     assert_eq!(value.hostname, "host");
     assert_eq!(value.wsl_name.as_deref(), Some("Ubuntu"));
 }
+
+#[test]
+fn pre_interactive_ssh_session_hook_pwd_is_optional() {
+    let DProtoHook::PreInteractiveSSHSession { value } = serde_json::from_str::<DProtoHook>(
+        r#"{"hook": "PreInteractiveSSHSession", "value": {"session_id": 7, "pwd": "/a/b/c"}}"#,
+    )
+    .unwrap() else {
+        panic!("expected a PreInteractiveSSHSession hook");
+    };
+    assert_eq!(value.session_id, Some(7));
+    assert_eq!(value.pwd.as_deref(), Some("/a/b/c"));
+
+    // Legacy bootstrap scripts omit the field entirely.
+    let DProtoHook::PreInteractiveSSHSession { value } = serde_json::from_str::<DProtoHook>(
+        r#"{"hook": "PreInteractiveSSHSession", "value": {"session_id": 7}}"#,
+    )
+    .unwrap() else {
+        panic!("expected a PreInteractiveSSHSession hook");
+    };
+    assert_eq!(value.pwd, None);
+}

@@ -921,6 +921,11 @@ fn parse_float_from_string(s: String) -> Option<OrderedFloat<f64>> {
 pub struct PreInteractiveSSHSessionValue {
     #[serde(default)]
     pub session_id: HookSessionId,
+    /// The local shell's working directory when the interactive `ssh` command
+    /// was started, used to launch split panes' local shells in the same
+    /// directory. Omitted when the path cannot be safely embedded in the hook.
+    #[serde(default)]
+    pub pwd: Option<String>,
 }
 
 /// Received from the pty after establishing an SSH connection, prior to

@@ -152,7 +152,7 @@ use crate::terminal::view::load_ai_conversation::{
 use crate::terminal::view::ssh_file_upload::FileUploadId;
 use crate::terminal::view::{
     BlockNotification, ConversationRestorationInNewPaneType, ExecuteCommandEvent,
-    LeftPanelTargetView, SyncEvent, TerminalViewState,
+    LeftPanelTargetView, SSHSplitReconnectPlan, SyncEvent, TerminalViewState,
 };
 use crate::terminal::{
     MockTerminalManager, ShareBlockModal, ShareBlockModalEvent, ShellLaunchData, ShellLaunchState,
@@ -6627,12 +6627,18 @@ impl PaneGroup {
             .map(PathBuf::from)
             .filter(|path| path.is_dir());
 
+        let ssh_reconnect_plan = base_pane_id_for_context
+            .and_then(|pane_id| self.terminal_view_from_pane_id(pane_id, ctx))
+            .and_then(|view| view.read(ctx, |view, app| view.ssh_split_reconnect_plan(app)));
+
         let startup_directory = startup_directory_from_conversation.or_else(|| {
             let ignore_custom_startup_directory =
                 self.should_ignore_custom_startup_directory(&chosen_shell, ctx);
 
-            let initial_directory_from_current_session =
-                self.startup_path_for_new_session(base_pane_id_for_context, ctx);
+            let initial_directory_from_current_session = ssh_reconnect_plan
+                .as_ref()
+                .and_then(|plan| plan.local_startup_directory.clone())
+                .or_else(|| self.startup_path_for_new_session(base_pane_id_for_context, ctx));
 
             SessionSettings::handle(ctx).read(ctx, |settings, _ctx| {
                 settings
@@ -6649,6 +6655,7 @@ impl PaneGroup {
             base_pane_id_for_split,
             chosen_shell,
             startup_directory,
+            ssh_reconnect_plan,
             conversation_restoration,
             default_session_mode_behavior,
             ctx,
@@ -6711,6 +6718,7 @@ impl PaneGroup {
         base_pane_id: Option<PaneId>,
         chosen_shell: Option<AvailableShell>,
         startup_directory: Option<PathBuf>,
+        ssh_reconnect_plan: Option<SSHSplitReconnectPlan>,
         conversation_restoration: Option<ConversationRestorationInNewPaneType>,
         default_session_mode_behavior: DefaultSessionModeBehavior,
         ctx: &mut ViewContext<Self>,
@@ -6721,14 +6729,41 @@ impl PaneGroup {
         ) && conversation_restoration.is_none()
             && AISettings::as_ref(ctx).default_session_mode(ctx) == DefaultSessionMode::Agent;
 
+        let env_vars = ssh_reconnect_plan
+            .as_ref()
+            .map(|plan| {
+                let mut env_vars = HashMap::new();
+                if let Some(socket_path) = &plan.reuse_socket_path {
+                    env_vars.insert(
+                        OsString::from("WARP_SSH_REUSE_SOCKET_PATH"),
+                        socket_path.as_os_str().to_owned(),
+                    );
+                }
+                if let Some(remote_dir) = &plan.remote_startup_directory {
+                    env_vars.insert(
+                        OsString::from("WARP_SSH_REMOTE_STARTUP_DIR"),
+                        OsString::from(remote_dir),
+                    );
+                }
+                env_vars
+            })
+            .unwrap_or_default();
+
         let (pane_data, view) = self.create_terminal_pane_data(
             startup_directory,
-            HashMap::new(),
+            env_vars,
             IsSharedSessionCreator::No,
             chosen_shell,
             conversation_restoration,
             ctx,
         );
+
+        if let Some(plan) = ssh_reconnect_plan {
+            view.update(ctx, |terminal_view, ctx| {
+                terminal_view.set_pending_command_queue(vec![plan.ssh_command], ctx);
+            });
+        }
+
         let new_pane_id = pane_data.terminal_pane_id();
 
         let _ = self.add_pane(direction, base_pane_id, Box::new(pane_data), true, ctx);

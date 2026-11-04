@@ -190,6 +190,7 @@ pub(super) fn subscribe_to_link_model(
                 Some(pane_id),
                 None, /* chosen_shell */
                 Some(path.clone()),
+                None, /* ssh_reconnect_plan */
                 None,
                 DefaultSessionModeBehavior::Apply,
                 ctx,

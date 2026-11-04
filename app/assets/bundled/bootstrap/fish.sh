@@ -808,6 +808,20 @@ if test "$WARP_IS_LOCAL_SHELL_SESSION" = "1"
     end
 
     function warp_ssh_helper
+        # Split-reconnect hints from the client: another pane's live
+        # ControlMaster to multiplex through, and the remote directory the new
+        # shell should start in. Both are single-use; consuming them here keeps
+        # later manual `ssh` calls in this pane on their normal path.
+        set -l reuse_socket_path "$WARP_SSH_REUSE_SOCKET_PATH"
+        set -l remote_startup_dir "$WARP_SSH_REMOTE_STARTUP_DIR"
+        set -e WARP_SSH_REUSE_SOCKET_PATH
+        set -e WARP_SSH_REMOTE_STARTUP_DIR
+        # A single quote in the directory would break the single-quoted remote
+        # export below; drop the hint in that (rare) case.
+        if string match -q -- "*'*" "$remote_startup_dir"
+            set remote_startup_dir ""
+        end
+
         set -l init_shell_zsh (warp_init_shell "zsh")
         set -l init_shell_bash (warp_init_shell "bash")
         set -l remote_session_id (command od -An -N8 -tu8 /dev/urandom 2>/dev/null | command tr -d ' \n')
@@ -843,7 +857,17 @@ if test "$WARP_IS_LOCAL_SHELL_SESSION" = "1"
         set -l control_path "$SSH_SOCKET_DIR/$WARP_SESSION_ID"
         set -l control_master_mode "yes"
         set -l external_control_master "false"
-        if test "$WARP_SSH_REUSE_CONTROL_MASTER" = "1"
+        # Prefer a live ControlMaster handed to us by the client (a sibling
+        # pane's session); that pane owns its teardown.
+        if test -n "$reuse_socket_path"
+            and string match --quiet --regex '^[A-Za-z0-9._/~@:+,-]+$' -- "$reuse_socket_path"
+            and command ssh -O check -o ControlPath="$reuse_socket_path" $argv >/dev/null 2>&1
+            set control_path "$reuse_socket_path"
+            set control_master_mode "no"
+            set external_control_master "true"
+        end
+        if test "$control_master_mode" = "yes"
+            and test "$WARP_SSH_REUSE_CONTROL_MASTER" = "1"
             set -l user_control_path (command ssh -G $argv 2>/dev/null | command sed -n 's/^controlpath //p')
             # Skip when no ControlPath is configured, and reject resolved
             # paths containing characters we cannot safely embed in the SSH
@@ -875,6 +899,9 @@ export TERM_PROGRAM='WarpTerminal'
 test -n '$WARP_CLIENT_VERSION' && export WARP_CLIENT_VERSION='$WARP_CLIENT_VERSION'
 # Only forward the protocol version if it was set locally (i.e. the HOANotifications feature flag is on).
 test -n '$WARP_CLI_AGENT_PROTOCOL_VERSION' && export WARP_CLI_AGENT_PROTOCOL_VERSION='$WARP_CLI_AGENT_PROTOCOL_VERSION'
+# Start the remote shell in the same directory as the session this pane was
+# split from (the bootstrap body consumes WARP_INITIAL_WORKING_DIR).
+test -n '$remote_startup_dir' && export WARP_INITIAL_WORKING_DIR='$remote_startup_dir'
 hook="'$(printf "{\"hook\": \"SSH\", \"value\": {\"socket_path\": \"'$control_path'\", \"remote_shell\": \"%s\", \"session_id\": '"$WARP_SESSION_ID"', \"remote_session_id\": '"$remote_session_id"', \"external_control_master\": '"$external_control_master"'}}" "${SHELL##*/}" | command od -An -v -tx1 | command tr -d " \n")'"
 printf '$DCS_START$DCS_JSON_MARKER%s$DCS_END' "'$hook'"
 
@@ -942,7 +969,11 @@ esac
 
     function ssh
         if is_interactive_ssh_session $argv
-            warp_send_json_message "{\"hook\": \"PreInteractiveSSHSession\", \"value\": {\"session_id\": $WARP_SESSION_ID}}"
+            set -l pre_ssh_pwd "$PWD"
+            if string match -q -- '*"*' "$pre_ssh_pwd"; or string match -q -- '*\\*' "$pre_ssh_pwd"
+                set pre_ssh_pwd ""
+            end
+            warp_send_json_message "{\"hook\": \"PreInteractiveSSHSession\", \"value\": {\"session_id\": $WARP_SESSION_ID, \"pwd\": \"$pre_ssh_pwd\"}}"
 
             if [ "$WARP_USE_SSH_WRAPPER" = "1" ]
                 if test $WARP_SHELL_DEBUG_MODE

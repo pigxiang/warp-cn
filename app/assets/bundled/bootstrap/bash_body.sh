@@ -1207,6 +1207,18 @@ if [ -z "$WARP_BOOTSTRAPPED" ]; then
         }
 
         function warp_ssh_helper() {
+            # Split-reconnect hints from the client: another pane's live
+            # ControlMaster to multiplex through, and the remote directory the
+            # new shell should start in. Both are single-use; consuming them here
+            # keeps later manual `ssh` calls in this pane on their normal path.
+            local reuse_socket_path="$WARP_SSH_REUSE_SOCKET_PATH"
+            local remote_startup_dir="$WARP_SSH_REMOTE_STARTUP_DIR"
+            unset WARP_SSH_REUSE_SOCKET_PATH
+            unset WARP_SSH_REMOTE_STARTUP_DIR
+            # A single quote in the directory would break the single-quoted
+            # remote export below; drop the hint in that (rare) case.
+            case "$remote_startup_dir" in *"'"*) remote_startup_dir="";; esac
+
             # shellcheck disable=SC2034
             init_shell_bash=$(init_shell_hook "bash")
             # shellcheck disable=SC2034
@@ -1244,7 +1256,21 @@ if [ -z "$WARP_BOOTSTRAPPED" ]; then
             local control_path="$SSH_SOCKET_DIR/$WARP_SESSION_ID"
             local control_master_mode="yes"
             local external_control_master="false"
-            if [[ "$WARP_SSH_REUSE_CONTROL_MASTER" == "1" ]]; then
+            case "$reuse_socket_path" in
+                "" | *[![:alnum:]._/~@:+,-]*)
+                    # Nothing to reuse (or an embed-unsafe path).
+                    ;;
+                *)
+                    if command ssh -O check -o ControlPath="$reuse_socket_path" "${@:1}" >/dev/null 2>&1; then
+                        # A live master from a sibling pane: multiplex through it;
+                        # that pane owns teardown.
+                        control_path="$reuse_socket_path"
+                        control_master_mode="no"
+                        external_control_master="true"
+                    fi
+                    ;;
+            esac
+            if [[ "$control_master_mode" == "yes" && "$WARP_SSH_REUSE_CONTROL_MASTER" == "1" ]]; then
                 local user_control_path=$(command ssh -G "${@:1}" 2>/dev/null | command -p sed -n 's/^controlpath //p')
                 case "$user_control_path" in
                     "" | none)
@@ -1286,6 +1312,9 @@ export WARP_IS_SSH='1'
 test -n '$WARP_CLIENT_VERSION' && export WARP_CLIENT_VERSION='$WARP_CLIENT_VERSION'
 # Only forward the protocol version if it was set locally (i.e. the HOANotifications feature flag is on).
 test -n '$WARP_CLI_AGENT_PROTOCOL_VERSION' && export WARP_CLI_AGENT_PROTOCOL_VERSION='$WARP_CLI_AGENT_PROTOCOL_VERSION'
+# Start the remote shell in the same directory as the session this pane was
+# split from (the bootstrap body consumes WARP_INITIAL_WORKING_DIR).
+test -n '$remote_startup_dir' && export WARP_INITIAL_WORKING_DIR='$remote_startup_dir'
 
 hook="'$(printf "{\"hook\": \"SSH\", \"value\": {\"socket_path\": \"'$control_path'\", \"remote_shell\": \"%s\", \"session_id\": '"$WARP_SESSION_ID"', \"remote_session_id\": '"$remote_session_id"', \"external_control_master\": '"$external_control_master"'}}" "${SHELL##*/}" | command -p od -An -v -tx1 | command -p tr -d " \n")'"
 printf '$OSC_START$DCS_JSON_MARKER$OSC_PARAM_SEPARATOR%s$OSC_END' "'$hook'"
@@ -1353,7 +1382,9 @@ esac
 
         function ssh() {
             if is_interactive_ssh_session "$@"; then
-                warp_send_json_message "{\"hook\": \"PreInteractiveSSHSession\", \"value\": {\"session_id\": $WARP_SESSION_ID}}"
+                local _pre_ssh_pwd="$PWD"
+                case "$_pre_ssh_pwd" in *'"'* | *'\'*) _pre_ssh_pwd="";; esac
+                warp_send_json_message "{\"hook\": \"PreInteractiveSSHSession\", \"value\": {\"session_id\": $WARP_SESSION_ID, \"pwd\": \"$_pre_ssh_pwd\"}}"
 
                 # If the SSH wrapper is not enabled for this session, don't use it.
                 if [ "$WARP_USE_SSH_WRAPPER" = "1" ]; then

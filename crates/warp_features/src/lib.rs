@@ -848,6 +848,12 @@ pub enum FeatureFlag {
     /// for command execution.
     SshRemoteServer,
 
+    /// When splitting a pane whose active session is a Warpified SSH session,
+    /// the new pane replays the original `ssh` invocation, multiplexes through
+    /// the base pane's ControlMaster when it is still alive, and starts the
+    /// remote shell in the same directory as the base session.
+    SSHReconnectOnSplit,
+
     /// Redux of the setup/initial user query UI for cloud mode.
     CloudModeSetupV2,
 
@@ -1088,6 +1094,7 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::GPTConfigurableContextWindow,
     FeatureFlag::WarpControlCli,
     FeatureFlag::TerminalLifecycleRecovery,
+    FeatureFlag::SSHReconnectOnSplit,
     FeatureFlag::PromptCacheExpiryWarning,
     FeatureFlag::JupyterNotebookRendering,
     FeatureFlag::MultiLevelOrchestration,
