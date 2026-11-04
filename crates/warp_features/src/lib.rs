@@ -1128,6 +1128,10 @@ pub const RELEASE_FLAGS: &[FeatureFlag] = &[
     // Remote server binary is not yet supported on Windows.
     #[cfg(not(windows))]
     FeatureFlag::SshRemoteServer,
+    // warp-cn fork: split panes reconnect the warpified SSH session and reuse
+    // its ControlMaster; the wrapper is not wired up on Windows.
+    #[cfg(not(windows))]
+    FeatureFlag::SSHReconnectOnSplit,
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     FeatureFlag::DragTabsToWindows,
     // warp-cn fork: surface the agent toolbar layout editor in all release builds.
