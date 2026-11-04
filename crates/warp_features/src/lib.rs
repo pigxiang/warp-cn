@@ -1154,6 +1154,7 @@ pub const RELEASE_FLAGS: &[FeatureFlag] = &[
 pub const RUNTIME_FEATURE_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::LocalClaudeCodexChildHarnesses,
     FeatureFlag::EastAsianAmbiguousWidth,
+    FeatureFlag::SSHReconnectOnSplit,
 ];
 
 impl FeatureFlag {
