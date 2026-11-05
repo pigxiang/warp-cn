@@ -1,4 +1,6 @@
 [profile.default]
+# 默认值就是 "num-cpus"，即等于逻辑 CPU 核心数
+test-threads = "num-cpus"
 # Mark a test as slow if it takes longer than 30s to execute, and terminate it
 # if it takes 2x as long as the slow timeout (i.e.: 60s total).
 slow-timeout = { period = "30s", terminate-after = 2 }
@@ -8,7 +10,7 @@ filter = 'package(integration)'
 # Integration tests are heavier-weight than unit tests, so have each one
 # count twice against the parallelism limit.  This improves overall runtime
 # of the test suite, despite running fewer integration tests at a time.
-threads-required = 2
+threads-required = 20
 
 [profile.ci]
 # Print out output for failing tests as soon as they fail, and also at the end
@@ -26,7 +28,7 @@ retries = 2
 [profile.ci.junit]
 # Output nextest results in junit format (for uploading to buildpulse).
 # If `--profile ci` is selected on the command line, then the JUnit report will
-# be written out to `target/nextest/ci/junit.xml`. 
+# be written out to `target/nextest/ci/junit.xml`.
 # Docs: https://nexte.st/docs/machine-readable/junit/
 path = "junit.xml"
 
