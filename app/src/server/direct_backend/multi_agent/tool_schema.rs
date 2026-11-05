@@ -553,6 +553,30 @@ fn run_shell_to_json(r: &api::message::tool_call::RunShellCommand) -> Value {
     json!({"command": r.command, "risk_category": risk})
 }
 
+/// Snapshot marker line. The `command_id` must be visible to the model: the
+/// `write_to_lrc` and `read_shell_command_output` tools take it to address the
+/// running command, and these snapshot lines are the only place it is surfaced.
+fn snapshot_tag(base: &str, command_id: &str) -> String {
+    if command_id.is_empty() {
+        format!("[{base}]")
+    } else {
+        format!("[{base}; command_id: {command_id}]")
+    }
+}
+
+/// Maps a `ShellCommandError` to actionable text. `command_not_found` is the
+/// only variant today; bare "shell command error" gave the model no way to
+/// recover except re-running the command with a guessed id.
+fn shell_error_note(e: &api::ShellCommandError) -> &'static str {
+    match e.r#type.as_ref() {
+        Some(api::shell_command_error::Type::CommandNotFound(_)) => {
+            "ERROR: no running command found for the given command_id (it may have \
+             already finished; use the command_id shown in the latest snapshot)"
+        }
+        None => "ERROR: shell command error",
+    }
+}
+
 fn run_shell_result_to_text(r: &api::RunShellCommandResult) -> String {
     use api::run_shell_command_result::Result as R;
     let actual_cmd = if r.command.is_empty() { None } else { Some(r.command.as_str()) };
@@ -566,7 +590,8 @@ fn run_shell_result_to_text(r: &api::RunShellCommandResult) -> String {
             f.exit_code, f.output
         ),
         Some(R::LongRunningCommandSnapshot(s)) => format!(
-            "{preface}\n[long-running, snapshot only]\n----- output -----\n{}",
+            "{preface}\n{}\n----- output -----\n{}",
+            snapshot_tag("long-running, snapshot only", &s.command_id),
             s.output
         ),
         Some(R::PermissionDenied(_)) => format!("{preface}\n[user denied permission]"),
@@ -1240,10 +1265,11 @@ fn write_to_lrc_result_to_text(r: &api::WriteToLongRunningShellCommandResult) ->
             f.exit_code, f.output
         ),
         Some(R::LongRunningCommandSnapshot(s)) => format!(
-            "[long-running, snapshot]\n----- output -----\n{}",
+            "{}\n----- output -----\n{}",
+            snapshot_tag("long-running, snapshot", &s.command_id),
             s.output
         ),
-        Some(R::Error(_)) => String::from("ERROR: shell command error"),
+        Some(R::Error(e)) => shell_error_note(e).to_string(),
         None => String::from("ERROR: empty write_to_lrc result"),
     }
 }
@@ -1339,10 +1365,11 @@ fn read_shell_command_output_result_to_text(r: &api::ReadShellCommandOutputResul
             f.exit_code, f.output
         ),
         Some(R::LongRunningCommandSnapshot(s)) => format!(
-            "{preface}\n[long-running, snapshot]\n----- output -----\n{}",
+            "{preface}\n{}\n----- output -----\n{}",
+            snapshot_tag("long-running, snapshot", &s.command_id),
             s.output
         ),
-        Some(R::Error(_)) => format!("{preface}\nERROR: shell command error"),
+        Some(R::Error(e)) => format!("{preface}\n{}", shell_error_note(e)),
         None => format!("{preface}\nERROR: empty result"),
     }
 }
@@ -1395,10 +1422,11 @@ fn transfer_control_result_to_text(r: &api::TransferShellCommandControlToUserRes
             f.exit_code, f.output
         ),
         Some(R::LongRunningCommandSnapshot(s)) => format!(
-            "[control transferred, snapshot]\n----- output -----\n{}",
+            "{}\n----- output -----\n{}",
+            snapshot_tag("control transferred, snapshot", &s.command_id),
             s.output
         ),
-        Some(R::Error(_)) => String::from("ERROR: shell command error"),
+        Some(R::Error(e)) => shell_error_note(e).to_string(),
         None => String::from("ERROR: empty transfer-control result"),
     }
 }
@@ -1687,6 +1715,93 @@ mod tests {
     #[test]
     fn run_shell_command_rejects_empty() {
         assert!(parse_run_shell_command(json!({"command": ""})).is_err());
+    }
+
+    #[test]
+    fn run_shell_snapshot_result_surfaces_command_id() {
+        let r = api::RunShellCommandResult {
+            command: "cargo build".into(),
+            result: Some(
+                api::run_shell_command_result::Result::LongRunningCommandSnapshot(
+                    api::LongRunningShellCommandSnapshot {
+                        command_id: "precmd-3520276450626546327-143".into(),
+                        output: "Compiling warp".into(),
+                        ..Default::default()
+                    },
+                ),
+            ),
+            ..Default::default()
+        };
+        let text = run_shell_result_to_text(&r);
+        assert!(text.contains("command_id: precmd-3520276450626546327-143"), "{text}");
+    }
+
+    #[test]
+    fn run_shell_snapshot_without_command_id_keeps_bare_tag() {
+        let r = api::RunShellCommandResult {
+            result: Some(
+                api::run_shell_command_result::Result::LongRunningCommandSnapshot(
+                    api::LongRunningShellCommandSnapshot {
+                        output: "still going".into(),
+                        ..Default::default()
+                    },
+                ),
+            ),
+            ..Default::default()
+        };
+        let text = run_shell_result_to_text(&r);
+        assert!(text.contains("[long-running, snapshot only]"), "{text}");
+        assert!(!text.contains("command_id"), "{text}");
+    }
+
+    #[test]
+    fn read_shell_output_snapshot_surfaces_command_id() {
+        let r = api::ReadShellCommandOutputResult {
+            command: "cargo build".into(),
+            result: Some(
+                api::read_shell_command_output_result::Result::LongRunningCommandSnapshot(
+                    api::LongRunningShellCommandSnapshot {
+                        command_id: "precmd-1-2".into(),
+                        output: "still compiling".into(),
+                        ..Default::default()
+                    },
+                ),
+            ),
+        };
+        let text = read_shell_command_output_result_to_text(&r);
+        assert!(text.contains("command_id: precmd-1-2"), "{text}");
+    }
+
+    #[test]
+    fn write_to_lrc_command_not_found_is_actionable() {
+        let r = api::WriteToLongRunningShellCommandResult {
+            result: Some(
+                api::write_to_long_running_shell_command_result::Result::Error(
+                    api::ShellCommandError {
+                        r#type: Some(api::shell_command_error::Type::CommandNotFound(())),
+                    },
+                ),
+            ),
+        };
+        let text = write_to_lrc_result_to_text(&r);
+        assert!(text.contains("no running command found"), "{text}");
+        assert!(text.contains("latest snapshot"), "{text}");
+    }
+
+    #[test]
+    fn transfer_control_snapshot_surfaces_command_id() {
+        use api::transfer_shell_command_control_to_user_result::Result as TR;
+        let r = api::TransferShellCommandControlToUserResult {
+            result: Some(TR::LongRunningCommandSnapshot(
+                api::LongRunningShellCommandSnapshot {
+                    command_id: "precmd-5-6".into(),
+                    output: "top - 12:00:00".into(),
+                    ..Default::default()
+                },
+            )),
+        };
+        let text = transfer_control_result_to_text(&r);
+        assert!(text.contains("command_id: precmd-5-6"), "{text}");
     }
 
     #[test]

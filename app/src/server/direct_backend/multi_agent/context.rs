@@ -256,8 +256,13 @@ fn running_command_body(command: &api::RunningShellCommand) -> String {
         .snapshot
         .as_ref()
         .map(|snapshot| {
+            let id = if snapshot.command_id.is_empty() {
+                String::new()
+            } else {
+                format!("command_id: {}\n", snapshot.command_id)
+            };
             format!(
-                "screen output so far:\n<output>\n{}\n</output>",
+                "{id}screen output so far:\n<output>\n{}\n</output>",
                 clip(&snapshot.output)
             )
         })

@@ -192,6 +192,42 @@ fn oversized_attachment_is_elided() {
 }
 
 #[test]
+fn attached_running_command_surfaces_command_id() {
+    let attachment = api::Attachment {
+        value: Some(api::attachment::Value::RunningShellCommand(
+            api::RunningShellCommand {
+                command: "cargo build".into(),
+                snapshot: Some(api::LongRunningShellCommandSnapshot {
+                    command_id: "precmd-9-4".into(),
+                    output: "Compiling".into(),
+                    ..Default::default()
+                }),
+            },
+        )),
+    };
+    let rendered = attachment_body(&attachment).expect("a running command renders");
+    assert!(rendered.contains("command_id: precmd-9-4"), "{rendered}");
+    assert!(rendered.contains("Compiling"), "{rendered}");
+}
+
+#[test]
+fn running_command_without_command_id_omits_the_line() {
+    let attachment = api::Attachment {
+        value: Some(api::attachment::Value::RunningShellCommand(
+            api::RunningShellCommand {
+                command: "sleep 60".into(),
+                snapshot: Some(api::LongRunningShellCommandSnapshot {
+                    output: "".into(),
+                    ..Default::default()
+                }),
+            },
+        )),
+    };
+    let rendered = attachment_body(&attachment).expect("a running command renders");
+    assert!(!rendered.contains("command_id"), "{rendered}");
+}
+
+#[test]
 #[allow(deprecated)]
 fn history_query_renders_its_block_but_not_its_environment() {
     let query = api::message::UserQuery {
