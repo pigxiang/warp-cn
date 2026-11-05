@@ -2300,6 +2300,17 @@ impl AppContext {
         self.platform_delegate.open_character_palette();
     }
 
+    /// Returns the unique ID of the OS's currently selected keyboard input source,
+    /// or None on platforms without selectable input sources.
+    pub fn current_input_source_id(&self) -> Option<String> {
+        self.platform_delegate.current_input_source_id()
+    }
+
+    /// Selects the OS keyboard input source with the given unique ID.
+    pub fn select_input_source(&self, source_id: &str) -> bool {
+        self.platform_delegate.select_input_source(source_id)
+    }
+
     /// Delegates to the OS to request permissions for sending desktop notifications.
     ///
     /// ## Platform-Specific

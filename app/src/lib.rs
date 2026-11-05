@@ -41,6 +41,7 @@ mod github_update;
 mod global_resource_handles;
 mod gpu_state;
 mod input_classifier;
+mod input_source_policy;
 mod interval_timer;
 mod language_settings;
 mod linear;
@@ -140,12 +141,12 @@ pub mod themes;
 use ::ai::index::DEFAULT_SYNC_REQUESTS_PER_MIN;
 #[cfg(feature = "local_fs")]
 use ::ai::index::full_source_code_embedding::SnapshotStorage;
-#[cfg(all(not(target_family = "wasm"), feature = "auggie_codebase_index"))]
-use ::ai::index::full_source_code_embedding::store_client::StoreClient;
 use ::ai::index::full_source_code_embedding::SyncTask;
 use ::ai::index::full_source_code_embedding::manager::{
     CodebaseIndexManager, CodebaseIndexManagerConfig,
 };
+#[cfg(all(not(target_family = "wasm"), feature = "auggie_codebase_index"))]
+use ::ai::index::full_source_code_embedding::store_client::StoreClient;
 use ::ai::project_context::model::ProjectContextModel;
 pub use ai::agent::todos::AIAgentTodoList;
 pub use ai::agent::{AIAgentActionResultType, FileEdit, TodoOperation};
@@ -2633,6 +2634,7 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(|ctx| AIExecutionProfilesModel::new(launch_mode, ctx));
 
     ctx.add_singleton_model(DefaultTerminal::new);
+    ctx.add_singleton_model(|_ctx| input_source_policy::InputSourceMemoryModel::new());
 
     #[cfg(all(not(target_family = "wasm"), feature = "auggie_codebase_index"))]
     {

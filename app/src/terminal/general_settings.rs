@@ -4,6 +4,7 @@ use warp_core::settings::macros::define_settings_group;
 use warp_core::settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 
 use crate::banner::BannerState;
+use crate::input_source_policy::PaneTitleMatchMode;
 use crate::resource_center::Tip;
 
 define_settings_group!(GeneralSettings, settings: [
@@ -75,6 +76,27 @@ define_settings_group!(GeneralSettings, settings: [
         private: false,
         toml_path: "general.link_tooltip",
         description: "Whether to show a tooltip when hovering over links.",
+    },
+    switch_input_method_on_pane_activation: SwitchInputMethodOnPaneActivation {
+        type: bool,
+        default: false,
+        supported_platforms: SupportedPlatforms::MAC,
+        sync_to_cloud: SyncToCloud::Never,
+        surface: settings::SettingSurfaces::GUI,
+        private: false,
+        toml_path: "general.switch_input_method_on_pane_activation",
+        description: "Whether to force the English keyboard layout when a terminal pane is activated, unless its title matches the exemption rule.",
+    },
+    pane_title_match_mode: PaneTitleMatchMode,
+    pane_title_match_pattern: PaneTitleMatchPattern {
+        type: String,
+        default: "OC".to_owned(),
+        supported_platforms: SupportedPlatforms::MAC,
+        sync_to_cloud: SyncToCloud::Never,
+        surface: settings::SettingSurfaces::GUI,
+        private: false,
+        toml_path: "general.pane_title_match_pattern",
+        description: "Case-sensitive pattern matched against the focused terminal pane title to exempt it from the forced English keyboard layout.",
     },
     welcome_tips_features_used: WelcomeTipsFeaturesUsed {
         type: HashSet<Tip>,

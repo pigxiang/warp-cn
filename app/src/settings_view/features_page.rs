@@ -56,6 +56,7 @@ use crate::editor::{
 };
 use crate::features::FeatureFlag;
 use crate::gpu_state::{GPUState, GPUStateEvent};
+use crate::input_source_policy::PaneTitleMatchMode;
 use crate::root_view::QuakeModePinPosition;
 use crate::search::command_search::settings::{
     CommandSearchSettings, ShowGlobalWorkflowsInUniversalSearch,
@@ -83,8 +84,9 @@ use crate::terminal::alt_screen_reporting::{
     AltScreenReporting, FocusReportingEnabled, MouseReportingEnabled, ScrollReportingEnabled,
 };
 use crate::terminal::general_settings::{
-    GeneralSettings, LinkTooltip, LoginItem, QuitOnLastWindowClosed, RestoreSession,
-    ShowWarningBeforeQuitting,
+    GeneralSettings, GeneralSettingsChangedEvent, LinkTooltip, LoginItem, PaneTitleMatchPattern,
+    QuitOnLastWindowClosed, RestoreSession, ShowWarningBeforeQuitting,
+    SwitchInputMethodOnPaneActivation,
 };
 use crate::terminal::input::OPEN_COMPLETIONS_KEYBINDING_NAME;
 use crate::terminal::keys_settings::{
@@ -353,6 +355,21 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         context,
         flags::LINK_TOOLTIP_CONTEXT_FLAG,
     ));
+    toggle_binding_pairs.push(
+        ToggleSettingActionPair::new(
+            &warp_i18n::t!("settings-features-cmd-suffix-switch-input-method"),
+            builder(SettingsAction::FeaturesPageToggle(
+                FeaturesPageAction::ToggleSwitchInputMethodOnPaneActivation,
+            )),
+            context,
+            flags::PANE_TITLE_INPUT_METHOD_CONTEXT_FLAG,
+        )
+        .is_supported_on_current_platform(
+            GeneralSettings::as_ref(app)
+                .switch_input_method_on_pane_activation
+                .is_supported_on_current_platform(),
+        ),
+    );
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
             "long-running command notifications",
@@ -769,6 +786,9 @@ pub enum FeaturesPageAction {
     ToggleSshReuseControlMaster,
     ToggleSnackbar,
     ToggleLinkTooltip,
+    ToggleSwitchInputMethodOnPaneActivation,
+    SetPaneTitleMatchMode(PaneTitleMatchMode),
+    SetPaneTitleMatchPattern,
     ToggleCompletionsOpenWhileTyping,
     ToggleWarpCompletions,
     ToggleNativeShellCompletions,
@@ -1205,6 +1225,23 @@ impl FeaturesPageAction {
                 action: "SetWordCharAllowlist".to_string(),
                 value: SemanticSelection::as_ref(ctx).word_char_allowlist_string(),
             },
+            Self::ToggleSwitchInputMethodOnPaneActivation => TelemetryEvent::FeaturesPageAction {
+                action: "ToggleSwitchInputMethodOnPaneActivation".to_string(),
+                value: to_string(
+                    *GeneralSettings::as_ref(ctx).switch_input_method_on_pane_activation,
+                ),
+            },
+            Self::SetPaneTitleMatchMode(mode) => TelemetryEvent::FeaturesPageAction {
+                action: "SetPaneTitleMatchMode".to_string(),
+                value: format!("{mode:?}"),
+            },
+            Self::SetPaneTitleMatchPattern => TelemetryEvent::FeaturesPageAction {
+                action: "SetPaneTitleMatchPattern".to_string(),
+                value: GeneralSettings::as_ref(ctx)
+                    .pane_title_match_pattern
+                    .value()
+                    .clone(),
+            },
             Self::ResetWordCharAllowlist => TelemetryEvent::FeaturesPageAction {
                 action: "ResetWordCharAllowlist".to_string(),
                 value: String::new(),
@@ -1459,6 +1496,9 @@ pub struct FeaturesPageView {
     valid_mouse_scroll_multiplier: bool,
 
     word_boundary_editor: ViewHandle<EditorView>,
+
+    pane_title_match_pattern_editor: ViewHandle<EditorView>,
+    pane_title_match_mode_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
 
     tab_behavior_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
     graphics_backend_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
@@ -1961,6 +2001,28 @@ impl TypedActionView for FeaturesPageView {
             ToggleLinkTooltip => {
                 GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
                     report_if_error!(settings.link_tooltip.toggle_and_save_value(ctx));
+                });
+            }
+            ToggleSwitchInputMethodOnPaneActivation => {
+                GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(
+                        settings
+                            .switch_input_method_on_pane_activation
+                            .toggle_and_save_value(ctx)
+                    );
+                });
+            }
+            SetPaneTitleMatchMode(mode) => {
+                GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(settings.pane_title_match_mode.set_value(*mode, ctx));
+                });
+            }
+            SetPaneTitleMatchPattern => {
+                let pattern = self
+                    .pane_title_match_pattern_editor
+                    .read(ctx, |editor, ctx| editor.buffer_text(ctx));
+                GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(settings.pane_title_match_pattern.set_value(pattern, ctx));
                 });
             }
             ToggleShowWarningBeforeQuitting => {
@@ -2619,6 +2681,43 @@ impl FeaturesPageView {
             ctx.notify();
         });
 
+        let pane_title_match_pattern_editor = ctx.add_typed_action_view(|ctx| {
+            EditorView::single_line(width_and_height_editor_options.clone(), ctx)
+        });
+        pane_title_match_pattern_editor.update(ctx, |editor, ctx| {
+            let pattern = GeneralSettings::as_ref(ctx)
+                .pane_title_match_pattern
+                .value()
+                .clone();
+            editor.set_buffer_text(&pattern, ctx);
+        });
+
+        let pane_title_match_mode_dropdown = ctx.add_typed_action_view(Dropdown::new);
+        Self::update_pane_title_match_mode_dropdown(pane_title_match_mode_dropdown.clone(), ctx);
+
+        ctx.subscribe_to_model(&GeneralSettings::handle(ctx), |me, _, event, ctx| {
+            match event {
+                GeneralSettingsChangedEvent::PaneTitleMatchMode { .. } => {
+                    Self::update_pane_title_match_mode_dropdown(
+                        me.pane_title_match_mode_dropdown.clone(),
+                        ctx,
+                    );
+                }
+                GeneralSettingsChangedEvent::PaneTitleMatchPattern { .. } => {
+                    me.pane_title_match_pattern_editor
+                        .update(ctx, |editor, ctx| {
+                            let pattern = GeneralSettings::as_ref(ctx)
+                                .pane_title_match_pattern
+                                .value()
+                                .clone();
+                            editor.set_buffer_text(&pattern, ctx);
+                        });
+                }
+                _ => {}
+            }
+            ctx.notify();
+        });
+
         let height_editor = {
             ctx.add_typed_action_view(|ctx| {
                 EditorView::single_line(width_and_height_editor_options.clone(), ctx)
@@ -2776,6 +2875,8 @@ impl FeaturesPageView {
             valid_max_block_size: true,
 
             word_boundary_editor,
+            pane_title_match_pattern_editor,
+            pane_title_match_mode_dropdown,
             global_hotkey_dropdown,
 
             tab_behavior_dropdown,
@@ -2827,6 +2928,9 @@ impl FeaturesPageView {
 
         general_widgets.push(Box::new(SnackbarHeaderWidget::default()));
         general_widgets.push(Box::new(LinkTooltipWidget::default()));
+        general_widgets.push(Box::new(SwitchInputMethodOnPaneActivationWidget::default()));
+        general_widgets.push(Box::new(PaneTitleMatchModeWidget::default()));
+        general_widgets.push(Box::new(PaneTitleMatchPatternWidget::default()));
 
         if general_settings
             .show_warning_before_quitting
@@ -3272,6 +3376,62 @@ impl FeaturesPageView {
             );
             dropdown.set_selected_by_index(selected_index, ctx);
         });
+    }
+
+    fn update_pane_title_match_mode_dropdown(
+        dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        dropdown.update(ctx, |dropdown, ctx| {
+            let values = vec![
+                PaneTitleMatchMode::StartsWith,
+                PaneTitleMatchMode::NotStartsWith,
+                PaneTitleMatchMode::Contains,
+                PaneTitleMatchMode::NotContains,
+            ];
+            let current_value = GeneralSettings::as_ref(ctx).pane_title_match_mode;
+
+            let selected_index = values
+                .iter()
+                .position(|val| *val == current_value)
+                .unwrap_or_else(|| {
+                    report_error!(
+                        "Could not find current PaneTitleMatchMode value in dropdown option list"
+                    );
+                    0
+                });
+
+            dropdown.set_items(
+                values
+                    .into_iter()
+                    .map(|val| {
+                        DropdownItem::new(
+                            Self::pane_title_match_mode_dropdown_item_label(val),
+                            FeaturesPageAction::SetPaneTitleMatchMode(val),
+                        )
+                    })
+                    .collect(),
+                ctx,
+            );
+            dropdown.set_selected_by_index(selected_index, ctx);
+        });
+    }
+
+    fn pane_title_match_mode_dropdown_item_label(mode: PaneTitleMatchMode) -> &'static str {
+        match mode {
+            PaneTitleMatchMode::StartsWith => {
+                warp_i18n::t_static!("settings-features-match-mode-starts-with")
+            }
+            PaneTitleMatchMode::NotStartsWith => {
+                warp_i18n::t_static!("settings-features-match-mode-not-starts-with")
+            }
+            PaneTitleMatchMode::Contains => {
+                warp_i18n::t_static!("settings-features-match-mode-contains")
+            }
+            PaneTitleMatchMode::NotContains => {
+                warp_i18n::t_static!("settings-features-match-mode-not-contains")
+            }
+        }
     }
 
     fn handle_hotkey_settings_update(&mut self, ctx: &mut ViewContext<Self>) {
@@ -4924,6 +5084,142 @@ impl SettingsWidget for LinkTooltipWidget {
                     ctx.dispatch_typed_action(FeaturesPageAction::ToggleLinkTooltip);
                 })
                 .finish(),
+            None,
+        )
+    }
+}
+
+#[derive(Default)]
+struct SwitchInputMethodOnPaneActivationWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for SwitchInputMethodOnPaneActivationWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "input method ime keyboard english layout pane title activation switch"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let ui_builder = appearance.ui_builder();
+        render_body_item::<FeaturesPageAction>(
+            warp_i18n::t!("settings-features-switch-input-method").into(),
+            None,
+            LocalOnlyIconState::for_setting(
+                SwitchInputMethodOnPaneActivation::storage_key(),
+                SwitchInputMethodOnPaneActivation::sync_to_cloud(),
+                &mut view
+                    .button_mouse_states
+                    .local_only_icon_tooltip_states
+                    .borrow_mut(),
+                app,
+            ),
+            ToggleState::Enabled,
+            appearance,
+            ui_builder
+                .switch(self.switch_state.clone())
+                .check(*GeneralSettings::as_ref(app).switch_input_method_on_pane_activation)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(
+                        FeaturesPageAction::ToggleSwitchInputMethodOnPaneActivation,
+                    );
+                })
+                .finish(),
+            None,
+        )
+    }
+}
+
+#[derive(Default)]
+struct PaneTitleMatchModeWidget {}
+
+impl SettingsWidget for PaneTitleMatchModeWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "pane title match mode starts with contains exempt input method"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        render_dropdown_item(
+            appearance,
+            &warp_i18n::t!("settings-features-pane-title-match-mode"),
+            None,
+            None,
+            LocalOnlyIconState::for_setting(
+                PaneTitleMatchMode::storage_key(),
+                PaneTitleMatchMode::sync_to_cloud(),
+                &mut view
+                    .button_mouse_states
+                    .local_only_icon_tooltip_states
+                    .borrow_mut(),
+                app,
+            ),
+            None,
+            &view.pane_title_match_mode_dropdown,
+        )
+    }
+}
+
+#[derive(Default)]
+struct PaneTitleMatchPatternWidget {}
+
+impl SettingsWidget for PaneTitleMatchPatternWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "pane title pattern prefix exempt input method oc"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let input_field = Dismiss::new(
+            appearance
+                .ui_builder()
+                .text_input(view.pane_title_match_pattern_editor.clone())
+                .with_style(UiComponentStyles {
+                    width: Some(240.0),
+                    ..Default::default()
+                })
+                .build()
+                .finish(),
+        )
+        .on_dismiss(|ctx, _app| {
+            ctx.dispatch_typed_action(FeaturesPageAction::SetPaneTitleMatchPattern)
+        })
+        .finish();
+
+        render_body_item::<FeaturesPageAction>(
+            warp_i18n::t!("settings-features-pane-title-pattern").into(),
+            None,
+            LocalOnlyIconState::for_setting(
+                PaneTitleMatchPattern::storage_key(),
+                PaneTitleMatchPattern::sync_to_cloud(),
+                &mut view
+                    .button_mouse_states
+                    .local_only_icon_tooltip_states
+                    .borrow_mut(),
+                app,
+            ),
+            ToggleState::Enabled,
+            appearance,
+            input_field,
             None,
         )
     }

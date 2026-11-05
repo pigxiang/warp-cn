@@ -550,7 +550,7 @@ use crate::workspaces::user_workspaces::{ResolvedTeamScope, UserWorkspaces};
 use crate::workspaces::workspace::AdminEnablementSetting;
 use crate::{
     AgentNotificationsModel, BlocklistAIHistoryModel, GlobalResourceHandles, TelemetryEvent,
-    autoupdate, send_telemetry_from_ctx, settings,
+    autoupdate, input_source_policy, send_telemetry_from_ctx, settings,
 };
 
 /// The padding that should be applied to the workspace as a whole.
@@ -16784,6 +16784,12 @@ impl Workspace {
                 // Re-evaluate which region is focused and update pane dimming accordingly.
                 self.update_pane_dimming_for_current_focus_region(ctx);
 
+                input_source_policy::on_pane_focused(
+                    self.active_tab_pane_group(),
+                    ctx.window_id(),
+                    ctx,
+                );
+
                 let mut active_object_open_in_pane = false;
                 // Case 1: if workflow, get workflow ID via TerminalView input
                 if let Some(terminal_view) = self
@@ -19346,6 +19352,7 @@ impl Workspace {
                 let app_lost_focus = previous.stage == ApplicationStage::Active
                     && current.stage != ApplicationStage::Active;
                 if window_lost_focus || app_lost_focus {
+                    input_source_policy::on_window_deactivated(self.active_tab_pane_group(), ctx);
                     TabShortcutModifierState::handle(ctx).update(ctx, |state, ctx| {
                         if state.clear_held_keys() {
                             ctx.notify();
@@ -19364,19 +19371,22 @@ impl Workspace {
                 // reactivation also verifies the live platform window.
                 if cached_window_is_active
                     && (did_window_change_focus || (app_became_active && platform_window_is_active))
-                    && let Some(terminal_view) = self
+                {
+                    input_source_policy::on_window_activated(self.active_tab_pane_group(), ctx);
+                    if let Some(terminal_view) = self
                         .active_tab_pane_group()
                         .as_ref(ctx)
                         .focused_session_view(ctx)
-                {
-                    let ambient_agent_task_id = terminal_view
-                        .as_ref(ctx)
-                        .ambient_agent_task_id_for_details_panel(ctx);
-                    self.notify_terminal_focus_change(
-                        Some(terminal_view.id()),
-                        ambient_agent_task_id,
-                        ctx,
-                    );
+                    {
+                        let ambient_agent_task_id = terminal_view
+                            .as_ref(ctx)
+                            .ambient_agent_task_id_for_details_panel(ctx);
+                        self.notify_terminal_focus_change(
+                            Some(terminal_view.id()),
+                            ambient_agent_task_id,
+                            ctx,
+                        );
+                    }
                 }
 
                 // Re-render if fullscreen state for active window has changed.
@@ -23438,6 +23448,12 @@ impl Workspace {
 
         if *general_settings.link_tooltip {
             context.set.insert(flags::LINK_TOOLTIP_CONTEXT_FLAG);
+        }
+
+        if *general_settings.switch_input_method_on_pane_activation {
+            context
+                .set
+                .insert(flags::PANE_TITLE_INPUT_METHOD_CONTEXT_FLAG);
         }
 
         if *input_settings.completions_open_while_typing.value() {

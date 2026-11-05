@@ -299,6 +299,14 @@ impl platform::Delegate for AppDelegate {
         Window::is_ime_open()
     }
 
+    fn current_input_source_id(&self) -> Option<String> {
+        super::input_source::current_input_source_id()
+    }
+
+    fn select_input_source(&self, source_id: &str) -> bool {
+        super::input_source::select_input_source(source_id)
+    }
+
     fn set_accessibility_contents(&self, content: AccessibilityContent) {
         Window::set_accessibility_contents(content);
     }
@@ -330,7 +338,7 @@ impl platform::Delegate for AppDelegate {
         _window_id: WindowId,
         on_error_callback: SendNotificationErrorCallback,
     ) {
-        use warp_i18n::notification::{truncate, MACOS_MAX};
+        use warp_i18n::notification::{MACOS_MAX, truncate};
         let title = truncate(notification_content.title(), MACOS_MAX);
         let body = truncate(notification_content.body(), MACOS_MAX);
         unsafe {

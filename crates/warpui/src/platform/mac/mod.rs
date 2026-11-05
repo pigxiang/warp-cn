@@ -7,6 +7,7 @@ pub mod delegate;
 mod event;
 pub(crate) mod fonts;
 mod geometry;
+mod input_source;
 mod keycode;
 mod menus;
 mod notification;
@@ -15,7 +16,7 @@ mod text_layout;
 pub mod utils;
 mod window;
 
-pub use app::{rebuild_main_menu, App, AppExt};
+pub use app::{App, AppExt, rebuild_main_menu};
 use clipboard::*;
 use cocoa::base::{id, nil};
 use cocoa::foundation::NSAutoreleasePool;
