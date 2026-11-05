@@ -8,8 +8,8 @@ use url::{Origin, ParseError, Url};
 use super::Channel;
 use crate::AppId;
 use crate::channel::config::{
-    ChannelConfig, IapConfig, McpOAuthProviderConfig, OzConfig, RudderStackDestination,
-    WarpServerConfig,
+    BLACKHOLE_ROOT_URL, ChannelConfig, IapConfig, McpOAuthProviderConfig, OzConfig,
+    RudderStackDestination, WarpServerConfig,
 };
 use crate::features::FeatureFlag;
 
@@ -41,6 +41,11 @@ pub struct ChannelState {
     additional_features: HashSet<FeatureFlag>,
 
     config: ChannelConfig,
+
+    /// The server/Oz config replaced by [`Self::set_cloud_services_blocked`], kept
+    /// so unblocking restores exactly what was active before instead of assuming
+    /// production URLs.
+    cloud_services_backup: Option<Box<(WarpServerConfig, OzConfig)>>,
 }
 
 impl ChannelState {
@@ -60,6 +65,7 @@ impl ChannelState {
                 crash_reporting_config: None,
                 mcp_static_config: None,
             },
+            cloud_services_backup: None,
         }
     }
 
@@ -78,6 +84,7 @@ impl ChannelState {
             channel,
             additional_features: Default::default(),
             config,
+            cloud_services_backup: None,
         }
     }
 
@@ -125,6 +132,41 @@ impl ChannelState {
             .server_config
             .session_sharing_server_url = Some(url);
         Ok(())
+    }
+
+    /// When `blocked`, swaps the built-in cloud-service endpoints (main API, RTC
+    /// websocket, session sharing, Oz) for unreachable loopback URLs so no
+    /// traffic to Warp's official servers can leave the machine. Unblocking
+    /// restores the previously active config. Accessors re-read the state per
+    /// call, so new requests and websocket reconnects pick up the change
+    /// immediately; long-lived connections need a restart.
+    pub fn set_cloud_services_blocked(blocked: bool) {
+        let mut channel_state = CHANNEL_STATE.lock();
+        let is_blackholed =
+            &*channel_state.config.server_config.server_root_url == BLACKHOLE_ROOT_URL;
+        if blocked {
+            if !is_blackholed {
+                let server = std::mem::replace(
+                    &mut channel_state.config.server_config,
+                    WarpServerConfig::blackhole(),
+                );
+                let oz =
+                    std::mem::replace(&mut channel_state.config.oz_config, OzConfig::blackhole());
+                channel_state.cloud_services_backup = Some(Box::new((server, oz)));
+            }
+        } else if is_blackholed {
+            match channel_state.cloud_services_backup.take() {
+                Some(boxed) => {
+                    let (server, oz) = *boxed;
+                    channel_state.config.server_config = server;
+                    channel_state.config.oz_config = oz;
+                }
+                None => {
+                    channel_state.config.server_config = WarpServerConfig::production();
+                    channel_state.config.oz_config = OzConfig::production();
+                }
+            }
+        }
     }
 
     pub fn uses_staging_server() -> bool {

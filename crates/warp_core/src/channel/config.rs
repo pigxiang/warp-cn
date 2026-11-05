@@ -63,7 +63,25 @@ impl WarpServerConfig {
             iap_config: None,
         }
     }
+
+    /// Unreachable loopback endpoints: every built-in cloud-service URL points at
+    /// the closed discard port on localhost, so no traffic can leave the machine
+    /// even if a caller builds a request. Used by the fork's cloud-services block
+    /// toggle (default on).
+    pub fn blackhole() -> Self {
+        Self {
+            server_root_url: BLACKHOLE_ROOT_URL.into(),
+            rtc_server_url: "ws://127.0.0.1:9/graphql/v2".into(),
+            session_sharing_server_url: None,
+            firebase_auth_api_key: "".into(),
+            iap_config: None,
+        }
+    }
 }
+
+/// Must match the `server_root_url` produced by [`WarpServerConfig::blackhole`];
+/// compared against to detect an already-blocked configuration.
+pub const BLACKHOLE_ROOT_URL: &str = "https://127.0.0.1:9";
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct OzConfig {
@@ -80,6 +98,14 @@ impl OzConfig {
     pub fn production() -> Self {
         Self {
             oz_root_url: "https://oz.warp.dev".into(),
+            workload_audience_url: None,
+        }
+    }
+
+    /// See [`WarpServerConfig::blackhole`].
+    pub fn blackhole() -> Self {
+        Self {
+            oz_root_url: BLACKHOLE_ROOT_URL.into(),
             workload_audience_url: None,
         }
     }

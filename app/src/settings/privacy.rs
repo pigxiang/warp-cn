@@ -6,6 +6,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use settings::macros::{define_settings_group, maybe_define_setting, register_settings_events};
 use settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud};
+use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
 use warp_errors::{report_error, report_if_error};
 use warp_graphql::mutations::update_user_settings::UpdateUserSettingsInput;
@@ -116,6 +117,20 @@ define_settings_group!(WarpDrivePrivacySettings, settings: [
         storage_key: "CloudConversationStorageEnabled",
         toml_path: "agents.cloud_conversation_storage_enabled",
         description: "Whether conversations are stored in the cloud.",
+    },
+    block_warp_cloud_services: BlockWarpCloudServices {
+        type: bool,
+        default: true,
+        supported_platforms: SupportedPlatforms::ALL,
+        // Device-local: blocking another device's servers from this one's
+        // settings sync would be surprising, and the value must apply at boot
+        // before any cloud settings fetch completes.
+        sync_to_cloud: SyncToCloud::Never,
+        surface: settings::SettingSurfaces::GUI,
+        private: false,
+        storage_key: "BlockWarpCloudServices",
+        toml_path: "privacy.block_warp_cloud_services",
+        description: "Whether Warp cloud service endpoints are black-holed locally.",
     },
 ]);
 
@@ -252,6 +267,13 @@ impl PrivacySettings {
             .is_cloud_conversation_storage_enabled
             .value();
 
+        // Apply the cloud-services block from disk before any server client can
+        // use the URLs; the binary default is already blocked, so this only ever
+        // lifts the block (or is a no-op).
+        ChannelState::set_cloud_services_blocked(
+            *warp_drive_privacy.block_warp_cloud_services.value(),
+        );
+
         // Listen for changes to the cloud model and update ourselves when they happen.
         ctx.subscribe_to_model(
             &WarpDrivePrivacySettings::handle(ctx),
@@ -278,6 +300,11 @@ impl PrivacySettings {
                                 .is_cloud_conversation_storage_enabled
                                 .value(),
                             ctx,
+                        );
+                    }
+                    WarpDrivePrivacySettingsChangedEvent::BlockWarpCloudServices { .. } => {
+                        ChannelState::set_cloud_services_blocked(
+                            *privacy_settings.block_warp_cloud_services.value(),
                         );
                     }
                 }

@@ -46,6 +46,10 @@ settings-privacy-telemetry-docs-link = Read more about Warp's use of data
 # Crash reporting toggle
 settings-privacy-crash-reports-title = Send crash reports
 
+# Block cloud services toggle (fork)
+settings-privacy-block-cloud-services-title = Block connections to Warp's official cloud servers
+settings-privacy-block-cloud-services-description = When enabled, every built-in endpoint of Warp's official servers (login, Warp Drive sync, session sharing, Oz) is redirected to a local black-hole address, so no traffic reaches warp.dev. New requests and websocket reconnects pick this up immediately; already-open connections close on restart. SSH and direct-backend AI models are unaffected.
+
 # Cloud conversation storage
 settings-privacy-cloud-conversations-title = Store AI conversations in the cloud
 settings-privacy-cloud-conversations-enabled-desc = Agent conversations can be shared with others and are retained when you log in on different devices. This data is only stored for product functionality, and Warp will not use it for analytics.

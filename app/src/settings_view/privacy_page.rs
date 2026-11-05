@@ -42,7 +42,10 @@ use crate::channel::ChannelState;
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
-use crate::settings::{AISettings, CustomSecretRegex, PrivacySettings, RegexDisplayInfo};
+use crate::settings::{
+    AISettings, BlockWarpCloudServices, CustomSecretRegex, PrivacySettings, RegexDisplayInfo,
+    WarpDrivePrivacySettings,
+};
 use crate::settings_view::privacy::AddRegexModalViewState;
 use crate::settings_view::render_body_item_label;
 use crate::settings_view::settings_page::CONTENT_FONT_SIZE;
@@ -240,6 +243,7 @@ impl PrivacyPageView {
             Box::new(SecretRedactionWidget::default()),
             Box::new(AppAnalyticsWidget::default()),
             Box::new(CrashReportsWidget::default()),
+            Box::new(BlockWarpCloudServicesWidget::default()),
             Box::new(CloudConversationStorageWidget::default()),
         ];
         if ContextFlag::NetworkLogConsole.is_enabled() {
@@ -342,6 +346,22 @@ impl PrivacyPageView {
             .is_cloud_conversation_storage_enabled;
         ctx.update_model(&privacy_settings_handle, |privacy_settings, ctx| {
             privacy_settings.set_is_cloud_conversation_storage_enabled(!old_value, ctx);
+        });
+        ctx.notify();
+    }
+
+    fn toggle_block_warp_cloud_services(&mut self, ctx: &mut ViewContext<Self>) {
+        let warp_privacy_handle = WarpDrivePrivacySettings::handle(ctx);
+        let new_value = !*warp_privacy_handle
+            .as_ref(ctx)
+            .block_warp_cloud_services
+            .value();
+        ctx.update_model(&warp_privacy_handle, move |warp_privacy, ctx| {
+            report_if_error!(
+                warp_privacy
+                    .block_warp_cloud_services
+                    .set_value(new_value, ctx)
+            );
         });
         ctx.notify();
     }
@@ -518,6 +538,7 @@ pub enum PrivacyPageAction {
     SetSecretDisplayMode(SecretDisplayMode),
     ToggleTelemetry,
     ToggleCrashReporting,
+    ToggleBlockWarpCloudServices,
     ToggleCloudConversationStorage,
     LaunchNetworkLogging,
     RemoveCustomRegex(usize),
@@ -600,6 +621,9 @@ impl TypedActionView for PrivacyPageView {
             }
             PrivacyPageAction::ToggleTelemetry => self.toggle_telemetry(ctx),
             PrivacyPageAction::ToggleCrashReporting => self.toggle_crash_reporting(ctx),
+            PrivacyPageAction::ToggleBlockWarpCloudServices => {
+                self.toggle_block_warp_cloud_services(ctx)
+            }
             PrivacyPageAction::ToggleCloudConversationStorage => {
                 self.toggle_cloud_conversation_storage(ctx)
             }
@@ -1646,6 +1670,77 @@ impl SettingsWidget for CrashReportsWidget {
                 ui_builder
                     .paragraph(
                         warp_i18n::t!("settings-privacy-crash-reports-description").to_owned(),
+                    )
+                    .with_style(UiComponentStyles {
+                        font_color: Some(
+                            appearance
+                                .theme()
+                                .sub_text_color(appearance.theme().surface_2())
+                                .into_solid(),
+                        ),
+                        margin: Some(
+                            Coords::default()
+                                .top(styles::DESCRIPTION_NEGATIVE_MARGIN_OFFSET)
+                                .bottom(styles::DESCRIPTION_MARGIN_BOTTOM),
+                        ),
+                        ..Default::default()
+                    })
+                    .build()
+                    .finish(),
+            )
+            .finish()
+    }
+}
+
+#[derive(Default)]
+struct BlockWarpCloudServicesWidget {
+    switch_state: SwitchStateHandle,
+    local_only_icon_tooltip_states: RefCell<HashMap<String, MouseStateHandle>>,
+}
+
+impl SettingsWidget for BlockWarpCloudServicesWidget {
+    type View = PrivacyPageView;
+
+    fn search_terms(&self) -> &str {
+        "block disable warp cloud services connection server login drive sync offline network"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let ui_builder = appearance.ui_builder();
+        let warp_privacy = WarpDrivePrivacySettings::as_ref(app);
+        let local_only_icon_state = LocalOnlyIconState::for_setting(
+            BlockWarpCloudServices::storage_key(),
+            BlockWarpCloudServices::sync_to_cloud(),
+            &mut self.local_only_icon_tooltip_states.borrow_mut(),
+            app,
+        );
+        Flex::column()
+            .with_child(render_body_item::<PrivacyPageAction>(
+                warp_i18n::t!("settings-privacy-block-cloud-services-title"),
+                None,
+                local_only_icon_state,
+                ToggleState::Enabled,
+                appearance,
+                ui_builder
+                    .switch(self.switch_state.clone())
+                    .check(*warp_privacy.block_warp_cloud_services.value())
+                    .build()
+                    .on_click(move |ctx, _, _| {
+                        ctx.dispatch_typed_action(PrivacyPageAction::ToggleBlockWarpCloudServices)
+                    })
+                    .finish(),
+                None,
+            ))
+            .with_child(
+                ui_builder
+                    .paragraph(
+                        warp_i18n::t!("settings-privacy-block-cloud-services-description")
+                            .to_owned(),
                     )
                     .with_style(UiComponentStyles {
                         font_color: Some(

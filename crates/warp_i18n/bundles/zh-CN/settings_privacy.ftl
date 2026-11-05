@@ -46,6 +46,10 @@ settings-privacy-telemetry-docs-link = 详细了解 Warp 如何使用数据
 # 崩溃报告
 settings-privacy-crash-reports-title = 发送崩溃报告
 
+# 阻断云服务（fork）
+settings-privacy-block-cloud-services-title = 阻断连接 Warp 官方云服务器
+settings-privacy-block-cloud-services-description = 开启后，所有内置的 Warp 官方服务端点（登录、Warp Drive 同步、会话共享、Oz）都会被重定向到本地黑洞地址，任何流量都不会到达 warp.dev。新请求与 websocket 重连立即生效，已建立的连接在重启 Warp 后关闭。SSH 与直连模型（direct agent）不受影响。
+
 # AI 对话云存储
 settings-privacy-cloud-conversations-title = 将 AI 对话存储在云端
 settings-privacy-cloud-conversations-enabled-desc = 智能体对话可与他人共享，并在您从其他设备登录时保留。该数据仅用于产品功能，Warp 不会将其用于分析。

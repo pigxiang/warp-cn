@@ -17,8 +17,10 @@ fn main() -> Result<()> {
         ChannelConfig {
             app_id: AppId::new("dev", "warp", "WarpCn"),
             logfile_name: "warp-oss.log".into(),
-            server_config: WarpServerConfig::production(),
-            oz_config: OzConfig::production(),
+            // Blocked by default; PrivacySettings re-enables the production
+            // endpoints when the "Block Warp cloud services" setting is off.
+            server_config: WarpServerConfig::blackhole(),
+            oz_config: OzConfig::blackhole(),
             telemetry_config: None,
             crash_reporting_config: None,
             autoupdate_config: None,
