@@ -12,7 +12,8 @@ use settings::{Setting, SupportedPlatforms, SyncToCloud};
 use warpui::{AppContext, Entity, SingletonEntity, ViewHandle, WindowId};
 
 use crate::pane_group::PaneGroup;
-use crate::pane_group::pane::PaneId;
+use crate::pane_group::pane::{PaneConfiguration, PaneId};
+use crate::terminal::TerminalView;
 use crate::terminal::general_settings::{GeneralSettings, GeneralSettingsChangedEvent};
 
 /// Built-in English keyboard layout selected whenever the exemption rule doesn't
@@ -121,6 +122,32 @@ fn remember_source(ctx: &mut AppContext, pane_id: PaneId, source_id: &str) {
     });
 }
 
+/// Whether any title source for the pane matches the exemption rule. The
+/// displayed pane title can be overridden (CLI-agent event text, warpified
+/// SSH conversations), so the custom rename and the raw OSC title are checked
+/// as well. Empty sources never count as a match, keeping negative patterns
+/// from exempting everything.
+fn exemption_matches(
+    view: &TerminalView,
+    pane_config: &PaneConfiguration,
+    mode: PaneTitleMatchMode,
+    pattern: &str,
+) -> bool {
+    let sources = [
+        Some(pane_config.title()),
+        pane_config.custom_vertical_tabs_title(),
+    ];
+    if sources
+        .into_iter()
+        .flatten()
+        .any(|title| !title.is_empty() && title_is_exempt(title, mode, pattern))
+    {
+        return true;
+    }
+    let raw_osc = view.terminal_title_from_shell();
+    !raw_osc.is_empty() && title_is_exempt(&raw_osc, mode, pattern)
+}
+
 /// Applies the rule for `pane_id`'s title: restore its remembered source when
 /// exempt, otherwise force English.
 fn apply_for_pane(pane_group: &ViewHandle<PaneGroup>, pane_id: PaneId, ctx: &AppContext) {
@@ -128,19 +155,14 @@ fn apply_for_pane(pane_group: &ViewHandle<PaneGroup>, pane_id: PaneId, ctx: &App
     let Some(terminal_view) = pane_group.terminal_view_from_pane_id(pane_id, ctx) else {
         return;
     };
-    let title = terminal_view
-        .as_ref(ctx)
-        .pane_configuration()
-        .as_ref(ctx)
-        .title()
-        .to_owned();
+    let view = terminal_view.as_ref(ctx);
+    let pane_config = view.pane_configuration().as_ref(ctx);
 
     let settings = GeneralSettings::as_ref(ctx);
-    if title_is_exempt(
-        &title,
-        settings.pane_title_match_mode,
-        settings.pane_title_match_pattern.value(),
-    ) {
+    let mode = settings.pane_title_match_mode;
+    let pattern = settings.pane_title_match_pattern.value().clone();
+
+    if exemption_matches(view, pane_config, mode, &pattern) {
         let remembered = InputSourceMemoryModel::handle(ctx)
             .as_ref(ctx)
             .remembered
