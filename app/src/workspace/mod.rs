@@ -55,10 +55,10 @@ use crate::server::telemetry::{AgentModeEntrypoint, PaletteSource};
 use crate::settings::AISettings;
 use crate::settings_view::{self, SettingsSection, flags};
 use crate::tab::{NewSessionMenuItem, uses_vertical_tabs};
-use crate::workspaces::user_workspaces::{ResolvedTeamScope, UserWorkspaces};
 use crate::util::bindings::{
     self, BindingDescriptionFluentExt, CustomAction, cmd_or_ctrl_shift, is_binding_pty_compliant,
 };
+use crate::workspaces::user_workspaces::{ResolvedTeamScope, UserWorkspaces};
 use crate::{code, modal, notebooks, tab_configs};
 
 // Helper function to access panel header corner radius from other modules
@@ -121,7 +121,6 @@ pub fn init(app: &mut AppContext) {
     view::feature_intro_modal::init(app);
     view::auto_handoff_sleep_modal::init(app);
     view::chatgpt_plan_modal::init(app);
-    view::cloud_agent_capacity_modal::init(app);
     view::codex_modal::init(app);
     view::free_ai_removal_modal::init(app);
     view::global_search::view::GlobalSearchView::init(app);
@@ -198,24 +197,8 @@ pub fn init(app: &mut AppContext) {
         )]);
         #[cfg(debug_assertions)]
         {
-            // Debug actions for build plan migration modal (command palette only)
+            // Debug actions (command palette only)
             app.register_editable_bindings([
-                EditableBinding::new(
-                    "workspace:open_build_plan_migration_modal",
-                    BindingDescription::fluent(
-                        "binding-workspace-debug-build-plan-migration-modal",
-                    ),
-                    WorkspaceAction::OpenBuildPlanMigrationModal,
-                )
-                .with_context_predicate(id!("Workspace")),
-                EditableBinding::new(
-                    "workspace:reset_build_plan_migration_modal_state",
-                    BindingDescription::fluent(
-                        "binding-workspace-debug-reset-build-plan-migration",
-                    ),
-                    WorkspaceAction::ResetBuildPlanMigrationModalState,
-                )
-                .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:debug_reset_aws_bedrock_login_banner_dismissed",
                     BindingDescription::fluent("binding-workspace-debug-reset-aws-bedrock-banner"),
@@ -1718,13 +1701,6 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
             WorkspaceAction::ShowSettingsPage(SettingsSection::WarpAgent),
         )
         .with_enabled(|| FeatureFlag::AgentMode.is_enabled())
-        .with_group(bindings::BindingGroup::Settings.as_str())
-        .with_context_predicate(id!("Workspace")),
-        EditableBinding::new(
-            "workspace:show_settings_billing_and_usage_page",
-            BindingDescription::new(t!("command-open-settings-billing")),
-            WorkspaceAction::ShowSettingsPage(SettingsSection::BillingAndUsage),
-        )
         .with_group(bindings::BindingGroup::Settings.as_str())
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(

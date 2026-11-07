@@ -35,7 +35,6 @@ use crate::workspaces::workspace::CustomerType;
 /// a modal is currently being shown and automatically triggers the modal when appropriate
 /// conditions are met (e.g., user becomes onboarded).
 pub struct OneTimeModalModel {
-    is_build_plan_migration_modal_open: bool,
     /// Whether the Oz launch modal is currently being shown.
     is_oz_launch_modal_open: bool,
     /// Whether the OpenWarp launch modal is currently being shown.
@@ -85,16 +84,12 @@ pub struct OneTimeModalModel {
 
 impl OneTimeModalModel {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        // Subscribe to UserWorkspaces to detect when sunsetted_to_build_ts changes
+        // Subscribe to UserWorkspaces to react to team membership changes.
         ctx.subscribe_to_model(
             &crate::workspaces::user_workspaces::UserWorkspaces::handle(ctx),
             |me, _, event, ctx| {
                 use crate::workspaces::user_workspaces::UserWorkspacesEvent;
                 match event {
-                    UserWorkspacesEvent::SunsettedToBuildDataUpdated => {
-                        // When sunsetted_to_build_ts is updated, check if we should show the modal
-                        me.check_and_trigger_build_plan_migration_modal(ctx);
-                    }
                     UserWorkspacesEvent::TeamsChanged => {
                         me.has_fetched_workspaces = true;
                         me.maybe_recheck_free_ai_removal_modal(ctx);
@@ -210,7 +205,6 @@ impl OneTimeModalModel {
         auto_handoff_sleep_modal_closed.set();
 
         Self {
-            is_build_plan_migration_modal_open: false,
             is_oz_launch_modal_open: false,
             is_openwarp_launch_modal_open: false,
             is_orchestration_launch_modal_open: false,
@@ -312,10 +306,7 @@ impl OneTimeModalModel {
         if self.check_and_trigger_free_ai_removal_modal(ctx) {
             return;
         }
-        if self.check_and_trigger_hoa_onboarding(ctx) {
-            return;
-        }
-        self.check_and_trigger_build_plan_migration_modal(ctx);
+        self.check_and_trigger_hoa_onboarding(ctx);
     }
 
     #[cfg(debug_assertions)]
@@ -430,7 +421,6 @@ impl OneTimeModalModel {
             || self.is_orchestration_launch_modal_open
             || self.is_agent_cli_launch_modal_open
             || self.is_auto_handoff_sleep_modal_open
-            || self.is_build_plan_migration_modal_open
             || self.is_free_ai_removal_modal_open
             || self.is_hoa_onboarding_open
             || self.is_chatgpt_plan_modal_open)
@@ -686,8 +676,6 @@ impl OneTimeModalModel {
         if self.check_and_trigger_hoa_onboarding(ctx) {
             return;
         }
-
-        self.check_and_trigger_build_plan_migration_modal(ctx);
     }
 
     /// Returns whether the free-AI-removal notice modal is currently open.
@@ -958,90 +946,6 @@ impl OneTimeModalModel {
             self.set_active_feature_intro(Some(id), ctx);
         }
         should_show
-    }
-
-    pub fn is_build_plan_migration_modal_open(&self) -> bool {
-        self.is_build_plan_migration_modal_open && self.target_window_id.is_some()
-    }
-
-    pub fn mark_build_plan_migration_modal_dismissed(&mut self, ctx: &mut ModelContext<Self>) {
-        self.set_build_plan_migration_modal_open(false, ctx);
-    }
-
-    #[cfg(debug_assertions)]
-    pub fn force_open_build_plan_migration_modal(&mut self, ctx: &mut ModelContext<Self>) {
-        self.set_build_plan_migration_modal_open(true, ctx);
-    }
-
-    fn set_build_plan_migration_modal_open(
-        &mut self,
-        is_open: bool,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
-        if self.is_build_plan_migration_modal_open != is_open {
-            self.is_build_plan_migration_modal_open = is_open;
-            ctx.emit(OneTimeModalEvent::VisibilityChanged { is_open });
-            return true;
-        }
-        false
-    }
-
-    fn check_and_trigger_build_plan_migration_modal(
-        &mut self,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
-        use crate::workspaces::user_workspaces::UserWorkspaces;
-
-        // Check if already dismissed
-        let general_settings = GeneralSettings::as_ref(ctx);
-        if *general_settings
-            .build_plan_migration_modal_dismissed
-            .value()
-        {
-            return false;
-        }
-
-        // Check if user is authenticated
-        let auth_state = crate::auth::AuthStateProvider::as_ref(ctx).get();
-
-        if auth_state.is_anonymous_or_logged_out() {
-            return false;
-        }
-
-        // Check if current workspace has sunsetted_to_build_ts set
-        let user_workspaces = UserWorkspaces::as_ref(ctx);
-        let Some(target_window_id) = self
-            .target_window_id
-            .or_else(|| ctx.windows().active_window())
-        else {
-            return false;
-        };
-        let Some(current_team) = user_workspaces.team_for_window(target_window_id) else {
-            return false;
-        };
-
-        // Check if user is admin of the team
-        let Some(user_email) = auth_state.user_email() else {
-            return false;
-        };
-
-        if !current_team.has_admin_permissions(&user_email) {
-            return false;
-        }
-
-        // Check if service agreement has sunsetted_to_build_ts set
-        let has_sunsetted_to_build = user_workspaces
-            .current_workspace()
-            .and_then(|workspace| workspace.billing_metadata.service_agreements.first())
-            .is_some_and(|agreement| agreement.sunsetted_to_build_ts.is_some());
-
-        if !has_sunsetted_to_build {
-            return false;
-        }
-
-        // All conditions met, show the modal
-        self.target_window_id = Some(target_window_id);
-        self.set_build_plan_migration_modal_open(true, ctx)
     }
 }
 

@@ -13,10 +13,6 @@ use warpui::elements::{
 };
 use warpui::fonts::{Properties, Weight};
 
-use crate::settings_view::billing_and_usage_page_v2::{
-    AGGREGATE_CREDITS_DOT_COLOR, AMBIENT_CREDITS_DOT_COLOR, BASE_CREDITS_DOT_COLOR,
-    BONUS_CREDITS_DOT_COLOR, PAYG_CREDITS_DOT_COLOR,
-};
 use crate::ui_components::blended_colors;
 use crate::workspaces::team::Team;
 use crate::workspaces::workspace::{
@@ -29,6 +25,37 @@ use crate::workspaces::workspace::{
 pub const ROW_BORDER_RADIUS: f32 = 8.;
 pub const ROW_BORDER_WIDTH: f32 = 1.;
 pub const TOOLTIP_GAP: f32 = 6.;
+
+const BASE_CREDITS_DOT_COLOR: ColorU = ColorU {
+    r: 207,
+    g: 145,
+    b: 216,
+    a: 255,
+};
+const BONUS_CREDITS_DOT_COLOR: ColorU = ColorU {
+    r: 236,
+    g: 148,
+    b: 85,
+    a: 255,
+};
+const PAYG_CREDITS_DOT_COLOR: ColorU = ColorU {
+    r: 94,
+    g: 177,
+    b: 239,
+    a: 255,
+};
+const AMBIENT_CREDITS_DOT_COLOR: ColorU = ColorU {
+    r: 99,
+    g: 102,
+    b: 241,
+    a: 255,
+};
+const AGGREGATE_CREDITS_DOT_COLOR: ColorU = ColorU {
+    r: 140,
+    g: 140,
+    b: 140,
+    a: 255,
+};
 
 const COST_TYPE_ORDER: &[AiCreditsUsageAndCostType] = &[
     AiCreditsUsageAndCostType::BaseLimit,

@@ -434,6 +434,9 @@ rmcp = { version = "3.5" }
 # on CI), at the cost of not being able to inspect locals/types when
 # attaching a debugger to a release binary.
 debug = 1
+# warp-cn lite: the OSS channel blackholes Sentry/telemetry, so stripped
+# binaries lose nothing operationally and save ~20% on-disk size.
+strip = true
 # Force the rust compiler to create a dSYM. Starting in 1.53 the default on MacOS is "unpacked".
 split-debuginfo = "packed"
 

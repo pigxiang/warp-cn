@@ -223,8 +223,7 @@ use crate::ai::agent::{
 use crate::ai::agent::{CurrentHead, DiffBase};
 use crate::ai::agent_conversations_model::{AgentConversationsModel, AgentConversationsModelEvent};
 use crate::ai::ambient_agents::{
-    AmbientAgentTask, AmbientAgentTaskId, AmbientConversationStatus,
-    conversation_output_status_from_conversation,
+    AmbientAgentTask, AmbientAgentTaskId, conversation_output_status_from_conversation,
 };
 use crate::ai::blocklist::agent_view::agent_input_footer::toolbar_item::AgentToolbarItemKind;
 use crate::ai::blocklist::agent_view::orchestration_conversation_links::pane_group_id_containing_terminal_view;
@@ -551,7 +550,6 @@ use crate::view_components::{DismissibleToast, ToastFlavor};
 use crate::workflows::WorkflowSelectionSource;
 use crate::workflows::workflow::Workflow;
 use crate::workspace::sync_inputs::SyncedInputState;
-use crate::workspace::view::cloud_agent_capacity_modal::CloudAgentCapacityModalVariant;
 use crate::workspace::{
     CommandSearchOptions, ForkAIConversationParams, ForkFromExchange,
     ForkedConversationDestination, OneTimeModalModel, ToastStack, WorkspaceAction,
@@ -2078,10 +2076,6 @@ pub enum Event {
     PluggableNotification {
         title: Option<String>,
         body: String,
-    },
-    /// Emitted when cloud mode runs should display the cloud-agent capacity/credits modal.
-    ShowCloudAgentCapacityModal {
-        variant: CloudAgentCapacityModalVariant,
     },
     /// Emitted when the StartAgent executor needs the workspace to create
     /// a new child agent conversation in a split pane. The freshly-created
@@ -6853,22 +6847,6 @@ impl TerminalView {
                 }
 
                 self.maybe_send_agent_mode_desktop_notification(conversation_id, ctx);
-
-                // Show AI credits modal for cloud-mode out-of-credits failures.
-                if FeatureFlag::CloudMode.is_enabled()
-                    && self.is_ambient_agent_session(ctx)
-                    && !self.model.lock().is_shared_ambient_agent_session()
-                    && let Some(conversation) =
-                        BlocklistAIHistoryModel::as_ref(ctx).conversation(conversation_id)
-                    && matches!(
-                        conversation_output_status_from_conversation(conversation),
-                        Some(AmbientConversationStatus::Error {
-                            error: RenderableAIError::QuotaLimit { .. }
-                        })
-                    )
-                {
-                    self.show_out_of_credits_modal(ctx);
-                }
 
                 // For conversation transcript viewers (on WASM) and shared ambient sessions on
                 // non-CloudModeSetupV2 paths, insert a conversation-ended tombstone when the

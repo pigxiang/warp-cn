@@ -162,7 +162,7 @@ use crate::terminal::{
 use crate::undo_close::{UndoCloseStack, UndoCloseStackEvent};
 #[cfg(target_family = "wasm")]
 use crate::uri::browser_url_handler::update_browser_url;
-use crate::util::bindings::{is_binding_pty_compliant, BindingDescriptionFluentExt, CustomAction};
+use crate::util::bindings::{BindingDescriptionFluentExt, CustomAction, is_binding_pty_compliant};
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
 use crate::view_components::ToastFlavor;
@@ -750,9 +750,6 @@ pub enum Event {
     /// Request to open LSP logs in a terminal pane
     OpenLspLogs {
         log_path: PathBuf,
-    },
-    ShowCloudAgentCapacityModal {
-        variant: crate::workspace::view::cloud_agent_capacity_modal::CloudAgentCapacityModalVariant,
     },
     #[cfg(not(target_family = "wasm"))]
     OpenPluginInstructionsPane(crate::terminal::CLIAgent, PluginModalKind),
