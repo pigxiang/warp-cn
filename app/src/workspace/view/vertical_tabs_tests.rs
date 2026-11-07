@@ -68,10 +68,7 @@ fn summary_pane_kind_icons_pick_two_oldest_distinct_pane_kinds() {
         select_summary_pane_kind_icons([
             (EntityId::from_usize(30), SummaryPaneKind::Terminal),
             (EntityId::from_usize(20), code_summary_kind("main.rs")),
-            (
-                EntityId::from_usize(40),
-                SummaryPaneKind::Notebook { is_plan: false },
-            ),
+            (EntityId::from_usize(40), SummaryPaneKind::File,),
             (EntityId::from_usize(10), SummaryPaneKind::Terminal),
         ]),
         Some(SummaryPaneKindIcons::Pair {
@@ -323,7 +320,6 @@ fn pane_type_supports_vertical_tabs_detail_sidecar(pane_type: IPaneType) -> bool
         pane_type,
         IPaneType::Terminal
             | IPaneType::Code
-            | IPaneType::Notebook
             | IPaneType::Workflow
             | IPaneType::EnvVarCollection
             | IPaneType::AIFact
@@ -360,8 +356,8 @@ fn detail_sidecar_supports_terminal_code_and_warp_drive_object_panes() {
     assert!(pane_type_supports_vertical_tabs_detail_sidecar(
         IPaneType::Code
     ));
-    assert!(pane_type_supports_vertical_tabs_detail_sidecar(
-        IPaneType::Notebook
+    assert!(!pane_type_supports_vertical_tabs_detail_sidecar(
+        IPaneType::File
     ));
     assert!(pane_type_supports_vertical_tabs_detail_sidecar(
         IPaneType::Workflow

@@ -71,7 +71,6 @@ use crate::features::FeatureFlag;
 use crate::interval_timer::IntervalTimer;
 use crate::launch_configs::launch_config;
 use crate::linear::LinearIssueWork;
-use crate::notebooks::manager::NotebookSource;
 use crate::pane_group::{NewTerminalOptions, PanesLayout};
 use crate::persistence::ModelEvent;
 use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
@@ -1168,11 +1167,6 @@ fn open_linear_issue_work_in_new_window(args: &LinearIssueWork, ctx: &mut AppCon
 
 fn open_warp_drive_object(arg: &OpenWarpDriveObjectArgs, ctx: &mut AppContext) {
     match arg.object_type {
-        ObjectType::Notebook => open_new_workspace_with_notebook_open(
-            SyncId::ServerId(arg.server_id),
-            arg.settings.clone(),
-            ctx,
-        ),
         ObjectType::Workflow => open_new_workspace_with_workflow_open(
             SyncId::ServerId(arg.server_id),
             arg.settings.clone(),
@@ -1187,20 +1181,6 @@ fn display_object_missing_error_in_window(window_id: WindowId, ctx: &mut AppCont
         let toast = DismissibleToast::error(String::from("Resource not found or access denied"));
         toast_stack.add_ephemeral_toast(toast, window_id, ctx);
     });
-}
-
-fn open_new_workspace_with_notebook_open(
-    notebook_id: SyncId,
-    settings: OpenWarpDriveObjectSettings,
-    ctx: &mut AppContext,
-) {
-    open_new_with_workspace_source(
-        NewWorkspaceSource::NotebookById {
-            id: notebook_id,
-            settings,
-        },
-        ctx,
-    );
 }
 
 fn open_new_workspace_with_workflow_open(
@@ -1615,10 +1595,6 @@ pub enum NewWorkspaceSource {
     NotebookFromFilePath {
         file_path: Option<PathBuf>,
     },
-    NotebookById {
-        id: SyncId,
-        settings: OpenWarpDriveObjectSettings,
-    },
     WorkflowById {
         id: SyncId,
         settings: OpenWarpDriveObjectSettings,
@@ -1697,7 +1673,6 @@ impl NewWorkspaceSource {
             | Self::SharedSessionAsViewer { .. }
             | Self::FromCloudConversationId { .. }
             | Self::NotebookFromFilePath { .. }
-            | Self::NotebookById { .. }
             | Self::WorkflowById { .. }
             | Self::AgentSession { .. }
             | Self::AmbientAgent => None,
@@ -3138,22 +3113,6 @@ impl RootView {
             let cloud_model = CloudModel::as_ref(ctx);
 
             match arg.object_type {
-                ObjectType::Notebook => {
-                    handle.update(ctx, |workspace, ctx| {
-                        let initialized_section_states =
-                            workspace.has_warp_drive_initialized_sections(ctx);
-                        let notebook_id = SyncId::ServerId(arg.server_id);
-                        let settings = arg.settings.clone();
-                        let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
-                            workspace.open_notebook(
-                                &NotebookSource::Existing(notebook_id),
-                                &settings,
-                                ctx,
-                                false,
-                            );
-                        });
-                    });
-                }
                 ObjectType::Workflow => {
                     handle.update(ctx, |workspace, ctx| {
                         let initialized_section_states =

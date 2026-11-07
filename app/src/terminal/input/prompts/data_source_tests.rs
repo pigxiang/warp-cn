@@ -13,7 +13,6 @@ use crate::cloud_object::{
     Owner, Revision, ServerMetadata, ServerPermissions, ServerWorkflow, Space,
 };
 use crate::network::NetworkStatus;
-use crate::notebooks::manager::NotebookManager;
 use crate::search::data_source::Query;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::ServerId;
@@ -122,7 +121,6 @@ fn initialize_app(app: &mut App, workspaces: Vec<Workspace>) {
     app.add_singleton_model(|ctx| UpdateManager::new(None, Arc::new(MockObjectClient::new()), ctx));
     app.add_singleton_model(|_| UserProfiles::new(Vec::new()));
     app.add_singleton_model(CloudViewModel::new);
-    app.add_singleton_model(NotebookManager::mock);
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| SettingsManager::default());
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());

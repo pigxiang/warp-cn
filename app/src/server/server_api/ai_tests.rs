@@ -807,17 +807,13 @@ fn test_deserialize_plan_artifact() {
 
     let Artifact::Plan {
         document_uid,
-        notebook_uid,
         title,
+        ..
     } = &artifact
     else {
         panic!("expected Plan artifact");
     };
     assert_eq!(document_uid, "doc-uid-123");
-    assert_eq!(
-        notebook_uid.as_ref().map(|n| n.to_string()),
-        Some("1234567890123456789012".to_string())
-    );
     assert_eq!(*title, Some("My Plan".to_string()));
 }
 
@@ -884,17 +880,13 @@ fn test_deserialize_plan_artifact_with_optional_fields_missing() {
 
     let Artifact::Plan {
         document_uid,
-        notebook_uid,
         title,
+        ..
     } = &artifact
     else {
         panic!("expected Plan artifact");
     };
     assert_eq!(document_uid, "doc-uid-123");
-    assert_eq!(
-        notebook_uid.as_ref().map(|n| n.to_string()),
-        Some("abcdefghijklmnopqrstuv".to_string())
-    );
     assert!(title.is_none());
 }
 
@@ -1422,7 +1414,6 @@ fn test_deserialize_list_tasks_all_tasks_valid() {
 fn test_artifact_plan_serialize_deserialize_roundtrip() {
     let original = Artifact::Plan {
         document_uid: "doc-123".to_string(),
-        notebook_uid: Some(NotebookId::from("notebook12345678901234".to_string())),
         title: Some("My Plan".to_string()),
     };
 
@@ -1520,20 +1511,6 @@ fn test_deserialize_agent_run_events_with_optional_fields() {
 }
 
 #[test]
-fn test_artifact_plan_serialize_deserialize_roundtrip_no_notebook_uid() {
-    let original = Artifact::Plan {
-        document_uid: "doc-123".to_string(),
-        notebook_uid: None,
-        title: Some("My Plan".to_string()),
-    };
-
-    let serialized = serde_json::to_string(&original).unwrap();
-    let deserialized: Artifact = serde_json::from_str(&serialized).unwrap();
-
-    assert_eq!(original, deserialized);
-}
-
-#[test]
 fn test_artifact_pr_serialize_deserialize_roundtrip() {
     let original = Artifact::PullRequest {
         url: "https://github.com/org/repo/pull/42".to_string(),
@@ -1571,7 +1548,6 @@ fn test_artifact_vec_serialize_deserialize_roundtrip() {
     let original = vec![
         Artifact::Plan {
             document_uid: "doc-1".to_string(),
-            notebook_uid: None,
             title: Some("Plan 1".to_string()),
         },
         Artifact::PullRequest {

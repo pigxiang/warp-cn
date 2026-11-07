@@ -31,12 +31,12 @@ use crate::cloud_object::{CloudObject, CloudObjectEventEntrypoint, Owner};
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::folders::CloudFolder;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
+use crate::notebooks::CloudNotebookModel;
 use crate::notebooks::editor::model::{
     FileLinkResolutionContext, NotebooksEditorModel, RichTextEditorModelEvent,
 };
 use crate::notebooks::editor::rich_text_styles;
 use crate::notebooks::file::MarkdownDisplayMode;
-use crate::notebooks::{CloudNotebookModel, NotebookId};
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::{
     InitiatedBy, ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
@@ -444,7 +444,7 @@ impl AIDocumentModel {
         }
     }
 
-    /// Updates a document and its conversation artifact with server backing.
+    /// Updates a document with server backing.
     fn set_document_server_backing(
         &mut self,
         document_id: AIDocumentId,
@@ -458,24 +458,7 @@ impl AIDocumentModel {
             return;
         }
         document.sync_id = Some(sync_id);
-        let conversation_id = document.conversation_id;
         ctx.emit(AIDocumentModelEvent::DocumentSaveStatusUpdated(document_id));
-
-        let Some(server_id) = sync_id.into_server() else {
-            return;
-        };
-        BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-            let terminal_view_id =
-                history_model.terminal_surface_id_for_conversation(&conversation_id);
-            if let Some(conversation) = history_model.conversation_mut(&conversation_id) {
-                conversation.update_plan_notebook_uid(
-                    document_id,
-                    NotebookId::from(server_id),
-                    terminal_view_id,
-                    ctx,
-                );
-            }
-        });
     }
 
     fn handle_update_manager_event(

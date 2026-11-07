@@ -416,11 +416,6 @@ impl From<&DriveIndexAction> for LoginGatedFeature {
 }
 
 pub enum DriveIndexEvent {
-    CreateNotebook {
-        space: Space,
-        title: Option<String>,
-        initial_folder_id: Option<SyncId>,
-    },
     CreateFolder {
         space: Space,
         title: String,
@@ -3428,30 +3423,7 @@ impl DriveIndex {
         }
 
         match object_type {
-            DriveObjectType::Notebook { .. } => {
-                if has_feature_gated_anonymous_user_reached_notebook_limit(ctx) {
-                    return;
-                }
-
-                // If the new notebook is being created in the team space, check if the team has
-                // reached the limit for notebooks.
-                if let Space::Team { team_uid } = space
-                    && !UserWorkspaces::has_capacity_for_shared_notebooks(team_uid, ctx, 1)
-                {
-                    // If team has reached the limit for notebooks, show the modal
-                    // and return early.
-                    ctx.emit(DriveIndexEvent::OpenSharedObjectsCreationDeniedModal(
-                        object_type,
-                        team_uid,
-                    ));
-                    return;
-                }
-                ctx.emit(DriveIndexEvent::CreateNotebook {
-                    space,
-                    title,
-                    initial_folder_id,
-                });
-            }
+            DriveObjectType::Notebook { .. } => {}
             DriveObjectType::Folder => {
                 if let Some(title) = title {
                     ctx.emit(DriveIndexEvent::CreateFolder {

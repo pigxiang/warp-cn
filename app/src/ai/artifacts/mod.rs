@@ -15,7 +15,6 @@ use crate::ai::artifact_download::default_download_filename;
 use crate::ai::artifact_download::sanitized_basename;
 #[cfg(feature = "local_fs")]
 use crate::ai::artifact_download::{default_download_directory, download_artifact_bytes};
-use crate::notebooks::NotebookId;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::ArtifactDownloadResponse;
 use crate::view_components::DismissibleToast;
@@ -32,8 +31,6 @@ pub enum Artifact {
     #[serde(rename = "PLAN")]
     Plan {
         document_uid: String,
-        /// None until the plan is synced to Warp Drive.
-        notebook_uid: Option<NotebookId>,
         title: Option<String>,
     },
     #[serde(rename = "PULL_REQUEST")]
@@ -91,7 +88,6 @@ struct ArtifactEnvelope {
 #[derive(serde::Deserialize)]
 struct PlanData {
     document_uid: String,
-    notebook_uid: Option<NotebookId>,
     title: Option<String>,
 }
 
@@ -143,12 +139,10 @@ impl<'de> serde::Deserialize<'de> for Artifact {
             "PLAN" => {
                 let PlanData {
                     document_uid,
-                    notebook_uid,
                     title,
                 } = parse_artifact_data::<_, D::Error>(envelope.data)?;
                 Artifact::Plan {
                     document_uid,
-                    notebook_uid,
                     title,
                 }
             }
@@ -266,11 +260,6 @@ impl From<api::message::artifact_event::PlanArtifact> for Artifact {
     fn from(plan: api::message::artifact_event::PlanArtifact) -> Self {
         Artifact::Plan {
             document_uid: plan.document_id,
-            notebook_uid: if plan.notebook_uid.is_empty() {
-                None
-            } else {
-                Some(NotebookId::from(plan.notebook_uid))
-            },
             title: if plan.title.is_empty() {
                 None
             } else {
@@ -287,9 +276,6 @@ impl TryFrom<warp_graphql::ai::AIConversationArtifact> for Artifact {
         match value {
             warp_graphql::ai::AIConversationArtifact::PlanArtifact(plan) => Ok(Artifact::Plan {
                 document_uid: plan.document_uid.into_inner(),
-                notebook_uid: plan
-                    .notebook_uid
-                    .map(|id| NotebookId::from(id.into_inner())),
                 title: plan.title,
             }),
             warp_graphql::ai::AIConversationArtifact::PullRequestArtifact(pr) => {

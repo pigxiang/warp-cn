@@ -92,8 +92,6 @@ pub enum Event {
     ExecuteWorkflow { id: SyncId },
     /// Invoke the env vars identified by `id`.
     InvokeEnvironmentVariables { id: SyncId },
-    /// Open a notebook identified by `id`.
-    OpenNotebook { id: SyncId },
     /// View the relevant object in the Warp Drive sidebar.
     ViewInWarpDrive { id: CloudObjectTypeAndId },
     /// Open a file at the given path.
@@ -900,7 +898,6 @@ impl View {
             CommandPaletteItemAction::InvokeEnvironmentVariables { id } => {
                 ctx.emit(Event::InvokeEnvironmentVariables { id })
             }
-            CommandPaletteItemAction::OpenNotebook { id } => ctx.emit(Event::OpenNotebook { id }),
             CommandPaletteItemAction::ViewInWarpDrive { id } => {
                 ctx.emit(Event::ViewInWarpDrive { id })
             }

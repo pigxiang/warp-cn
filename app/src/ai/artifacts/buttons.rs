@@ -6,7 +6,6 @@ use warpui::elements::{ChildView, Element, Empty, ParentElement, Wrap};
 use warpui::{AppContext, Entity, TypedActionView, View, ViewContext, ViewHandle};
 
 use super::{Artifact, file_button_label};
-use crate::notebooks::NotebookId;
 use crate::terminal::input::MenuPositioning;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, SecondaryTheme, TooltipAlignment,
@@ -52,7 +51,7 @@ impl ArtifactButtonsRow {
 }
 
 pub enum ArtifactButtonsRowEvent {
-    OpenPlan { notebook_uid: NotebookId },
+    OpenPlan { document_uid: String },
     CopyBranch { branch: String },
     OpenPullRequest { url: String },
     ViewScreenshots { artifact_uids: Vec<String> },
@@ -61,7 +60,7 @@ pub enum ArtifactButtonsRowEvent {
 
 #[derive(Debug, Clone)]
 pub enum ArtifactButtonAction {
-    OpenPlan { notebook_uid: NotebookId },
+    OpenPlan { document_uid: String },
     CopyBranch { branch: String },
     OpenPullRequest { url: String },
     ViewScreenshots { artifact_uids: Vec<String> },
@@ -99,8 +98,8 @@ impl TypedActionView for ArtifactButtonsRow {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         let event = match action {
-            ArtifactButtonAction::OpenPlan { notebook_uid } => ArtifactButtonsRowEvent::OpenPlan {
-                notebook_uid: *notebook_uid,
+            ArtifactButtonAction::OpenPlan { document_uid } => ArtifactButtonsRowEvent::OpenPlan {
+                document_uid: document_uid.clone(),
             },
             ArtifactButtonAction::CopyBranch { branch } => ArtifactButtonsRowEvent::CopyBranch {
                 branch: branch.clone(),
@@ -136,17 +135,13 @@ fn collect_buttons(
         match artifact {
             Artifact::Plan {
                 title,
-                notebook_uid,
-                document_uid: _,
+                document_uid,
             } => {
-                // Only show plan button if synced to Warp Drive (has notebook_uid)
-                if let Some(notebook_uid) = notebook_uid {
-                    let button_text = title.clone().unwrap_or("Untitled Plan".to_string());
-                    let theme = theme.clone();
-                    buttons.push(ctx.add_typed_action_view(move |_| {
-                        make_plan_button(button_text, *notebook_uid, theme)
-                    }));
-                }
+                let button_text = title.clone().unwrap_or("Untitled Plan".to_string());
+                let theme = theme.clone();
+                buttons.push(ctx.add_typed_action_view(move |_| {
+                    make_plan_button(button_text, document_uid.clone(), theme)
+                }));
             }
             Artifact::PullRequest {
                 url,
@@ -207,7 +202,7 @@ fn collect_buttons(
 
 fn make_plan_button(
     title: String,
-    notebook_uid: NotebookId,
+    document_uid: String,
     theme: Arc<dyn ActionButtonTheme>,
 ) -> ActionButton {
     make_artifact_button(
@@ -215,7 +210,7 @@ fn make_plan_button(
         Icon::Compass,
         "Open plan",
         None,
-        ArtifactButtonAction::OpenPlan { notebook_uid },
+        ArtifactButtonAction::OpenPlan { document_uid },
         theme,
     )
 }

@@ -91,8 +91,6 @@ impl ZeroState {
             {
                 valid_filters.push(QueryFilter::AgentModeWorkflows);
             }
-            valid_filters.push(QueryFilter::Notebooks);
-
             valid_filters.push(QueryFilter::EnvironmentVariables);
         }
 

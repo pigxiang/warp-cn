@@ -43,7 +43,6 @@ use crate::ai_assistant::requests::REQUEST_LIMIT_INFO_CACHE_KEY;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code::editor_management::{CodeEditorStatus, CodeEditorSummary};
 use crate::env_vars::manager::EnvVarCollectionManager;
-use crate::notebooks::manager::NotebookManager;
 use crate::palette::PaletteMode;
 use crate::root_view::RootView;
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -335,7 +334,6 @@ pub fn log_out(app: &mut AppContext) {
         preferences.reset_session_overrides();
     });
 
-    NotebookManager::handle(app).update(app, |manager, _| manager.reset());
     EnvVarCollectionManager::handle(app).update(app, |manager, _| manager.reset());
     WorkflowManager::handle(app).update(app, |manager, _| manager.reset());
 

@@ -13,7 +13,7 @@ use warpui::elements::{
 };
 use warpui::fonts::Weight;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
-use warpui::{View, ViewContext, ViewHandle};
+use warpui::{SingletonEntity, View, ViewContext, ViewHandle};
 
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent_management::notifications::item::NotificationSourceAgent;
@@ -22,6 +22,7 @@ use crate::ai::agent_management::telemetry::{AgentManagementTelemetryEvent, Arti
 use crate::ai::artifacts::{
     Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent, open_screenshot_lightbox,
 };
+use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel};
 use crate::appearance::Appearance;
 use crate::send_telemetry_from_ctx;
 use crate::ui_components::icon_with_status::{IconWithStatusVariant, render_icon_with_status};
@@ -456,16 +457,23 @@ pub(crate) fn handle_notification_artifact_buttons_event(
     ctx: &mut ViewContext<impl View>,
 ) {
     match event {
-        ArtifactButtonsRowEvent::OpenPlan { notebook_uid } => {
+        ArtifactButtonsRowEvent::OpenPlan { document_uid } => {
             send_telemetry_from_ctx!(
                 AgentManagementTelemetryEvent::ArtifactClicked {
                     artifact_type: ArtifactType::Plan
                 },
                 ctx
             );
-            ctx.dispatch_typed_action(&WorkspaceAction::OpenNotebook {
-                id: (*notebook_uid).into(),
-            });
+            if let Ok(document_id) = AIDocumentId::try_from(document_uid.as_str()) {
+                let document_version = AIDocumentModel::as_ref(ctx)
+                    .get_current_document(&document_id)
+                    .map(|doc| doc.version)
+                    .unwrap_or_default();
+                ctx.dispatch_typed_action(&WorkspaceAction::OpenAIDocumentPane {
+                    document_id,
+                    document_version,
+                });
+            }
         }
         ArtifactButtonsRowEvent::CopyBranch { branch } => {
             send_telemetry_from_ctx!(

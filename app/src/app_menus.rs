@@ -571,7 +571,6 @@ fn make_new_blocks_menu(ctx: &AppContext) -> Menu {
 fn make_new_drive_menu(ctx: &AppContext) -> Menu {
     let mut items = vec![
         updateable_custom_item_without_checkmark(CustomAction::NewPersonalWorkflow, ctx),
-        updateable_custom_item_without_checkmark(CustomAction::NewPersonalNotebook, ctx),
         updateable_custom_item_without_checkmark(CustomAction::NewPersonalAIPrompt, ctx),
     ];
     items.push(updateable_custom_item_without_checkmark(
@@ -581,7 +580,6 @@ fn make_new_drive_menu(ctx: &AppContext) -> Menu {
     items.extend([
         MenuItem::Separator,
         updateable_custom_item_without_checkmark(CustomAction::NewTeamWorkflow, ctx),
-        updateable_custom_item_without_checkmark(CustomAction::NewTeamNotebook, ctx),
         updateable_custom_item_without_checkmark(CustomAction::NewTeamAIPrompt, ctx),
     ]);
     items.push(updateable_custom_item_without_checkmark(

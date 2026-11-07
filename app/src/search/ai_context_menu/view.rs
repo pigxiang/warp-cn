@@ -43,7 +43,6 @@ use crate::search::ai_context_menu::files::data_source::{
 };
 use crate::search::ai_context_menu::mixer::{AIContextMenuMixer, AIContextMenuSearchableAction};
 #[cfg(not(target_family = "wasm"))]
-use crate::search::ai_context_menu::notebooks::data_source::NotebookDataSource;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::rules::data_source::RulesDataSource;
 #[cfg(not(target_family = "wasm"))]
@@ -84,8 +83,6 @@ pub enum AIContextMenuCategory {
     Commands,
     Blocks,
     Workflows,
-    Notebooks,
-    Plans,
     Diffs,
     Docs,
     Tasks,
@@ -109,8 +106,6 @@ impl AIContextMenuCategory {
             AIContextMenuCategory::Commands => "Commands",
             AIContextMenuCategory::Blocks => "Blocks",
             AIContextMenuCategory::Workflows => "Workflows",
-            AIContextMenuCategory::Notebooks => "Notebooks",
-            AIContextMenuCategory::Plans => "Plans",
             AIContextMenuCategory::Diffs => "Diffs",
             AIContextMenuCategory::Docs => "Docs",
             AIContextMenuCategory::Tasks => "Past tasks",
@@ -134,8 +129,6 @@ impl AIContextMenuCategory {
             AIContextMenuCategory::Commands => "bundled/svg/terminal.svg",
             AIContextMenuCategory::Blocks => "bundled/svg/terminal.svg",
             AIContextMenuCategory::Workflows => "bundled/svg/workflow.svg",
-            AIContextMenuCategory::Notebooks => "bundled/svg/notebook.svg",
-            AIContextMenuCategory::Plans => "bundled/svg/compass-3.svg",
             AIContextMenuCategory::Diffs => "bundled/svg/diff.svg",
             AIContextMenuCategory::Docs => "bundled/svg/docs.svg",
             AIContextMenuCategory::Tasks => "bundled/svg/tasks.svg",
@@ -425,8 +418,6 @@ impl AIContextMenu {
             if show_warp_drive {
                 if FeatureFlag::DriveObjectsAsContext.is_enabled() {
                     categories.push(AIContextMenuCategory::Workflows);
-                    categories.push(AIContextMenuCategory::Notebooks);
-                    categories.push(AIContextMenuCategory::Plans);
                 }
                 categories.push(AIContextMenuCategory::Rules);
             }
@@ -460,8 +451,6 @@ impl AIContextMenu {
             }
             if show_warp_drive && FeatureFlag::DriveObjectsAsContext.is_enabled() {
                 categories.push(AIContextMenuCategory::Workflows);
-                categories.push(AIContextMenuCategory::Notebooks);
-                categories.push(AIContextMenuCategory::Plans);
             }
             if FeatureFlag::DiffSetAsContext.is_enabled()
                 && is_active_dir_in_git_repo
@@ -937,34 +926,6 @@ impl AIContextMenu {
                 });
             }
             #[cfg(not(target_family = "wasm"))]
-            NavigationState::Category(AIContextMenuCategory::Notebooks) => {
-                let notebook_data_source = ctx.add_model(|_| NotebookDataSource::new(false));
-                self.mixer.update(ctx, |mixer, ctx| {
-                    mixer.add_sync_source(notebook_data_source, [QueryFilter::Notebooks]);
-                    mixer.run_query(
-                        Query {
-                            text: "".into(),
-                            filters: HashSet::new(),
-                        },
-                        ctx,
-                    );
-                });
-            }
-            #[cfg(not(target_family = "wasm"))]
-            NavigationState::Category(AIContextMenuCategory::Plans) => {
-                let notebook_data_source = ctx.add_model(|_| NotebookDataSource::new(true));
-                self.mixer.update(ctx, |mixer, ctx| {
-                    mixer.add_sync_source(notebook_data_source, [QueryFilter::Notebooks]);
-                    mixer.run_query(
-                        Query {
-                            text: "".into(),
-                            filters: HashSet::new(),
-                        },
-                        ctx,
-                    );
-                });
-            }
-            #[cfg(not(target_family = "wasm"))]
             NavigationState::Category(AIContextMenuCategory::Rules) => {
                 let rules_data_source = ctx.add_model(|_| RulesDataSource::new());
                 self.mixer.update(ctx, |mixer, ctx| {
@@ -1114,18 +1075,6 @@ impl AIContextMenu {
                     let workflow_data_source = ctx.add_model(|_| WorkflowDataSource::new());
                     self.mixer.update(ctx, |mixer, _ctx| {
                         mixer.add_sync_source(workflow_data_source, [QueryFilter::Workflows]);
-                    });
-                }
-                AIContextMenuCategory::Notebooks => {
-                    let notebook_data_source = ctx.add_model(|_| NotebookDataSource::new(false));
-                    self.mixer.update(ctx, |mixer, _ctx| {
-                        mixer.add_sync_source(notebook_data_source, [QueryFilter::Notebooks]);
-                    });
-                }
-                AIContextMenuCategory::Plans => {
-                    let notebook_data_source = ctx.add_model(|_| NotebookDataSource::new(true));
-                    self.mixer.update(ctx, |mixer, _ctx| {
-                        mixer.add_sync_source(notebook_data_source, [QueryFilter::Notebooks]);
                     });
                 }
                 AIContextMenuCategory::Rules => {

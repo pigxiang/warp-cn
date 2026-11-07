@@ -45,7 +45,6 @@ fn make_pr_artifact(url: &str, branch: &str) -> Artifact {
 fn make_plan_artifact(doc_uid: &str, title: &str) -> Artifact {
     Artifact::Plan {
         document_uid: doc_uid.to_string(),
-        notebook_uid: None,
         title: Some(title.to_string()),
     }
 }

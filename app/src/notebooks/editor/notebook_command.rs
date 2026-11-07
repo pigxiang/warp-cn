@@ -607,7 +607,7 @@ impl NotebookCommand {
     }
 
     /// Promotes this notebook command into a [`Workflow`]. If the workflow is anonymous, the
-    /// containing `NotebookView` fills in its title.
+    /// containing view fills in its title.
     pub fn to_workflow(&self, ctx: &AppContext) -> Option<NotebookWorkflow> {
         let command = self.command(ctx)?;
         let args_state = ArgumentsState::for_command_workflow(&Default::default(), command.clone());

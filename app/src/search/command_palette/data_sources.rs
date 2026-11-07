@@ -95,12 +95,8 @@ impl DataSourceStore {
             );
 
             if WarpDriveSettings::is_warp_drive_enabled(ctx) {
-                let mut warp_drive_filters = HashSet::from([
-                    QueryFilter::Notebooks,
-                    QueryFilter::Plans,
-                    QueryFilter::Drive,
-                    QueryFilter::Workflows,
-                ]);
+                let mut warp_drive_filters =
+                    HashSet::from([QueryFilter::Drive, QueryFilter::Workflows]);
 
                 warp_drive_filters.insert(QueryFilter::EnvironmentVariables);
 
@@ -216,10 +212,6 @@ impl DataSourceStore {
                 .as_ref(app)
                 .query_result(id, app),
             ItemSummary::EnvVarCollection { id } => self
-                .warp_drive_data_source
-                .as_ref(app)
-                .query_result(id, app),
-            ItemSummary::Notebook { id } => self
                 .warp_drive_data_source
                 .as_ref(app)
                 .query_result(id, app),

@@ -21,7 +21,6 @@ use warp_core::{HostId, send_telemetry_from_ctx};
 use warp_util::path::LineAndColumnArg;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::clipboard::ClipboardContent;
-use warpui::ui_components::components::UiComponent;
 use warpui::elements::{
     AcceptedByDropTarget, Align, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container,
     CrossAxisAlignment, Dismiss, Draggable, DraggableState, Empty, Flex, FormattedTextElement,
@@ -34,6 +33,7 @@ use warpui::fonts::{Properties, Style, Weight};
 use warpui::keymap::FixedBinding;
 use warpui::platform::Cursor;
 use warpui::text_layout::TextAlignment;
+use warpui::ui_components::components::UiComponent;
 use warpui::{
     AppContext, BlurContext, Element, Entity, EventContext, ModelHandle, SingletonEntity as _,
     TypedActionView, View, ViewContext, ViewHandle, WeakViewHandle, id,
@@ -55,7 +55,7 @@ use crate::ui_components::item_highlight::{ImageOrIcon, ItemHighlightState};
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::EditorSettings;
 use crate::util::openable_file_type::{
-    EditorLayout, FileTarget, is_file_content_binary, is_jupyter_notebook_file, is_markdown_file,
+    EditorLayout, FileTarget, is_file_content_binary, is_markdown_file,
 };
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::{
@@ -2293,11 +2293,7 @@ impl FileTreeView {
                         );
                         let path_str = metadata.path.as_str();
                         let remote_file_path = Path::new(path_str);
-                        let target = if is_jupyter_notebook_file(remote_file_path)
-                            && FeatureFlag::JupyterNotebookRendering.is_enabled()
-                        {
-                            FileTarget::MarkdownViewer(EditorLayout::SplitPane)
-                        } else if is_markdown_file(remote_file_path) {
+                        let target = if is_markdown_file(remote_file_path) {
                             #[cfg(feature = "local_fs")]
                             {
                                 let prefer_md = *EditorSettings::as_ref(ctx).prefer_markdown_viewer;

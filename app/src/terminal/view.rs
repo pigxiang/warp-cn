@@ -4414,19 +4414,27 @@ impl TerminalView {
                 ctx,
             )
         });
-        ctx.subscribe_to_view(&conversation_details_panel, |me, _, event, ctx| {
-            match event {
+        ctx.subscribe_to_view(
+            &conversation_details_panel,
+            |me, _, event, ctx| match event {
                 ConversationDetailsPanelEvent::Close => {
                     me.is_conversation_details_panel_open = false;
                     ctx.notify();
                 }
-                ConversationDetailsPanelEvent::OpenPlanNotebook { notebook_uid } => {
-                    // Convert NotebookId -> SyncId -> ObjectUid (String)
-                    let object_uid = SyncId::from(*notebook_uid).uid();
-                    ctx.emit(Event::OpenWarpDriveObjectInPane(object_uid));
+                ConversationDetailsPanelEvent::OpenPlan { document_uid } => {
+                    if let Ok(document_id) = AIDocumentId::try_from(document_uid.as_str()) {
+                        let document_version = AIDocumentModel::as_ref(ctx)
+                            .get_current_document(&document_id)
+                            .map(|doc| doc.version)
+                            .unwrap_or_default();
+                        ctx.dispatch_typed_action(&WorkspaceAction::OpenAIDocumentPane {
+                            document_id,
+                            document_version,
+                        });
+                    }
                 }
-            }
-        });
+            },
+        );
 
         let window_id = ctx.window_id();
         let mut terminal_view = Self {

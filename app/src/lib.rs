@@ -287,9 +287,7 @@ use crate::experiments::ImprovedPaletteSearch;
 pub use crate::global_resource_handles::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 use crate::gpu_state::GPUState;
 use crate::network::NetworkStatus;
-use crate::notebooks::CloudNotebook;
 use crate::notebooks::editor::keys::NotebookKeybindings;
-use crate::notebooks::manager::NotebookManager;
 use crate::notification::NotificationContext;
 use crate::palette::PaletteMode;
 use crate::persistence::PersistenceWriter;
@@ -2235,15 +2233,6 @@ pub(crate) fn initialize_app(
         VoiceTranscriber::new(Arc::new(ServerVoiceTranscriber::new(server_api.clone())))
     });
 
-    let notebooks = cloud_objects
-        .iter()
-        .filter_map(|object| {
-            let notebook: Option<&CloudNotebook> = object.into();
-            notebook
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-
     let mut all_queue_items = Vec::new();
     let objects_with_pending_changes = cloud_objects
         .iter()
@@ -2442,7 +2431,6 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(ByoLlmAuthBannerSessionState::new);
 
     ctx.add_singleton_model(ExportManager::new);
-    ctx.add_singleton_model(|ctx| NotebookManager::new(notebooks, ctx));
     ctx.add_singleton_model(|_| CodeManager::default());
     ctx.add_singleton_model(|_| OpenedFilesModel::new());
     ctx.add_singleton_model(NotebookKeybindings::new);
@@ -2821,12 +2809,6 @@ pub(crate) fn app_callbacks(
             );
         })),
         on_will_terminate: Some(Box::new(move |ctx| {
-            NotebookManager::handle(ctx).update(ctx, |manager, ctx| {
-                // Notebooks are only saved periodically, so ensure that any pending changes have
-                // been sent to the writer thread before terminating.
-                manager.close_notebooks(ctx);
-            });
-
             PersistenceWriter::handle(ctx).update(ctx, |writer, _ctx| {
                 writer.terminate();
             });

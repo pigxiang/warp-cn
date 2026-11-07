@@ -69,7 +69,6 @@ use crate::editor::{
     PropagateHorizontalNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
 use crate::menu::{MenuItem, MenuItemFields};
-use crate::notebooks::NotebookId;
 use crate::server::team_scope::RequestTeamScope;
 use crate::settings::UsageDisplayUnit;
 use crate::settings::ai::{AISettings, AISettingsChangedEvent};
@@ -105,8 +104,8 @@ fn format_request_usage(
     usage_display_unit: UsageDisplayUnit,
 ) -> String {
     let value = format_usage(credits, cost_in_cents, usage_display_unit);
-    let shows_dollars = matches!(usage_display_unit, UsageDisplayUnit::Dollars)
-        && cost_in_cents.is_some();
+    let shows_dollars =
+        matches!(usage_display_unit, UsageDisplayUnit::Dollars) && cost_in_cents.is_some();
     if shows_dollars {
         t!("ai-ui-agent-metadata-usage", usage = value)
     } else {
@@ -1309,15 +1308,15 @@ impl AgentManagementView {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            ArtifactButtonsRowEvent::OpenPlan { notebook_uid } => {
+            ArtifactButtonsRowEvent::OpenPlan { document_uid } => {
                 send_telemetry_from_ctx!(
                     AgentManagementTelemetryEvent::ArtifactClicked {
                         artifact_type: ArtifactType::Plan
                     },
                     ctx
                 );
-                ctx.emit(AgentManagementViewEvent::OpenPlanNotebook {
-                    notebook_uid: *notebook_uid,
+                ctx.emit(AgentManagementViewEvent::OpenPlan {
+                    document_uid: document_uid.clone(),
                 });
             }
             ArtifactButtonsRowEvent::CopyBranch { branch } => {
@@ -1506,9 +1505,9 @@ impl AgentManagementView {
                 self.selected_item_id = None;
                 ctx.notify();
             }
-            ConversationDetailsPanelEvent::OpenPlanNotebook { notebook_uid } => {
-                ctx.emit(AgentManagementViewEvent::OpenPlanNotebook {
-                    notebook_uid: *notebook_uid,
+            ConversationDetailsPanelEvent::OpenPlan { document_uid } => {
+                ctx.emit(AgentManagementViewEvent::OpenPlan {
+                    document_uid: document_uid.clone(),
                 });
             }
         }
@@ -2360,7 +2359,7 @@ pub enum AgentManagementViewAction {
 
 pub enum AgentManagementViewEvent {
     OpenNewTabAndRunWorkflow(Box<WorkflowType>),
-    OpenPlanNotebook { notebook_uid: NotebookId },
+    OpenPlan { document_uid: String },
 }
 
 impl TypedActionView for AgentManagementView {

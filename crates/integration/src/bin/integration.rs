@@ -193,7 +193,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_restore_snapshot_with_deleted_cwd);
     register_test!(test_session_restoration_with_multiple_shells);
     register_test!(test_restore_snapshot_with_background_output);
-    register_test!(test_restore_snapshot_with_notebooks);
     register_test!(test_restore_snapshot_with_workflows);
     register_test!(test_restore_snapshot_with_test_json_object);
     register_test!(test_restore_snapshot_with_common_shareable_metadata_ids);
@@ -393,12 +392,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_undo_close_grace_period_cleanup);
     register_test!(test_closed_panes_cleared_on_rearrangement);
     register_test!(test_tab_closes_when_last_visible_pane_closed);
-
-    register_test!(test_notebook_pane_tracking);
-    register_test!(test_close_notebook_tab);
-    register_test!(test_open_in_warp_banner);
-    register_test!(test_close_notebook_window);
-    register_test!(test_backspace_inside_raw_mermaid_block_edits_text_without_removing_block);
 
     // Workflow tests
     register_test!(test_open_workflow_in_pane);

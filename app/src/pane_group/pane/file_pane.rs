@@ -3,7 +3,6 @@ use std::sync::Arc;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::{AppContext, ModelHandle, View, ViewContext, ViewHandle};
 
-use super::notebook_pane::subscribe_to_link_model;
 use super::view::PaneView;
 use super::{
     DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, ShareableLink,
@@ -13,6 +12,8 @@ use crate::app_state::{LeafContents, NotebookPaneSnapshot};
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::notebooks::file::{FileNotebookEvent, FileNotebookView};
+use crate::notebooks::link::{LinkEvent, NotebookLinks};
+use crate::pane_group::{DefaultSessionModeBehavior, Direction};
 use crate::terminal::model::session::Session;
 use crate::workflows::WorkflowSelectionSource;
 
@@ -173,4 +174,52 @@ impl PaneContent for FilePane {
     fn is_pane_being_dragged(&self, ctx: &AppContext) -> bool {
         self.view.as_ref(ctx).is_being_dragged()
     }
+}
+
+/// Subscribe to link events from a file notebook view.
+fn subscribe_to_link_model(
+    pane_id: PaneId,
+    handle: &ModelHandle<NotebookLinks>,
+    ctx: &mut ViewContext<PaneGroup>,
+) {
+    ctx.subscribe_to_model(handle, move |pane_group, _, event, ctx| match event {
+        LinkEvent::OpenFileNotebook { path, session } => {
+            // Opening local files is delegated to the parent workspace.
+            ctx.emit(crate::pane_group::Event::OpenFileInWarp {
+                path: crate::code::buffer_location::LocalOrRemotePath::Local(path.clone()),
+                session: session.clone(),
+            })
+        }
+        LinkEvent::OpenWarpDriveLink {
+            open_warp_drive_args,
+        } => ctx.emit(crate::pane_group::Event::OpenWarpDriveLink {
+            open_warp_drive_args: open_warp_drive_args.clone(),
+        }),
+        LinkEvent::StartLocalSession { path } => {
+            pane_group.add_session_in_directory(
+                Direction::Right,
+                Some(pane_id),
+                None, /* chosen_shell */
+                Some(path.clone()),
+                None, /* ssh_reconnect_plan */
+                None,
+                DefaultSessionModeBehavior::Apply,
+                ctx,
+            );
+        }
+        #[cfg(feature = "local_fs")]
+        LinkEvent::OpenFileWithTarget {
+            path,
+            target,
+            line_col,
+        } => {
+            // Emit event to workspace to handle opening in Warp
+            ctx.emit(crate::pane_group::Event::OpenFileWithTarget {
+                path: path.clone(),
+                target: target.clone(),
+                line_col: *line_col,
+            });
+        }
+        LinkEvent::RefreshLinks => (),
+    });
 }

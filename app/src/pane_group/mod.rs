@@ -201,7 +201,6 @@ pub use pane::environment_management_pane::EnvironmentManagementPane;
 pub use pane::execution_profile_editor_pane::ExecutionProfileEditorPane;
 pub use pane::file_pane::FilePane;
 pub use pane::network_log_pane::NetworkLogPane;
-pub use pane::notebook_pane::NotebookPane;
 pub use pane::settings_pane::SettingsPane;
 pub use pane::terminal_pane::TerminalPane;
 pub use pane::workflow_pane::WorkflowPane;
@@ -1769,20 +1768,14 @@ impl PaneGroup {
 
                 Ok((PaneData::new(pane_id), focus))
             }
-            LeafContents::Notebook(snapshot) => {
-                let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    NotebookPaneSnapshot::CloudNotebook {
-                        notebook_id,
-                        settings,
-                    } => Box::new(NotebookPane::restore(notebook_id, &settings, ctx)?),
-                    NotebookPaneSnapshot::LocalFileNotebook { path } => Box::new(FilePane::new(
-                        path.map(LocalOrRemotePath::Local),
-                        None,
-                        #[cfg(feature = "local_fs")]
-                        None,
-                        ctx,
-                    )),
-                };
+            LeafContents::Notebook(NotebookPaneSnapshot::LocalFileNotebook { path }) => {
+                let pane: Box<dyn AnyPaneContent + 'static> = Box::new(FilePane::new(
+                    path.map(LocalOrRemotePath::Local),
+                    None,
+                    #[cfg(feature = "local_fs")]
+                    None,
+                    ctx,
+                ));
 
                 let pane_id = pane.as_pane().id();
                 pane_contents.insert(pane_id, pane);
@@ -2477,11 +2470,9 @@ impl PaneGroup {
             }
         }
 
-        // Finds the active pane type outof (NotebookPane, AIDocumentPane, TerminalPane)
+        // Finds the active pane type out of (AIDocumentPane, TerminalPane)
         // and extracts selected text from it.
-        let text = if let Some(pane) = self.downcast_pane_by_id::<NotebookPane>(focused_pane_id) {
-            pane.notebook_view(ctx).as_ref(ctx).selected_text(ctx)
-        } else if let Some(pane) = self.downcast_pane_by_id::<AIDocumentPane>(focused_pane_id) {
+        let text = if let Some(pane) = self.downcast_pane_by_id::<AIDocumentPane>(focused_pane_id) {
             pane.document_view(ctx).as_ref(ctx).selected_text(ctx)
         } else {
             match self.terminal_view_from_pane_id(focused_pane_id, ctx) {
@@ -4257,19 +4248,7 @@ impl PaneGroup {
         self.pane_contents.contains_key(&pane_id)
     }
 
-    /// Get the notebook view within the pane at `pane_index`.
-    #[cfg(any(test, feature = "integration_tests"))]
-    pub fn notebook_view_at_pane_index(
-        &self,
-        pane_index: usize,
-        ctx: &AppContext,
-    ) -> Option<ViewHandle<crate::notebooks::notebook::NotebookView>> {
-        self.content_by_pane_index(pane_index)
-            .and_then(|pane| pane.as_any().downcast_ref::<NotebookPane>())
-            .map(|pane| pane.notebook_view(ctx))
-    }
-
-    /// Get the notebook view within the pane at `pane_index`.
+    /// Get the workflow view within the pane at `pane_index`.
     #[cfg(any(test, feature = "integration_tests"))]
     pub fn workflow_view_at_pane_index(
         &self,
@@ -4401,10 +4380,6 @@ impl PaneGroup {
         ctx.emit(Event::TerminalViewStateChanged);
         ctx.emit(Event::AppStateChanged);
         pane_content
-    }
-
-    pub fn notebook_pane_by_pane_id(&self, pane_id: Option<PaneId>) -> Option<&NotebookPane> {
-        self.downcast_pane_by_id(pane_id?)
     }
 
     pub fn env_var_collection_pane_by_pane_id(

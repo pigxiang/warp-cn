@@ -167,12 +167,10 @@ fn artifact_round_trips_all_variants() {
     let artifacts = vec![
         Artifact::Plan {
             document_uid: "doc-1".to_string(),
-            notebook_uid: Some(NotebookId::from("0123456789abcdefABCDEF".to_string())),
             title: Some("My plan".to_string()),
         },
         Artifact::Plan {
             document_uid: "doc-2".to_string(),
-            notebook_uid: None,
             title: None,
         },
         Artifact::PullRequest {

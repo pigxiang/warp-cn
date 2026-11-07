@@ -289,7 +289,6 @@ use crate::menu::{
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::network::{NetworkStatus, NetworkStatusEvent};
 use crate::notebooks::CloudNotebook;
-use crate::notebooks::manager::{NotebookManager, NotebookSource};
 use crate::notification::NotificationContext;
 use crate::palette::PaletteMode;
 #[cfg(feature = "local_fs")]
@@ -702,7 +701,6 @@ const KEYBINDINGS_TO_CACHE: [&str; 4] = [
 ];
 
 const WORKFLOW_AND_ENV_VAR_SPLIT_RATIO: f32 = 0.56;
-const NOTEBOOK_SMART_SPLIT_RATIO: f32 = 0.42;
 
 #[cfg(target_family = "wasm")]
 const MOBILE_OVERLAY_PANEL_WIDTH_RATIO: f32 = 0.9;
@@ -1664,24 +1662,6 @@ impl Workspace {
         match event {
             ImportModalEvent::OpenTargetWithHashedId(server_id) => {
                 self.current_workspace_state.is_import_modal_open = false;
-
-                let mut id_to_force_expand = None;
-                if let Some(notebook) = CloudModel::as_ref(ctx).get_notebook_by_uid(server_id) {
-                    // Note that we had to call each CloudModel individually here because the IDs all have different typings.
-                    // TODO: @ianhodge - clean this up once generic is cleared.
-                    id_to_force_expand = Some(notebook.id);
-                }
-                if let Some(id) = id_to_force_expand {
-                    self.open_notebook(
-                        &NotebookSource::Existing(id),
-                        &OpenWarpDriveObjectSettings::default(),
-                        ctx,
-                        true,
-                    );
-                    CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
-                        cloud_model.force_expand_object_and_ancestors(id, ctx);
-                    });
-                }
 
                 let mut id_to_force_expand = None;
                 if let Some(workflow) = CloudModel::as_ref(ctx).get_workflow_by_uid(server_id) {
@@ -4161,9 +4141,6 @@ impl Workspace {
             NewWorkspaceSource::NotebookFromFilePath { file_path } => {
                 self.add_tab_for_file_notebook(file_path, ctx);
             }
-            NewWorkspaceSource::NotebookById { id, settings } => {
-                self.add_tab_for_cloud_notebook(id, &settings, ctx);
-            }
             NewWorkspaceSource::WorkflowById { id, settings } => {
                 self.open_workflow_from_intent(id, &settings, ctx);
             }
@@ -4273,12 +4250,10 @@ impl Workspace {
             #[cfg(not(target_family = "wasm"))]
             NewWorkspaceSource::SharedSessionAsViewer { .. }
             | NewWorkspaceSource::FromCloudConversationId { .. }
-            | NewWorkspaceSource::NotebookById { .. }
             | NewWorkspaceSource::WorkflowById { .. } => should_default_open,
             #[cfg(target_family = "wasm")]
             NewWorkspaceSource::SharedSessionAsViewer { .. }
             | NewWorkspaceSource::FromCloudConversationId { .. }
-            | NewWorkspaceSource::NotebookById { .. }
             | NewWorkspaceSource::WorkflowById { .. } => {
                 // Web opens these as single-purpose views without exposed multi-tab UI, so keep
                 // the tabs panel closed even though native windows still expose workspace chrome.
@@ -5995,7 +5970,7 @@ impl Workspace {
     }
 
     /// Searches other windows for the given terminal view and focuses it there.
-    /// (Uses the same cross-window dispatch pattern as open_notebook/open_workflow.)
+    /// (Uses the same cross-window dispatch pattern as open_workflow.)
     fn focus_terminal_view_in_other_window(
         &self,
         terminal_view_id: EntityId,
@@ -6469,13 +6444,25 @@ impl Workspace {
                     ctx,
                 );
             }
-            AgentManagementViewEvent::OpenPlanNotebook { notebook_uid } => {
-                self.open_notebook(
-                    &NotebookSource::Existing((*notebook_uid).into()),
-                    &OpenWarpDriveObjectSettings::default(),
-                    ctx,
-                    false,
-                );
+            AgentManagementViewEvent::OpenPlan { document_uid } => {
+                if let Ok(document_id) = AIDocumentId::try_from(document_uid.as_str()) {
+                    let document_version = AIDocumentModel::as_ref(ctx)
+                        .get_current_document(&document_id)
+                        .map(|doc| doc.version)
+                        .unwrap_or_default();
+                    if let Some(conversation_id) = AIDocumentModel::as_ref(ctx)
+                        .get_conversation_id_for_document_id(&document_id)
+                    {
+                        self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
+                            pane_group.open_ai_document_pane(
+                                conversation_id,
+                                document_id,
+                                document_version,
+                                ctx,
+                            );
+                        });
+                    }
+                }
             }
         }
     }
@@ -8412,14 +8399,6 @@ impl Workspace {
 
         let sync_id = object.sync_id();
         match object.object_type() {
-            ObjectType::Notebook => {
-                self.open_notebook(
-                    &NotebookSource::Existing(sync_id),
-                    &OpenWarpDriveObjectSettings::default(),
-                    ctx,
-                    true,
-                );
-            }
             ObjectType::Workflow => {
                 self.open_workflow_in_pane(
                     &WorkflowOpenSource::Existing(sync_id),
@@ -8443,91 +8422,6 @@ impl Workspace {
                 self.open_ai_fact_collection_pane(None, None, ctx);
             }
             _ => {}
-        }
-    }
-
-    /// Open the notebook identified by `source`. If the notebook is already open in another pane,
-    /// that pane is focused. If the notebook is not open, the notebook will be opened in a new
-    /// pane if default_to_new_pane is true; otherwise, it'll be opened in a new tab.
-    pub fn open_notebook(
-        &mut self,
-        source: &NotebookSource,
-        settings: &OpenWarpDriveObjectSettings,
-        ctx: &mut ViewContext<Self>,
-        default_to_new_pane: bool,
-    ) {
-        let notebook_manager = NotebookManager::handle(ctx);
-        let mut notebook_already_open = false;
-        if let Some((window_id, locator)) = notebook_manager.as_ref(ctx).find_pane(source) {
-            // If the notebook is already open in _this_ workspace, we can switch to it directly.
-            // Otherwise, dispatch an action to the appropriate window. We can't unconditionally
-            // dispatch an action, because that will cause a circular view update.
-            notebook_already_open = true;
-            if window_id == ctx.window_id() {
-                self.focus_pane(locator, ctx);
-            } else if let Some(root_view) = ctx.root_view_id(window_id) {
-                ctx.dispatch_action_for_view(
-                    window_id,
-                    root_view,
-                    "root_view:handle_pane_navigation_event",
-                    &locator,
-                );
-            }
-            // If the was an invitee email, open the share dialog as well after focusing the pane.
-            if let Some(invitee_email) = settings.invitee_email.clone()
-                && let NotebookSource::Existing(sync_id) = source
-            {
-                self.open_object_sharing_settings(
-                    CloudObjectTypeAndId::from_id_and_type(*sync_id, ObjectType::Notebook),
-                    Some(invitee_email),
-                    SharingDialogSource::InviteeRequest,
-                    ctx,
-                );
-            }
-        } else if default_to_new_pane {
-            let window_id = ctx.window_id();
-            let pane = notebook_manager.update(ctx, |manager, ctx| {
-                manager.create_pane(source, settings, window_id, ctx)
-            });
-            self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-                let smart_split_direction =
-                    pane_group.smart_split_direction(ctx, NOTEBOOK_SMART_SPLIT_RATIO);
-                pane_group.add_pane_with_direction(
-                    smart_split_direction,
-                    pane,
-                    true, /* focus_new_pane */
-                    ctx,
-                );
-            });
-        }
-
-        // Get notebook ID to set Warp drive index selected state
-        if let NotebookSource::Existing(notebook_id) = source {
-            let focused_folder_id = settings.focused_folder_id.map(SyncId::ServerId);
-            if !notebook_already_open && !default_to_new_pane {
-                self.add_tab_for_cloud_notebook(*notebook_id, settings, ctx);
-            }
-
-            if let Some(focused_folder_id) = focused_folder_id {
-                // Only focus the notebook if we don't want to focus a parent folder instead
-                self.open_or_toggle_warp_drive(false, false, ctx);
-                self.set_selected_object(
-                    Some(WarpDriveItemId::Object(
-                        CloudObjectTypeAndId::from_id_and_type(
-                            focused_folder_id,
-                            ObjectType::Folder,
-                        ),
-                    )),
-                    ctx,
-                );
-            } else {
-                self.set_selected_object(
-                    Some(WarpDriveItemId::Object(
-                        CloudObjectTypeAndId::from_id_and_type(*notebook_id, ObjectType::Notebook),
-                    )),
-                    ctx,
-                );
-            }
         }
     }
 
@@ -8679,16 +8573,7 @@ impl Workspace {
         let window_id = ctx.window_id();
         let object_settings = Default::default();
         match cloud_object {
-            CloudObjectTypeAndId::Notebook(sync_id) => Some(Box::new(
-                NotebookManager::handle(ctx).update(ctx, |notebook_manager, ctx| {
-                    notebook_manager.create_pane(
-                        &NotebookSource::Existing(sync_id),
-                        &object_settings,
-                        window_id,
-                        ctx,
-                    )
-                }),
-            )),
+            CloudObjectTypeAndId::Notebook(_) => None,
             CloudObjectTypeAndId::Workflow(sync_id) => Some(Box::new(
                 WorkflowManager::handle(ctx).update(ctx, |workflow_manager, ctx| {
                     workflow_manager.create_pane(
@@ -13147,24 +13032,6 @@ impl Workspace {
         }
     }
 
-    pub fn add_tab_for_cloud_notebook(
-        &mut self,
-        notebook_id: SyncId,
-        settings: &OpenWarpDriveObjectSettings,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // TODO: We should validate that this notebook exists and fallback if it doesn't
-        let panes_layout = PanesLayout::Snapshot(Box::new(PaneNodeSnapshot::Leaf(LeafSnapshot {
-            is_focused: true,
-            custom_vertical_tabs_title: None,
-            contents: LeafContents::Notebook(NotebookPaneSnapshot::CloudNotebook {
-                notebook_id: Some(notebook_id),
-                settings: settings.clone(),
-            }),
-        })));
-        self.add_tab_with_pane_layout(panes_layout, Arc::new(HashMap::new()), None, ctx);
-    }
-
     fn add_tab_for_cloud_workflow(
         &mut self,
         workflow_id: SyncId,
@@ -15023,12 +14890,6 @@ impl Workspace {
 
                 self.invoke_environment_variables(env_var_collection.clone(), false, ctx);
             }
-            CommandPaletteEvent::OpenNotebook { id } => self.open_notebook(
-                &NotebookSource::Existing(*id),
-                &OpenWarpDriveObjectSettings::default(),
-                ctx,
-                true,
-            ),
             CommandPaletteEvent::ViewInWarpDrive { id } => {
                 self.view_in_and_focus_warp_drive(WarpDriveItemId::Object(*id), ctx);
             }
@@ -16446,12 +16307,6 @@ impl Workspace {
 
                 let server_id = open_warp_drive_args.server_id;
                 match open_warp_drive_args.object_type {
-                    ObjectType::Notebook => self.open_notebook(
-                        &NotebookSource::Existing(SyncId::ServerId(server_id)),
-                        &open_warp_drive_args.settings,
-                        ctx,
-                        true,
-                    ),
                     ObjectType::Workflow => self.view_in_and_focus_warp_drive(
                         WarpDriveItemId::Object(CloudObjectTypeAndId::Workflow(SyncId::ServerId(
                             server_id,
@@ -16647,30 +16502,10 @@ impl Workspace {
                     }
                 }
 
-                // Case 2: if notebook, get notebook ID via NotebookPane
+                // Case 3: if a env var, get the env var id
                 let pane_group = self.active_tab_pane_group().as_ref(ctx);
                 let focused_pane_id = Some(pane_group.focused_pane_id(ctx));
-                if let Some(notebook_pane) = pane_group.notebook_pane_by_pane_id(focused_pane_id) {
-                    let notebook_id = notebook_pane
-                        .notebook_view(ctx)
-                        .as_ref(ctx)
-                        .notebook_id(ctx);
-
-                    if let Some(notebook_id) = notebook_id {
-                        self.set_selected_object(
-                            Some(WarpDriveItemId::Object(
-                                CloudObjectTypeAndId::from_id_and_type(
-                                    notebook_id,
-                                    ObjectType::Notebook,
-                                ),
-                            )),
-                            ctx,
-                        );
-                        active_object_open_in_pane = true;
-                    }
-                }
-                // Case 3: if a env var, get the env var id
-                else if let Some(env_var_collection_pane) =
+                if let Some(env_var_collection_pane) =
                     pane_group.env_var_collection_pane_by_pane_id(focused_pane_id)
                 {
                     let env_var_collection_id = env_var_collection_pane
@@ -17866,9 +17701,6 @@ impl Workspace {
                     None,
                     ctx,
                 );
-            }
-            DrivePanelEvent::OpenNotebook(source) => {
-                self.open_notebook(source, &OpenWarpDriveObjectSettings::default(), ctx, true)
             }
             DrivePanelEvent::OpenEnvVarCollection(source) => {
                 self.open_env_var_collection(source, false, ctx)
@@ -24556,37 +24388,6 @@ impl TypedActionView for Workspace {
                     self.open_import_modal(Owner::Team { team_uid }, &None, ctx);
                 }
             }
-            CreatePersonalNotebook => {
-                if let Some(personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) {
-                    self.open_notebook(
-                        &NotebookSource::New {
-                            title: None,
-                            owner: personal_drive,
-                            initial_folder_id: None,
-                        },
-                        &OpenWarpDriveObjectSettings::default(),
-                        ctx,
-                        true,
-                    );
-                }
-            }
-            CreateTeamNotebook => {
-                let team_uid = self.team_uid(ctx);
-                if let Some(team_uid) = team_uid {
-                    self.update_warp_drive_view(ctx, |drive_panel, ctx| {
-                        drive_panel.open_cloud_object_dialog(
-                            DriveObjectType::Notebook {
-                                is_ai_document: false,
-                            },
-                            Space::Team { team_uid },
-                            None,
-                            ctx,
-                        );
-                    });
-                    self.current_workspace_state.is_warp_drive_open = true;
-                    ctx.notify();
-                }
-            }
             CreatePersonalEnvVarCollection => {
                 if let Some(personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) {
                     self.open_env_var_collection(
@@ -25608,12 +25409,6 @@ impl TypedActionView for Workspace {
             NewCodeFile => {
                 self.add_tab_for_new_code_file(ctx);
             }
-            OpenNotebook { id } => self.open_notebook(
-                &NotebookSource::Existing(*id),
-                &OpenWarpDriveObjectSettings::default(),
-                ctx,
-                true,
-            ),
             RunWorkflow {
                 workflow,
                 workflow_source,

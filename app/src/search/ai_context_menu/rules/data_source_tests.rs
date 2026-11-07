@@ -14,7 +14,6 @@ use crate::cloud_object::model::view::CloudViewModel;
 use crate::cloud_object::{
     GenericServerObject, Owner, Revision, ServerMetadata, ServerPermissions,
 };
-use crate::notebooks::manager::NotebookManager;
 use crate::search::ai_context_menu::rules::data_source::RulesDataSource;
 use crate::search::data_source::Query;
 use crate::search::mixer::SyncDataSource;
@@ -83,7 +82,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|ctx| UpdateManager::new(None, Arc::new(MockObjectClient::new()), ctx));
     app.add_singleton_model(|_| UserProfiles::new(Vec::new()));
     app.add_singleton_model(CloudViewModel::new);
-    app.add_singleton_model(NotebookManager::mock);
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| SettingsManager::default());
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());

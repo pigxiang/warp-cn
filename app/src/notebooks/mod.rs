@@ -1,10 +1,7 @@
-pub mod active_notebook_data;
 mod context_menu;
 pub mod editor;
 pub mod file;
 pub mod link;
-pub mod manager;
-pub mod notebook;
 mod styles;
 pub mod telemetry;
 
@@ -195,7 +192,6 @@ impl From<Owner> for NotebookLocation {
 
 /// Initialize notebooks-related keybindings.
 pub fn init(app: &mut AppContext) {
-    self::notebook::init(app);
     self::file::init(app);
     self::editor::view::init(app);
 }

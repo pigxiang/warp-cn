@@ -1,7 +1,7 @@
 use settings::{RespectUserSyncSetting, SyncToCloud};
 use warp::features::FeatureFlag;
-use warp::integration_testing::notebook::{
-    assert_cloud_preference_exists, assert_notebook_contents, assert_notebook_metadata_revision,
+use warp::integration_testing::cloud_object::{
+    assert_cloud_preference_exists, assert_notebook_metadata_revision,
 };
 use warp::integration_testing::step::{
     new_step_with_default_assertions, new_step_with_default_assertions_for_pane,
@@ -326,44 +326,6 @@ pub fn test_restore_snapshot_with_background_output() -> Builder {
                         AssertionOutcome::Success
                     })
                 }),
-        )
-}
-
-/// Tests restoring a snapshot that includes notebook panes.
-///
-/// The snapshot has a single window with one tab, containing:
-/// * A notebook pane, where the notebook exists
-/// * A notebook pane, where the notebook no longer exists
-/// * A terminal pane
-pub fn test_restore_snapshot_with_notebooks() -> Builder {
-    new_builder()
-        .with_setup(|_utils| {
-            integration_testing::create_file_from_assets(
-                TEST_ONLY_ASSETS,
-                "restored_notebooks.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
-            );
-        })
-        .with_step(
-            TestStep::new("Verify that the notebook panes were restored")
-                .add_assertion(assert_pane_title(0, 0, "First Notebook"))
-                // The missing notebook should be replaced with an empty new notebook.
-                .add_assertion(assert_pane_title(0, 1, "Untitled")),
-        )
-        .with_step(
-            new_step_with_default_assertions_for_pane("Wait for terminal pane to bootstrap", 0, 2)
-                .add_assertion(assert_pane_title(
-                    0,
-                    2,
-                    tab_title_in_home_dir("test_restore_snapshot_with_notebooks"),
-                )),
-        )
-        .with_step(
-            TestStep::new("Verify notebook contents")
-                .add_assertion(assert_notebook_contents(0, 0, "Notebook 1 content"))
-                .add_assertion(assert_notebook_contents(0, 1, "")),
         )
 }
 

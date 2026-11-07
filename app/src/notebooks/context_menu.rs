@@ -12,17 +12,12 @@ use warpui::{Action, Element, EventContext, TypedActionView, View, ViewContext, 
 use super::editor::keys::custom_action_to_display;
 use super::editor::view::RichTextEditorView;
 use super::telemetry::ActionEntrypoint;
-use crate::editor::EditorView;
 use crate::menu::{self, Menu, MenuItem, MenuItemFields};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::{PaneEvent, SplitPaneState};
 use crate::util::bindings::{
     CustomAction, keybinding_name_to_display_string, trigger_to_keystroke,
 };
-
-#[cfg(test)]
-#[path = "context_menu_tests.rs"]
-mod tests;
 
 const CONTEXT_MENU_WIDTH: f32 = 200.;
 
@@ -46,10 +41,6 @@ pub enum MenuSource {
     RichTextEditor {
         parent_offset: Vector2F,
         editor: ViewHandle<RichTextEditorView>,
-    },
-    TextEditor {
-        parent_offset: Vector2F,
-        editor: ViewHandle<EditorView>,
     },
 }
 
@@ -95,7 +86,6 @@ where
     pub fn render(&self, stack: &mut Stack) {
         let offset = match self.source {
             Some(MenuSource::RichTextEditor { parent_offset, .. }) => parent_offset,
-            Some(MenuSource::TextEditor { parent_offset, .. }) => parent_offset,
             None => return,
         };
 
@@ -123,9 +113,6 @@ where
                     editor.is_editable(ctx),
                 )
             }
-            MenuSource::TextEditor { editor, .. } => editor.read(ctx, |editor, ctx| {
-                (!editor.selected_text(ctx).is_empty(), editor.can_edit(ctx))
-            }),
         };
 
         if has_selection && can_edit {
@@ -260,7 +247,6 @@ where
         if focus_parent {
             match &self.source {
                 Some(MenuSource::RichTextEditor { editor, .. }) => ctx.focus(editor),
-                Some(MenuSource::TextEditor { editor, .. }) => ctx.focus(editor),
                 None => ctx.focus_self(),
             }
         }
@@ -295,9 +281,6 @@ where
                 Some(MenuSource::RichTextEditor { editor, .. }) => {
                     editor.update(ctx, |editor, ctx| editor.copy(ActionEntrypoint::Menu, ctx))
                 }
-                Some(MenuSource::TextEditor { editor, .. }) => {
-                    editor.update(ctx, |editor, ctx| editor.copy(ctx))
-                }
                 None => (),
             },
             ContextMenuAction::CutSelectedText => match &self.source {
@@ -305,18 +288,10 @@ where
                     ctx.focus(editor);
                     editor.update(ctx, |editor, ctx| editor.cut(ActionEntrypoint::Menu, ctx));
                 }
-                Some(MenuSource::TextEditor { editor, .. }) => {
-                    ctx.focus(editor);
-                    editor.update(ctx, |editor, ctx| editor.cut(ctx))
-                }
                 None => (),
             },
             ContextMenuAction::Paste => match &self.source {
                 Some(MenuSource::RichTextEditor { editor, .. }) => {
-                    ctx.focus(editor);
-                    editor.update(ctx, |editor, ctx| editor.paste(ctx))
-                }
-                Some(MenuSource::TextEditor { editor, .. }) => {
                     ctx.focus(editor);
                     editor.update(ctx, |editor, ctx| editor.paste(ctx))
                 }
@@ -349,24 +324,6 @@ pub fn show_rich_editor_context_menu<A>(
                 editor: editor.clone(),
             },
         )));
-    }
-}
-
-/// Dispatch an action to show the notebook context menu for a plain text editor view.
-pub fn show_text_editor_context_menu<A>(
-    ctx: &mut EventContext,
-    position: Vector2F,
-    parent_position_id: &str,
-    editor: &ViewHandle<EditorView>,
-) where
-    A: Action + From<ContextMenuAction>,
-{
-    if let Some(parent_bounds) = ctx.element_position_by_id(parent_position_id) {
-        let offset = position - parent_bounds.origin();
-        ctx.dispatch_typed_action(A::from(ContextMenuAction::Open(MenuSource::TextEditor {
-            parent_offset: offset,
-            editor: editor.clone(),
-        })));
     }
 }
 

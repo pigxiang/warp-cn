@@ -89,7 +89,6 @@ use crate::cloud_object::model::generic_string_model::{CloudStringObject, Generi
 use crate::cloud_object::{CloudObject, ObjectIdType};
 use crate::code::editor_management::CodeSource;
 use crate::drive::OpenWarpDriveObjectSettings;
-use crate::notebooks::NotebookId;
 use crate::persistence::block_list::{
     get_all_restored_blocks, process_ai_queries_for_nld_history_match,
     process_ai_queries_for_uparrow_prompt, read_recent_ai_queries,
@@ -1276,24 +1275,11 @@ fn save_pane_state(
                 .values(terminal)
                 .execute(conn)?;
         }
-        LeafContents::Notebook(notebook_snapshot) => {
-            let (notebook_id, local_path) = match notebook_snapshot {
-                NotebookPaneSnapshot::CloudNotebook {
-                    notebook_id,
-                    settings: _,
-                } => (
-                    notebook_id.map(|id| id.sqlite_uid_hash(ObjectIdType::Notebook)),
-                    None,
-                ),
-                NotebookPaneSnapshot::LocalFileNotebook { path } => {
-                    (None, path.clone().map(encode_path))
-                }
-            };
-
+        LeafContents::Notebook(NotebookPaneSnapshot::LocalFileNotebook { path }) => {
             let notebook = model::NewNotebookPane {
                 id,
-                notebook_id,
-                local_path,
+                notebook_id: None,
+                local_path: path.clone().map(encode_path),
             };
 
             diesel::insert_into(schema::notebook_panes::dsl::notebook_panes)
@@ -2259,25 +2245,10 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                         .select(model::NotebookPane::as_select())
                         .first(conn)?;
 
-                    let notebook_id = notebook_pane.notebook_id.and_then(|id| {
-                        ClientId::from_hash(&id).map(SyncId::ClientId).or_else(|| {
-                            NotebookId::from_hash(&id).map(|id| SyncId::ServerId(id.into()))
-                        })
-                    });
-
-                    let local_path = notebook_pane.local_path.map(decode_path);
-
-                    // In the database schema, both the `notebook_id` and `local_path` are
-                    // nullable. It's possible for either a file pane or a notebook pane to be open
-                    // to an uneditable notebook. In that case, bias towards cloud notebooks. If
-                    // both are null, it's more likely that the pane was a new, empty cloud
-                    // notebook than an unreadable local file.
-                    LeafContents::Notebook(match local_path {
-                        Some(path) => NotebookPaneSnapshot::LocalFileNotebook { path: Some(path) },
-                        None => NotebookPaneSnapshot::CloudNotebook {
-                            notebook_id,
-                            settings: OpenWarpDriveObjectSettings::default(),
-                        },
+                    // Rows written before cloud notebook panes were removed may still carry a
+                    // `notebook_id`; those panes restore as empty file notebooks.
+                    LeafContents::Notebook(NotebookPaneSnapshot::LocalFileNotebook {
+                        path: notebook_pane.local_path.map(decode_path),
                     })
                 }
                 WORKFLOW_PANE_KIND => {

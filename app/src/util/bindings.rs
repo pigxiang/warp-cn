@@ -104,10 +104,8 @@ pub enum CustomAction {
     CloseCurrentSession,
     CloseWindow,
     NewPersonalWorkflow,
-    NewPersonalNotebook,
     NewPersonalEnvVars,
     NewTeamWorkflow,
-    NewTeamNotebook,
     NewTeamEnvVars,
     SearchDrive,
     OpenTeamSettings,
@@ -454,10 +452,8 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         | CustomAction::DisableSyncTerminalInputs
         | CustomAction::ToggleSyncAllTerminalInputsInAllTabs
         | CustomAction::NewPersonalWorkflow
-        | CustomAction::NewPersonalNotebook
         | CustomAction::NewPersonalEnvVars
         | CustomAction::NewTeamWorkflow
-        | CustomAction::NewTeamNotebook
         | CustomAction::NewTeamEnvVars
         | CustomAction::SearchDrive
         | CustomAction::OpenTeamSettings
@@ -827,7 +823,6 @@ pub enum BindingGroup {
     Navigation,
     WarpAi,
     Workflow,
-    Notebooks,
     Folders,
     KeyboardShortcuts,
     AutoUpdate,
@@ -844,7 +839,6 @@ impl BindingGroup {
             Self::WarpAi => "warp_ai",
             Self::Navigation => "navigation",
             Self::Workflow => "workflows",
-            Self::Notebooks => "notebooks",
             Self::Folders => "folders",
             Self::KeyboardShortcuts => "keyboard_shortcuts",
             Self::Close => "close",

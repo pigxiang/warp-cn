@@ -11,13 +11,11 @@ use crate::auth::{AuthStateProvider, UserUid};
 use crate::cloud_object::model::persistence::{CloudModel, UpdateSource};
 use crate::cloud_object::model::view::CloudViewModel;
 use crate::cloud_object::{
-    Owner, Revision, ServerGuestSubject, ServerMetadata, ServerNotebook, ServerObjectGuest,
-    ServerPermissions, ServerWorkflow,
+    Owner, Revision, ServerGuestSubject, ServerMetadata, ServerObjectGuest, ServerPermissions,
+    ServerWorkflow,
 };
 use crate::features::FeatureFlag;
 use crate::network::NetworkStatus;
-use crate::notebooks::manager::NotebookManager;
-use crate::notebooks::{CloudNotebookModel, NotebookId};
 use crate::search::data_source::Query;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::SyncId::{self};
@@ -118,20 +116,6 @@ fn workspace_for_test(teams: Vec<Team>) -> Workspace {
     }
 }
 
-fn mock_server_notebook(id: NotebookId, owner: Owner) -> ServerNotebook {
-    ServerNotebook::new(
-        SyncId::ServerId(id.into()),
-        CloudNotebookModel {
-            title: format!("foo{id}"),
-            data: format!("bar{id}"),
-            ai_document_id: None,
-            conversation_id: None,
-        },
-        mock_server_metadata(),
-        mock_server_permissions(owner),
-    )
-}
-
 fn initialize_app(app: &mut App, workspaces: Vec<Workspace>) {
     // Add the necessary singleton models to the App
     app.add_singleton_model(|_| NetworkStatus::new());
@@ -154,7 +138,6 @@ fn initialize_app(app: &mut App, workspaces: Vec<Workspace>) {
     app.add_singleton_model(|ctx| UpdateManager::new(None, Arc::new(MockObjectClient::new()), ctx));
     app.add_singleton_model(|_| UserProfiles::new(Vec::new()));
     app.add_singleton_model(CloudViewModel::new);
-    app.add_singleton_model(NotebookManager::mock);
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| SettingsManager::default());
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
@@ -168,10 +151,6 @@ fn test_drive_data_source_correctly_filters_drive_filter() {
         initialize_app(&mut app, vec![]);
         // Initialize CloudModel
         CloudModel::handle(&app).update(&mut app, |model, ctx| {
-            model.upsert_from_server_notebook(
-                mock_server_notebook(1.into(), Owner::mock_current_user()),
-                ctx,
-            );
             model.upsert_from_server_workflow(
                 mock_server_workflow(2.into(), Owner::mock_current_user()),
                 ctx,
@@ -185,11 +164,7 @@ fn test_drive_data_source_correctly_filters_drive_filter() {
             // Add the drive data source with the relevant filters
             mixer.add_sync_source(
                 data_source_handle,
-                [
-                    QueryFilter::Drive,
-                    QueryFilter::Notebooks,
-                    QueryFilter::Workflows,
-                ],
+                [QueryFilter::Drive, QueryFilter::Workflows],
             );
 
             // Run the query with the drive filter
@@ -205,8 +180,8 @@ fn test_drive_data_source_correctly_filters_drive_filter() {
         app.read(|app| {
             let results = mixer.as_ref(app).results();
 
-            // Expect both of the results to be included
-            assert_eq!(results.len(), 2);
+            // Expect the workflow result to be included
+            assert_eq!(results.len(), 1);
         });
     })
 }
@@ -217,10 +192,6 @@ fn test_drive_data_source_correctly_filters_no_filter() {
         initialize_app(&mut app, vec![]);
         // Initialize CloudModel
         CloudModel::handle(&app).update(&mut app, |model, ctx| {
-            model.upsert_from_server_notebook(
-                mock_server_notebook(1.into(), Owner::mock_current_user()),
-                ctx,
-            );
             model.upsert_from_server_workflow(
                 mock_server_workflow(2.into(), Owner::mock_current_user()),
                 ctx,
@@ -233,11 +204,7 @@ fn test_drive_data_source_correctly_filters_no_filter() {
             // Add the drive data source with the relevant filters
             mixer.add_sync_source(
                 data_source_handle,
-                [
-                    QueryFilter::Drive,
-                    QueryFilter::Notebooks,
-                    QueryFilter::Workflows,
-                ],
+                [QueryFilter::Drive, QueryFilter::Workflows],
             );
 
             // Run the query with no filter
@@ -253,8 +220,8 @@ fn test_drive_data_source_correctly_filters_no_filter() {
         app.read(|app| {
             let results = mixer.as_ref(app).results();
 
-            // Expect both of the results to be included
-            assert_eq!(results.len(), 2);
+            // Expect the workflow result to be included
+            assert_eq!(results.len(), 1);
         });
     })
 }
@@ -265,10 +232,6 @@ fn test_drive_data_source_correctly_filters_workflow_filter() {
         initialize_app(&mut app, vec![]);
         // Initialize CloudModel
         CloudModel::handle(&app).update(&mut app, |model, ctx| {
-            model.upsert_from_server_notebook(
-                mock_server_notebook(1.into(), Owner::mock_current_user()),
-                ctx,
-            );
             model.upsert_from_server_workflow(
                 mock_server_workflow(2.into(), Owner::mock_current_user()),
                 ctx,
@@ -281,11 +244,7 @@ fn test_drive_data_source_correctly_filters_workflow_filter() {
             // Add the drive data source with the relevant filters
             mixer.add_sync_source(
                 data_source_handle,
-                [
-                    QueryFilter::Drive,
-                    QueryFilter::Notebooks,
-                    QueryFilter::Workflows,
-                ],
+                [QueryFilter::Drive, QueryFilter::Workflows],
             );
 
             // Run the query with no filter
@@ -305,56 +264,6 @@ fn test_drive_data_source_correctly_filters_workflow_filter() {
             assert_eq!(results.len(), 1);
 
             assert!(results[0].accessibility_label().starts_with("Workflow:"));
-        });
-    })
-}
-
-#[test]
-fn test_drive_data_source_correctly_filters_notebook_filter() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app, vec![]);
-        // Initialize CloudModel
-        CloudModel::handle(&app).update(&mut app, |model, ctx| {
-            model.upsert_from_server_notebook(
-                mock_server_notebook(1.into(), Owner::mock_current_user()),
-                ctx,
-            );
-            model.upsert_from_server_workflow(
-                mock_server_workflow(2.into(), Owner::mock_current_user()),
-                ctx,
-            )
-        });
-        let mixer = app.add_model(|_| CommandPaletteMixer::new());
-        let data_source_handle =
-            app.add_model(|ctx| warp_drive::DataSource::new(WindowId::new(), ctx));
-        mixer.update(&mut app, |mixer, ctx| {
-            // Add the drive data source with the relevant filters
-            mixer.add_sync_source(
-                data_source_handle,
-                [
-                    QueryFilter::Drive,
-                    QueryFilter::Notebooks,
-                    QueryFilter::Workflows,
-                ],
-            );
-
-            // Run the query with no filter
-            mixer.run_query(
-                Query {
-                    filters: HashSet::from([QueryFilter::Notebooks]),
-                    text: "foo".into(),
-                },
-                ctx,
-            );
-        });
-
-        app.read(|app| {
-            let results = mixer.as_ref(app).results();
-
-            // Expect only the workflow result to be included
-            assert_eq!(results.len(), 1);
-
-            assert!(results[0].accessibility_label().starts_with("Notebook:"));
         });
     })
 }

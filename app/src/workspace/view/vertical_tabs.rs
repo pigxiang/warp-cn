@@ -52,7 +52,7 @@ use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::editor::EditorView;
 use crate::pane_group::pane::IPaneType;
 use crate::pane_group::{
-    CodePane, NotebookPane, PaneGroup, PaneId, TabBarHoverIndex, TerminalPane, WorkflowPane,
+    CodePane, PaneGroup, PaneId, TabBarHoverIndex, TerminalPane, WorkflowPane,
 };
 use crate::safe_triangle::SafeTriangle;
 use crate::tab::{
@@ -907,7 +907,6 @@ pub(super) enum SummaryPaneKind {
     Code { title: String },
     CodeDiff,
     File,
-    Notebook { is_plan: bool },
     Workflow { is_ai_prompt: bool },
     Settings,
     EnvVarCollection,
@@ -3374,12 +3373,6 @@ fn resolve_icon_with_status_variant(
             icon_color: main_text,
         },
         // Warp Drive object types use their established index colors
-        TypedPane::Notebook { is_plan } => IconWithStatusVariant::Neutral {
-            icon: typed.icon(),
-            icon_color: drive_color(DriveObjectType::Notebook {
-                is_ai_document: *is_plan,
-            }),
-        },
         TypedPane::Workflow { is_ai_prompt: true } => IconWithStatusVariant::Neutral {
             icon: typed.icon(),
             icon_color: drive_color(DriveObjectType::AgentModeWorkflow),
@@ -3538,7 +3531,7 @@ fn render_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn Element> {
     );
 
     // Top-align the icon when there are multiple lines of content so it sits next to
-    // the first line; center it for single-line rows (Settings, Notebook with no subtitle, etc.).
+    // the first line; center it for single-line rows (Settings, File with no subtitle, etc.).
     let icon_alignment =
         if matches!(props.typed, TypedPane::Terminal(_)) || !effective_subtitle.is_empty() {
             CrossAxisAlignment::Start
@@ -3634,7 +3627,6 @@ enum TypedPane<'a> {
     Code(&'a CodePane),
     CodeDiff,
     File,
-    Notebook { is_plan: bool },
     Workflow { is_ai_prompt: bool },
     Settings,
     EnvVarCollection,
@@ -3668,7 +3660,6 @@ impl TypedPane<'_> {
             },
             TypedPane::CodeDiff => SummaryPaneKind::CodeDiff,
             TypedPane::File => SummaryPaneKind::File,
-            TypedPane::Notebook { is_plan } => SummaryPaneKind::Notebook { is_plan: *is_plan },
             TypedPane::Workflow { is_ai_prompt } => SummaryPaneKind::Workflow {
                 is_ai_prompt: *is_ai_prompt,
             },
@@ -3696,7 +3687,6 @@ impl TypedPane<'_> {
             TypedPane::Code(_) => "Code",
             TypedPane::CodeDiff => "Code Diff",
             TypedPane::File => "File",
-            TypedPane::Notebook { .. } => "Notebook",
             TypedPane::Workflow { .. } => "Workflow",
             TypedPane::Settings => "Settings",
             TypedPane::EnvVarCollection => "Environment Variables",
@@ -3718,7 +3708,6 @@ impl TypedPane<'_> {
             TypedPane::Terminal(_)
             | TypedPane::CodeDiff
             | TypedPane::File
-            | TypedPane::Notebook { .. }
             | TypedPane::Workflow { .. }
             | TypedPane::Settings
             | TypedPane::EnvVarCollection
@@ -3736,8 +3725,6 @@ impl TypedPane<'_> {
             TypedPane::Code(_) => WarpIcon::Code2,
             TypedPane::CodeDiff => WarpIcon::Diff,
             TypedPane::File => WarpIcon::File,
-            TypedPane::Notebook { is_plan: true } => WarpIcon::Compass,
-            TypedPane::Notebook { is_plan: false } => WarpIcon::Notebook,
             TypedPane::Workflow { is_ai_prompt: true } => WarpIcon::Prompt,
             TypedPane::Workflow {
                 is_ai_prompt: false,
@@ -3885,7 +3872,6 @@ fn build_vertical_tabs_summary_data(
             }
             TypedPane::CodeDiff
             | TypedPane::File
-            | TypedPane::Notebook { .. }
             | TypedPane::Workflow { .. }
             | TypedPane::Settings
             | TypedPane::EnvVarCollection
@@ -4029,7 +4015,6 @@ impl<'a> PaneProps<'a> {
             TypedPane::Code(_)
             | TypedPane::CodeDiff
             | TypedPane::File
-            | TypedPane::Notebook { .. }
             | TypedPane::Workflow { .. }
             | TypedPane::Settings
             | TypedPane::EnvVarCollection
@@ -4445,13 +4430,6 @@ impl PaneGroup {
             ),
             IPaneType::CodeDiff => TypedPane::CodeDiff,
             IPaneType::File => TypedPane::File,
-            IPaneType::Notebook => {
-                let is_plan = self
-                    .downcast_pane_by_id::<NotebookPane>(pane_id)
-                    .map(|np| np.notebook_view(app).as_ref(app).is_plan(app))
-                    .unwrap_or(false);
-                TypedPane::Notebook { is_plan }
-            }
             IPaneType::Workflow => {
                 let is_ai_prompt = self
                     .downcast_pane_by_id::<WorkflowPane>(pane_id)
@@ -5153,7 +5131,7 @@ pub(super) fn render_summary_pane_kind_icons(
 }
 
 // Inline rendering for non-agent summary kinds — for an icon (e.g. Terminal, Code,
-// Notebook) sized to fill its `total_size` bounding box.
+// File) sized to fill its `total_size` bounding box.
 const SUMMARY_INLINE_ICON_RATIO: f32 = 2. / 3.;
 const SUMMARY_INLINE_PADDING_RATIO: f32 = (1. - SUMMARY_INLINE_ICON_RATIO) / 2.;
 
@@ -5207,7 +5185,6 @@ pub(super) fn render_summary_pane_kind_icon_circle(
         SummaryPaneKind::Terminal
         | SummaryPaneKind::CodeDiff
         | SummaryPaneKind::File
-        | SummaryPaneKind::Notebook { .. }
         | SummaryPaneKind::Workflow { .. }
         | SummaryPaneKind::Settings
         | SummaryPaneKind::EnvVarCollection
@@ -5283,16 +5260,6 @@ fn summary_pane_kind_icon(
         SummaryPaneKind::Code { .. } => (WarpIcon::Code2, sub_text),
         SummaryPaneKind::CodeDiff => (WarpIcon::Diff, sub_text),
         SummaryPaneKind::File => (WarpIcon::File, sub_text),
-        SummaryPaneKind::Notebook { is_plan } => (
-            if is_plan {
-                WarpIcon::Compass
-            } else {
-                WarpIcon::Notebook
-            },
-            drive_color(DriveObjectType::Notebook {
-                is_ai_document: is_plan,
-            }),
-        ),
         SummaryPaneKind::Workflow { is_ai_prompt } => (
             if is_ai_prompt {
                 WarpIcon::Prompt
@@ -7154,9 +7121,6 @@ fn code_detail_kind_label(file_name: &str) -> Option<String> {
 
 fn typed_pane_warp_drive_object_type(typed: &TypedPane<'_>) -> Option<DriveObjectType> {
     match typed {
-        TypedPane::Notebook { is_plan } => Some(DriveObjectType::Notebook {
-            is_ai_document: *is_plan,
-        }),
         TypedPane::Workflow { is_ai_prompt: true } => Some(DriveObjectType::AgentModeWorkflow),
         TypedPane::Workflow {
             is_ai_prompt: false,
@@ -7190,8 +7154,7 @@ fn render_detail_section(
             app,
         ),
         TypedPane::Code(_) => render_code_detail_section(props, appearance, app),
-        TypedPane::Notebook { .. }
-        | TypedPane::Workflow { .. }
+        TypedPane::Workflow { .. }
         | TypedPane::EnvVarCollection
         | TypedPane::AIFact
         | TypedPane::AIDocument => render_warp_drive_object_detail_section(props, appearance, app),

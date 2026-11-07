@@ -340,10 +340,8 @@ pub enum WorkspaceAction {
     ShowCommandSearch(CommandSearchOptions),
     TriggerExternalCtrlTFileSearch,
     TriggerExternalAltCDirectorySearch,
-    CreatePersonalNotebook,
     ImportToPersonalDrive,
     ImportToTeamDrive,
-    CreateTeamNotebook,
     CreatePersonalWorkflow,
     CreateTeamWorkflow,
     CreatePersonalFolder,
@@ -559,9 +557,6 @@ pub enum WorkspaceAction {
     OpenFileInNewTab {
         full_path: PathBuf,
         line_and_column: Option<LineAndColumnArg>,
-    },
-    OpenNotebook {
-        id: SyncId,
     },
     RunWorkflow {
         workflow: Arc<WorkflowType>,
@@ -885,7 +880,6 @@ impl From<&WorkspaceAction> for LoginGatedFeature {
         use WorkspaceAction::*;
         match val {
             ImportToTeamDrive => "Importing to a team drive",
-            CreateTeamNotebook => "Creating a team notebook",
             CreateTeamWorkflow => "Creating a team workflow",
             CreateTeamFolder => "Creating a team folder",
             CreateTeamEnvVarCollection => "Creating a team environment variable collection",
@@ -902,7 +896,6 @@ impl WorkspaceAction {
         matches!(
             self,
             ImportToTeamDrive
-                | CreateTeamNotebook
                 | CreateTeamWorkflow
                 | CreateTeamFolder
                 | CreateTeamEnvVarCollection
@@ -992,7 +985,6 @@ impl WorkspaceAction {
             | NewTabInAgentMode { .. }
             | NewPaneInAgentMode { .. }
             | FixInAgentMode { .. }
-            | OpenNotebook { .. }
             | RunWorkflow { .. }
             | OpenFileInNewTab { .. }
             | RestoreOrNavigateToConversation { .. }
@@ -1064,8 +1056,6 @@ impl WorkspaceAction {
             | ToggleFocusReporting
             | ImportToPersonalDrive
             | ImportToTeamDrive
-            | CreatePersonalNotebook
-            | CreateTeamNotebook
             | CreatePersonalWorkflow
             | CreateTeamWorkflow
             | CreatePersonalFolder

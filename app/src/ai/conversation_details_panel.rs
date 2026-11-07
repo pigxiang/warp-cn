@@ -60,7 +60,6 @@ use crate::ai::runner_display::{self, RunnerPlatform};
 use crate::appearance::Appearance;
 use crate::auth::UserUid;
 use crate::cloud_object::CloudObjectLookup as _;
-use crate::notebooks::NotebookId;
 use crate::send_telemetry_from_ctx;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
@@ -639,7 +638,7 @@ impl ConversationDetailsData {
 #[derive(Debug, Clone)]
 pub enum ConversationDetailsPanelEvent {
     Close,
-    OpenPlanNotebook { notebook_uid: NotebookId },
+    OpenPlan { document_uid: String },
 }
 
 /// Actions for the ConversationDetailsPanel.
@@ -937,9 +936,9 @@ impl ConversationDetailsPanel {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            ArtifactButtonsRowEvent::OpenPlan { notebook_uid } => {
-                ctx.emit(ConversationDetailsPanelEvent::OpenPlanNotebook {
-                    notebook_uid: *notebook_uid,
+            ArtifactButtonsRowEvent::OpenPlan { document_uid } => {
+                ctx.emit(ConversationDetailsPanelEvent::OpenPlan {
+                    document_uid: document_uid.clone(),
                 });
             }
             ArtifactButtonsRowEvent::CopyBranch { branch } => {

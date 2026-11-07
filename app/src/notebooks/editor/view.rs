@@ -956,7 +956,7 @@ pub enum EditorViewEvent {
         line_and_column_num: Option<LineAndColumnArg>,
         force_open_in_warp: bool,
     },
-    /// Emitted when the user runs a notebook workflow. The parent `NotebookView` is responsible
+    /// Emitted when the user runs a notebook workflow. The parent view is responsible
     /// for sending it to the active terminal.
     RunWorkflow(NotebookWorkflow),
     EditWorkflow(SyncId),
@@ -1662,12 +1662,6 @@ impl RichTextEditorView {
     pub fn reset_with_markdown(&mut self, markdown: &str, ctx: &mut ViewContext<Self>) {
         self.model.update(ctx, |model, ctx| {
             model.reset_with_markdown(markdown, ctx);
-        });
-    }
-
-    pub fn reset_with_ipynb(&mut self, ipynb: &str, ctx: &mut ViewContext<Self>) {
-        self.model.update(ctx, |model, ctx| {
-            model.reset_with_ipynb(ipynb, ctx);
         });
     }
 

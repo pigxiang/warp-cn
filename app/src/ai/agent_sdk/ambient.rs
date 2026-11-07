@@ -1052,20 +1052,9 @@ impl AmbientAgentRunner {
                     lines.push(format!("    Branch: {}", branch));
                     lines.push(format!("    Link: {}", url));
                 }
-                Artifact::Plan {
-                    notebook_uid,
-                    title,
-                    ..
-                } => {
+                Artifact::Plan { title, .. } => {
                     let plan_title = title.as_deref().unwrap_or("Untitled Plan");
-                    lines.push(format!("  Plan: {}", plan_title));
-                    if let Some(id) = notebook_uid {
-                        lines.push(format!(
-                            "    Link: {}/drive/notebook/{}",
-                            ChannelState::server_root_url(),
-                            id
-                        ));
-                    }
+                    lines.push(format!("  Plan: {plan_title}"));
                 }
                 Artifact::Screenshot {
                     artifact_uid,

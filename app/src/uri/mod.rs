@@ -1317,7 +1317,7 @@ fn get_primary_window(
 /// What `open_file` should do with an incoming `file://` URL.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OpenFileAction {
-    /// Open in the notebook viewer pane (Markdown, or Jupyter when enabled).
+    /// Open in the notebook viewer pane (Markdown).
     Notebook,
     /// Open in Warp's code/text editor pane.
     Editor,
@@ -1333,8 +1333,7 @@ enum OpenFileAction {
 /// file URLs to Warp via the file type registration in `Info.plist`. Since Warp
 /// cannot easily update that registration when the user toggles the viewer
 /// preference, the URI handler must check the preference before routing a
-/// Markdown file to the in-Warp notebook viewer. Other notebook viewer formats,
-/// such as Jupyter notebooks, are controlled by their own routing checks.
+/// Markdown file to the in-Warp notebook viewer.
 fn classify_open_file_action(path: &Path, prefer_markdown_viewer: bool) -> OpenFileAction {
     if renders_in_warp_notebook_viewer(path) && (!is_markdown_file(path) || prefer_markdown_viewer)
     {
@@ -1357,7 +1356,6 @@ fn can_open_file_editor_path(path: &Path) -> bool {
 
 /// Handle an incoming `file://` URL.
 /// * Markdown files are opened as notebook panes when the viewer preference is enabled.
-/// * Jupyter notebook files are opened as notebook panes when their feature flag is enabled.
 /// * For directories, open a new session at the directory path.
 /// * For other files, open a new session at the parent directory path, then possibly execute the
 ///   file.

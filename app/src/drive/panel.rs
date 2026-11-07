@@ -27,8 +27,6 @@ use crate::cloud_object::{
 };
 use crate::env_vars::CloudEnvVarCollection;
 use crate::env_vars::manager::EnvVarCollectionSource;
-use crate::notebooks::CloudNotebook;
-use crate::notebooks::manager::NotebookSource;
 use crate::server::cloud_objects::update_manager::{InitiatedBy, UpdateManager};
 use crate::server::ids::{ClientId, ServerId, SyncId};
 use crate::server::telemetry::SharingDialogSource;
@@ -84,7 +82,6 @@ pub enum DrivePanelEvent {
         initial_folder_id: Option<SyncId>,
     },
     OpenWorkflowModalWithCloudWorkflow(SyncId),
-    OpenNotebook(NotebookSource),
     OpenEnvVarCollection(EnvVarCollectionSource),
     OpenWorkflowInPane(WorkflowOpenSource, WorkflowViewMode),
     FocusWarpDrive,
@@ -138,25 +135,6 @@ impl DrivePanel {
     /// Event handler for actions that occur within the index view
     fn handle_index_view_event(&mut self, event: &DriveIndexEvent, ctx: &mut ViewContext<Self>) {
         match event {
-            DriveIndexEvent::CreateNotebook {
-                space,
-                title,
-                initial_folder_id,
-            } => match Self::new_object_owner(*space, initial_folder_id.as_ref(), ctx) {
-                Some(owner) => {
-                    ctx.emit(DrivePanelEvent::OpenNotebook(NotebookSource::New {
-                        title: title.clone(),
-                        owner,
-                        initial_folder_id: *initial_folder_id,
-                    }));
-                }
-                None => {
-                    report_error!(
-                        "Cannot identify a notebook owner",
-                        extra: { "space" => ?space }
-                    );
-                }
-            },
             DriveIndexEvent::OpenImportModal {
                 space,
                 initial_folder_id,
@@ -263,11 +241,6 @@ impl DrivePanel {
                 let cloud_model = CloudModel::as_ref(ctx);
                 let object = cloud_model.get_by_uid(&cloud_object_type_and_id.uid());
 
-                let notebook_id = object.and_then(|object| {
-                    let notebook: Option<&CloudNotebook> = object.into();
-                    notebook.map(|notebook| notebook.id)
-                });
-
                 let workflow: Option<&CloudWorkflow> = object.and_then(|object| object.into());
 
                 let env_var_collection_id = object.and_then(|object| {
@@ -275,9 +248,7 @@ impl DrivePanel {
                     env_var_collection.map(|env_var_collection| env_var_collection.id)
                 });
 
-                if let Some(notebook_id) = notebook_id {
-                    self.open_existing_notebook(notebook_id, ctx);
-                } else if let Some(workflow) = workflow {
+                if let Some(workflow) = workflow {
                     self.open_workflow_modal_with_existing(workflow.id, ctx);
                 } else if let Some(env_var_collection_id) = env_var_collection_id {
                     self.open_existing_env_var_collection(env_var_collection_id, ctx);
@@ -523,13 +494,6 @@ impl DrivePanel {
             space,
             initial_folder_id,
         });
-    }
-
-    pub fn open_existing_notebook(&self, notebook_id: SyncId, ctx: &mut ViewContext<Self>) {
-        ctx.emit(DrivePanelEvent::OpenNotebook(NotebookSource::Existing(
-            notebook_id,
-        )));
-        ctx.notify();
     }
 
     pub fn open_workflow_modal_with_existing(

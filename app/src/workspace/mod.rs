@@ -676,33 +676,6 @@ pub fn init(app: &mut AppContext) {
         .with_group(bindings::BindingGroup::Navigation.as_str())
         .with_custom_action(CustomAction::ActivateNextPane),
         EditableBinding::new(
-            "workspace:create_team_notebook",
-            BindingDescription::new(t!("command-new-team-notebook")).with_custom_description(
-                bindings::MAC_MENUS_CONTEXT,
-                t!("command-new-team-notebook-mac"),
-            ),
-            WorkspaceAction::CreateTeamNotebook,
-        )
-        .with_custom_action(CustomAction::NewTeamNotebook)
-        .with_context_predicate(
-            id!("Workspace")
-                & id!(flags::ENABLE_WARP_DRIVE)
-                & id!("WarpDrive_BelongsToTeam")
-                & id!("IsOnline"),
-        )
-        .with_group(bindings::BindingGroup::Notebooks.as_str()),
-        EditableBinding::new(
-            "workspace:create_personal_notebook",
-            BindingDescription::new(t!("command-new-personal-notebook")).with_custom_description(
-                bindings::MAC_MENUS_CONTEXT,
-                t!("command-new-personal-notebook-mac"),
-            ),
-            WorkspaceAction::CreatePersonalNotebook,
-        )
-        .with_group(bindings::BindingGroup::Notebooks.as_str())
-        .with_custom_action(CustomAction::NewPersonalNotebook)
-        .with_context_predicate(id!("Workspace") & id!(flags::ENABLE_WARP_DRIVE)),
-        EditableBinding::new(
             "workspace:create_team_workflow",
             BindingDescription::new(t!("command-new-team-workflow")).with_custom_description(
                 bindings::MAC_MENUS_CONTEXT,

@@ -10,6 +10,7 @@ use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::conversation_details_panel::{
     ConversationDetailsData, ConversationDetailsPanel, ConversationDetailsPanelEvent,
 };
+use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel};
 use crate::terminal::TerminalView;
 use crate::ui_components::icons;
 use crate::uri::browser_url_handler::parse_current_url;
@@ -18,7 +19,7 @@ use crate::view_components::action_button::{
 };
 use crate::wasm_nux_dialog::{WasmNUXDialog, WasmNUXDialogEvent};
 use crate::workspace::action::WorkspaceAction;
-use crate::workspace::view::{NotebookSource, OpenWarpDriveObjectSettings, Workspace};
+use crate::workspace::view::Workspace;
 
 const TRANSCRIPT_PANEL_WIDTH: f32 = 280.0;
 
@@ -95,13 +96,25 @@ impl Workspace {
                 });
                 ctx.notify();
             }
-            ConversationDetailsPanelEvent::OpenPlanNotebook { notebook_uid } => {
-                me.open_notebook(
-                    &NotebookSource::Existing((*notebook_uid).into()),
-                    &OpenWarpDriveObjectSettings::default(),
-                    ctx,
-                    true,
-                );
+            ConversationDetailsPanelEvent::OpenPlan { document_uid } => {
+                if let Ok(document_id) = AIDocumentId::try_from(document_uid.as_str()) {
+                    let document_version = AIDocumentModel::as_ref(ctx)
+                        .get_current_document(&document_id)
+                        .map(|doc| doc.version)
+                        .unwrap_or_default();
+                    if let Some(conversation_id) = AIDocumentModel::as_ref(ctx)
+                        .get_conversation_id_for_document_id(&document_id)
+                    {
+                        me.active_tab_pane_group().update(ctx, |pane_group, ctx| {
+                            pane_group.open_ai_document_pane(
+                                conversation_id,
+                                document_id,
+                                document_version,
+                                ctx,
+                            );
+                        });
+                    }
+                }
             }
         });
 

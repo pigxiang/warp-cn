@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
 use ai::agent::orchestration_config::{OrchestrationConfig, OrchestrationConfigStatus};
-use ai::document::AIDocumentId;
 use ai::skills::SkillPathOrigin;
 use anyhow::Context as _;
 use chrono::{DateTime, Local, TimeZone};
@@ -65,7 +64,6 @@ use crate::ai::blocklist::{
 use crate::ai::llms::LLMPreferences;
 use crate::ai::skills::SkillDescriptor;
 use crate::code_review::CodeReviewTelemetryEvent;
-use crate::notebooks::NotebookId;
 use crate::persistence::ModelEvent;
 use crate::persistence::model::{
     AgentConversationData, ChargedUsageTotals, ContextWindowSegment, ConversationUsageMetadata,
@@ -1845,38 +1843,6 @@ impl AIConversation {
             conversation_id: self.id,
             artifact,
         });
-    }
-
-    /// Updates the notebook_uid for a plan artifact when it's synced to Warp Drive.
-    pub fn update_plan_notebook_uid(
-        &mut self,
-        document_uid: AIDocumentId,
-        notebook_uid: NotebookId,
-        terminal_surface_id: Option<EntityId>,
-        ctx: &mut ModelContext<BlocklistAIHistoryModel>,
-    ) {
-        let document_uid = document_uid.to_string();
-        for artifact in &mut self.artifacts {
-            if let Artifact::Plan {
-                document_uid: doc_uid,
-                notebook_uid: nb_uid,
-                ..
-            } = artifact
-                && doc_uid == &document_uid
-            {
-                *nb_uid = Some(notebook_uid);
-                let updated_artifact = artifact.clone();
-                self.write_updated_conversation_state(ctx);
-                if let Some(terminal_surface_id) = terminal_surface_id {
-                    ctx.emit(BlocklistAIHistoryEvent::UpdatedConversationArtifacts {
-                        terminal_surface_id,
-                        conversation_id: self.id,
-                        artifact: updated_artifact,
-                    });
-                }
-                return;
-            }
-        }
     }
 
     pub fn initial_query(&self) -> Option<String> {
