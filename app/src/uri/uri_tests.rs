@@ -859,10 +859,6 @@ fn test_settings_section_for_simple_subpage() {
         Some(SettingsSection::Appearance),
     );
     assert_eq!(
-        settings_section_for_simple_subpage("billing_and_usage"),
-        Some(SettingsSection::BillingAndUsage),
-    );
-    assert_eq!(
         settings_section_for_simple_subpage("platform"),
         Some(SettingsSection::WarpCloudAgentAPIKeys),
     );
@@ -905,7 +901,7 @@ fn test_url_reports_checkout_success() {
     // The flag is not tied to the auth host: an older confirmation page can
     // still send it on the settings deeplink.
     let on_settings = Url::parse(&format!(
-        "{scheme}://settings/billing_and_usage?checkoutSuccessful=true"
+        "{scheme}://settings/appearance?checkoutSuccessful=true"
     ))
     .unwrap();
     assert!(url_reports_checkout_success(&on_settings));

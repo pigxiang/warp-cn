@@ -388,7 +388,6 @@ impl UriHost {
                 // - warp://settings?q={query} - opens settings with the search bar pre-filled
                 // - warp://settings?widget={widget_id} - opens settings scrolled to a widget
                 // - warp://settings/teams?invite={email} - opens team settings with invite modal
-                // - warp://settings/billing_and_usage - opens billing and usage settings page
                 // - warp://settings/environments - opens environments settings page
                 // - warp://settings/mcp - opens MCP servers settings page
                 // - warp://settings/platform - opens platform settings page
@@ -453,8 +452,8 @@ impl UriHost {
                     }
                     // No special sub-page: route the bare host, the `q` (search) and
                     // `widget` (scroll-to) query params, and the simple section
-                    // sub-pages (e.g. billing_and_usage, platform, appearance,
-                    // warp_agent) resolved via `settings_section_for_simple_subpage`.
+                    // sub-pages (e.g. platform, appearance, warp_agent) resolved via
+                    // `settings_section_for_simple_subpage`.
                     maybe_simple_subpage => {
                         let simple_section =
                             maybe_simple_subpage.and_then(settings_section_for_simple_subpage);
@@ -1696,7 +1695,6 @@ fn dispatch_action_in_new_or_existing_window<T: 'static>(
 
 fn settings_section_for_simple_subpage(subpage: &str) -> Option<SettingsSection> {
     match subpage {
-        "billing_and_usage" => Some(SettingsSection::BillingAndUsage),
         "platform" => Some(SettingsSection::WarpCloudAgentAPIKeys),
         "appearance" => Some(SettingsSection::Appearance),
         "warp_agent" => Some(SettingsSection::WarpAgent),

@@ -1008,9 +1008,6 @@ impl Input {
             SlashCommandKind::Rewind => {
                 self.open_rewind_menu(ctx);
             }
-            SlashCommandKind::Usage => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenBillingAndUsagePane);
-            }
             SlashCommandKind::RemoteControl => {
                 if !FeatureFlag::CreatingSharedSessions.is_enabled()
                     || !FeatureFlag::HOARemoteControl.is_enabled()
@@ -1303,6 +1300,7 @@ impl Input {
             | SlashCommandKind::ConnectGrok
             | SlashCommandKind::Upgrade
             | SlashCommandKind::ManageBilling
+            | SlashCommandKind::Usage
             | SlashCommandKind::ViewLogs
             | SlashCommandKind::Voice
             | SlashCommandKind::NaturalLanguageDetection

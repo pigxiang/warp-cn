@@ -328,7 +328,6 @@ pub enum SettingsSection {
     About,
     #[default]
     Account,
-    BillingAndUsage,
     Appearance,
     Features,
     Keybindings,
@@ -361,9 +360,6 @@ impl Display for SettingsSection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SettingsSection::Account => write!(f, "{}", warp_i18n::t!("settings-section-account")),
-            SettingsSection::BillingAndUsage => {
-                write!(f, "{}", warp_i18n::t!("settings-section-billing-usage"))
-            }
             SettingsSection::Teams => write!(f, "{}", warp_i18n::t!("settings-section-teams")),
             SettingsSection::Appearance => {
                 write!(f, "{}", warp_i18n::t!("settings-section-appearance"))
@@ -446,7 +442,6 @@ impl SettingsSection {
         match self {
             Self::About => "About",
             Self::Account => "Account",
-            Self::BillingAndUsage => "Billing and usage",
             Self::Appearance => "Appearance",
             Self::Features => "Features",
             Self::Keybindings => "Keyboard shortcuts",
@@ -482,7 +477,6 @@ impl SettingsSection {
         let section = match slug {
             "About" => Self::About,
             "Account" => Self::Account,
-            "Billing and usage" => Self::BillingAndUsage,
             "Appearance" => Self::Appearance,
             "Features" => Self::Features,
             "Keyboard shortcuts" => Self::Keybindings,
