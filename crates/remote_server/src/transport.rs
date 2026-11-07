@@ -34,6 +34,8 @@ pub enum InstallSource {
     Server,
     /// The client downloaded the binary locally and uploaded it via SCP.
     Client,
+    /// The client uploaded a locally provisioned (manually built) binary via SCP.
+    Local,
 }
 
 /// Result of [`RemoteTransport::install_binary`], bundling the install

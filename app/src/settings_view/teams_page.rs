@@ -51,12 +51,12 @@ use crate::auth::auth_manager::{AuthManager, LoginGatedFeature};
 use crate::auth::auth_state::AuthState;
 use crate::auth::auth_view_modal::AuthViewVariant;
 use crate::auth::{AuthStateProvider, UserUid};
-use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{CloudObjectEventEntrypoint, Space};
-use crate::drive::cloud_action_confirmation_dialog::{
+use crate::cloud_object::cloud_action_confirmation_dialog::{
     CloudActionConfirmationDialog, CloudActionConfirmationDialogEvent,
     CloudActionConfirmationDialogVariant,
 };
+use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::{CloudObjectEventEntrypoint, Space};
 use crate::editor::{
     EditorView, Event as EditorEvent, InteractionState, SingleLineEditorOptions, TextOptions,
 };
@@ -271,7 +271,6 @@ pub enum TeamsPageAction {
     SendEmailInvites {
         team_uid: ServerId,
     },
-    OpenWarpDrive,
     GenerateUpgradeLink {
         team_uid: ServerId,
     },
@@ -401,7 +400,6 @@ impl TryFrom<&TeamsPageAction> for TelemetryEvent {
 #[derive(Clone)]
 pub enum TeamsPageViewEvent {
     TeamsChanged,
-    OpenWarpDrive,
     ShowToast {
         message: String,
         flavor: ToastFlavor,
@@ -815,7 +813,6 @@ impl TypedActionView for TeamsPageView {
                 self.join_workspace_from_discovery(*workspace_uid, *team_uid, ctx);
                 ctx.notify();
             }
-            TeamsPageAction::OpenWarpDrive => ctx.emit(TeamsPageViewEvent::OpenWarpDrive),
             TeamsPageAction::ShowLeaveTeamConfirmationDialog => {
                 let variant = self.leave_team_confirmation_variant(ctx);
                 self.show_team_action_confirmation(
@@ -2176,7 +2173,6 @@ impl TeamsPageView {
                 ctx,
             );
         });
-        ctx.dispatch_typed_action(&WorkspaceAction::OpenWarpDrive);
     }
 
     fn set_team_member_role(
@@ -3556,28 +3552,6 @@ impl TeamsWidget {
                     .with_margin_right(64.)
                     .finish(),
             );
-        }
-
-        if let Some(policy) = team.billing_metadata.tier.shared_workflows_policy
-            && !policy.is_unlimited
-        {
-            let mut shared_workflows_column = Flex::column();
-            shared_workflows_column.add_child(self.render_plan_usage_header(
-                warp_i18n::t!("settings-teams-plan-shared-workflows"),
-                appearance,
-            ));
-            let num_shared_workflows = cloud_model
-                .active_workflows_in_space(Space::Team { team_uid: team.uid }, app)
-                .count();
-            shared_workflows_column.add_child(
-                Container::new(self.render_plan_usage_text(
-                    format!("{}/{}", num_shared_workflows, policy.limit),
-                    appearance,
-                ))
-                .with_margin_top(4.)
-                .finish(),
-            );
-            shared_objects_usage_row.add_child(shared_workflows_column.finish());
         }
 
         section.add_child(

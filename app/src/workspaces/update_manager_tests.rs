@@ -11,6 +11,7 @@ use crate::ai::llms::{AvailableLLMs, LLMId, LLMInfo, LLMPreferences, ModelsByFea
 use crate::auth::AuthManager;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::{CloudWorkflow, CloudWorkflowModel, WorkflowId};
 use crate::cloud_object::{Owner, Revision, ServerMetadata, ServerPermissions, ServerWorkflow};
 use crate::server::cloud_objects::update_manager::InitialLoadResponse;
 use crate::server::ids::SyncId;
@@ -20,13 +21,12 @@ use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings::{AISettings, CodeSettings, PrivacySettings};
 use crate::system::SystemStats;
-use crate::workflows::workflow::Workflow;
-use crate::workflows::{CloudWorkflow, CloudWorkflowModel, WorkflowId};
 use crate::workspaces::team::Team;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::workspace::{
     ChargeUnit, PurchaseAddOnCreditsPolicy, UserTier, Workspace, WorkspaceUid,
 };
+use cloud_object_models::Workflow;
 
 fn initialize_app(
     team_client: Arc<dyn TeamClient>,

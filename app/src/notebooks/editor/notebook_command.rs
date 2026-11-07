@@ -47,8 +47,9 @@ use super::view::EditorViewAction;
 use super::{NotebookWorkflow, rich_text_styles};
 use crate::ASSETS;
 use crate::appearance::Appearance;
+use crate::cloud_object::workflow_arguments::ArgumentsState;
+use crate::cloud_object::workflow_content::WorkflowType;
 use crate::completer::SessionAgnosticContext;
-use crate::drive::workflows::arguments::ArgumentsState;
 use crate::editor::InteractionState;
 use crate::features::FeatureFlag;
 use crate::menu::MenuItemFields;
@@ -67,9 +68,8 @@ use crate::util::bindings::CustomAction;
 use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
 use crate::view_components::Dropdown;
 use crate::view_components::dropdown::DropdownAction;
-use crate::workflows::WorkflowType;
-use crate::workflows::workflow::Workflow;
 use crate::workspace::WorkspaceAction;
+use cloud_object_models::Workflow;
 
 lazy_static! {
     static ref SUPPORTED_LANGUAGES: &'static [&'static str] = &[

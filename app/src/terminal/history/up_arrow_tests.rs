@@ -16,16 +16,13 @@ use crate::settings::AISettings;
 use crate::suggestions::ignored_suggestions_model::{IgnoredSuggestionsModel, SuggestionType};
 use crate::terminal::model::session::command_executor::NoOpCommandExecutor;
 use crate::terminal::model::session::{Session, SessionInfo};
-use crate::terminal::{History, HistoryEntry, LinkedWorkflowData};
+use crate::terminal::{History, HistoryEntry};
 use crate::test_util::settings::initialize_settings_for_tests;
 
 #[derive(Debug, PartialEq, Eq)]
 enum TestHistoryItem {
     Prompt(String),
-    Command {
-        text: String,
-        linked_workflow_data: Option<LinkedWorkflowData>,
-    },
+    Command { text: String },
 }
 
 impl TestHistoryItem {
@@ -64,7 +61,6 @@ fn command_entry(
     command: &str,
     age: i64,
     is_agent_executed: bool,
-    workflow_command: Option<&str>,
 ) -> HistoryEntry {
     HistoryEntry {
         session_id: Some(session_id),
@@ -75,8 +71,6 @@ fn command_entry(
         exit_code: None,
         git_head: None,
         shell_host: None,
-        workflow_id: None,
-        workflow_command: workflow_command.map(str::to_owned),
         is_for_restored_block: false,
         is_agent_executed,
     }
@@ -103,10 +97,7 @@ fn combined_history(
         .map(|suggestion| {
             let text = suggestion.normalized_text().to_owned();
             match suggestion {
-                HistoryInputSuggestion::Command { entry } => TestHistoryItem::Command {
-                    text,
-                    linked_workflow_data: entry.linked_workflow_data(),
-                },
+                HistoryInputSuggestion::Command { .. } => TestHistoryItem::Command { text },
                 HistoryInputSuggestion::AIQuery { .. } => TestHistoryItem::Prompt(text),
             }
         })
@@ -218,10 +209,10 @@ fn combined_history_dedupes_each_kind() {
             &mut app,
             session_id,
             vec![
-                command_entry(session_id, " same ", 0, false, None),
-                command_entry(session_id, "older command", 1, false, None),
-                command_entry(session_id, "same", 2, false, None),
-                command_entry(session_id, "   ", 3, false, None),
+                command_entry(session_id, " same ", 0, false),
+                command_entry(session_id, "older command", 1, false),
+                command_entry(session_id, "same", 2, false),
+                command_entry(session_id, "   ", 3, false),
             ],
         )
         .await;
@@ -234,47 +225,9 @@ fn combined_history_dedupes_each_kind() {
                     TestHistoryItem::Prompt("same".to_owned()),
                     TestHistoryItem::Command {
                         text: "older command".to_owned(),
-                        linked_workflow_data: None,
                     },
                     TestHistoryItem::Command {
-                        text: "same".to_owned(),
-                        linked_workflow_data: None,
-                    },
-                ]
-            );
-        });
-    });
-}
-
-#[test]
-fn combined_history_preserves_command_workflow_data() {
-    App::test((), |mut app| async move {
-        let terminal_surface_id = EntityId::new();
-        let session_id = SessionId::from(1);
-        app.add_singleton_model(|_| build_history_model(vec!["prompt".to_owned()]));
-        add_command_history(
-            &mut app,
-            session_id,
-            vec![command_entry(
-                session_id,
-                "deploy",
-                0,
-                false,
-                Some("deploy {{environment}}"),
-            )],
-        )
-        .await;
-
-        app.read(|ctx| {
-            assert_eq!(
-                combined_history(terminal_surface_id, session_id, true, ctx),
-                vec![
-                    TestHistoryItem::Prompt("prompt".to_owned()),
-                    TestHistoryItem::Command {
-                        text: "deploy".to_owned(),
-                        linked_workflow_data: Some(LinkedWorkflowData::Command(
-                            "deploy {{environment}}".to_owned(),
-                        )),
+                        text: "same".to_owned()
                     },
                 ]
             );
@@ -294,8 +247,8 @@ fn combined_history_excludes_ignored_prompts_and_commands() {
             &mut app,
             session_id,
             vec![
-                command_entry(session_id, "keep command", 0, false, None),
-                command_entry(session_id, "ignore command", 1, false, None),
+                command_entry(session_id, "keep command", 0, false),
+                command_entry(session_id, "ignore command", 1, false),
             ],
         )
         .await;
@@ -330,8 +283,8 @@ fn combined_history_respects_agent_command_setting() {
             &mut app,
             session_id,
             vec![
-                command_entry(session_id, "user command", 0, false, None),
-                command_entry(session_id, "agent command", 1, true, None),
+                command_entry(session_id, "user command", 0, false),
+                command_entry(session_id, "agent command", 1, true),
             ],
         )
         .await;

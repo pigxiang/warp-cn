@@ -14,10 +14,10 @@ use warpui::{
 };
 
 use super::{AIFact, CloudAIFact, CloudAIFactModel};
+use crate::cloud_object::CloudObjectTypeAndId;
 use crate::cloud_object::{
     CloudObject, CloudObjectSyncStatus, GenericStringObjectFormat, JsonObjectType,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::network::NetworkStatus;
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view;

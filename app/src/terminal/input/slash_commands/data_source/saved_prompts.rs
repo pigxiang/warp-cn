@@ -7,6 +7,7 @@ use warpui::fonts::FamilyId;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::cloud_object::CloudObject;
+use crate::cloud_object::CloudWorkflowModel;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::search::FuzzyMatchWorkflowResult;
 use crate::search::async_snapshot_data_source::AsyncSnapshotDataSource;
@@ -15,7 +16,6 @@ use crate::search::mixer::{BoxFuture, DataSourceRunErrorWrapper};
 use crate::server::ids::SyncId;
 use crate::settings::AISettings;
 use crate::terminal::input::slash_commands::{AcceptSlashCommandOrSavedPrompt, InlineItem};
-use crate::workflows::CloudWorkflowModel;
 
 pub(super) struct SavedPromptCandidate {
     pub(super) id: SyncId,

@@ -31,11 +31,11 @@ use warp::tui_export::{
     CloudConversationData, CommandExecutionSource, ConversationFileExport, ConversationSelection,
     ConversationSelectionHandle, ExecuteCommandEvent, FORK_PREFIX, ForkConversationError,
     GetRelevantFilesController, GitHubRepoModel, GitRepoStatusModel, LLMId, LLMPreferences,
-    LLMPreferencesEvent, LOCAL_SKILLS_REMOTE_EXECUTION_ERROR_MESSAGE, LinkedWorkflowData,
-    ModelEvent, ParsedSlashCommandInput, PersistenceWriter, PillBarActionKind,
-    PillBarInteractionEvent, PillBarPillKind, PillSwitchOutcome, PtyIntent, PtyIntentEvent,
-    QueuedQueryEvent, QueuedQueryModel, RepoDetectionSessionType, RepoDetectionSource,
-    ResolvedTeamScope, ServerConversationToken, ServerId, SessionSettings, Sessions, SessionsEvent,
+    LLMPreferencesEvent, LOCAL_SKILLS_REMOTE_EXECUTION_ERROR_MESSAGE, ModelEvent,
+    ParsedSlashCommandInput, PersistenceWriter, PillBarActionKind, PillBarInteractionEvent,
+    PillBarPillKind, PillSwitchOutcome, PtyIntent, PtyIntentEvent, QueuedQueryEvent,
+    QueuedQueryModel, RepoDetectionSessionType, RepoDetectionSource, ResolvedTeamScope,
+    ServerConversationToken, ServerId, SessionSettings, Sessions, SessionsEvent,
     ShellCommandExecutorEvent, SizeInfo, SizeUpdate, SkillReference, SlashCommandDataSource as _,
     SlashCommandKind, SlashCommandSelectionBehavior, StartAgentExecutorEvent, StartAgentRequest,
     StaticCommand, TelemetryEvent, TerminalModel, TerminalSurface, TerminalSurfaceInit,
@@ -1962,7 +1962,7 @@ impl TuiTerminalSessionView {
 
         ctx.subscribe_to_view(&input_view, |view, _, event, ctx| match event {
             TuiInputViewEvent::FocusRequested => view.reconcile_focus(ctx),
-            TuiInputViewEvent::Submitted(text) => view.handle_submitted(text.clone(), None, ctx),
+            TuiInputViewEvent::Submitted(text) => view.handle_submitted(text.clone(), ctx),
             TuiInputViewEvent::Pasted(text) => view.handle_pasted(text.clone(), ctx),
             TuiInputViewEvent::BackspaceAtEmptyInput => {
                 view.attachment_bar
@@ -3941,12 +3941,7 @@ impl TuiTerminalSessionView {
 
     /// Routes a submission to shell execution or the agent conversation based
     /// on the input mode.
-    fn handle_submitted(
-        &mut self,
-        text: String,
-        linked_workflow_data: Option<LinkedWorkflowData>,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn handle_submitted(&mut self, text: String, ctx: &mut ViewContext<Self>) {
         self.session_state.update(ctx, |state, ctx| {
             state.dismiss_first_zero_state(ctx);
         });
@@ -3965,27 +3960,21 @@ impl TuiTerminalSessionView {
             self.input_view
                 .update(ctx, |input, ctx| input.lock_for_agent_control(ctx));
         } else if self.is_shell_mode(ctx) {
-            self.execute_user_command(&text, linked_workflow_data, ctx);
+            self.execute_user_command(&text, ctx);
         } else {
             self.handle_submitted_input(&text, ctx);
         }
         ctx.notify();
     }
 
-    /// Executes `command` in the session's PTY as a user command, preserving
-    /// workflow origin metadata when it was recalled from history.
+    /// Executes `command` in the session's PTY as a user command.
     ///
     /// Mirrors the GUI's shell-mode submission: rejected while the agent holds
     /// the PTY with an active long-running command (the input keeps its text
     /// and a transient hint is shown), and an in-progress conversation is
     /// cancelled when the command runs. On success the input clears and exits
     /// shell mode back to agent input.
-    fn execute_user_command(
-        &mut self,
-        command: &str,
-        linked_workflow_data: Option<LinkedWorkflowData>,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn execute_user_command(&mut self, command: &str, ctx: &mut ViewContext<Self>) {
         // A whitespace-only command is a no-op; stay in shell mode. The command
         // itself is sent to the PTY untrimmed, exactly as typed.
         if command.trim().is_empty() {
@@ -4033,17 +4022,10 @@ impl TuiTerminalSessionView {
             }
         }
 
-        let (workflow_id, workflow_command) = match linked_workflow_data {
-            Some(LinkedWorkflowData::Id(workflow_id)) => (Some(workflow_id), None),
-            Some(LinkedWorkflowData::Command(workflow_command)) => (None, Some(workflow_command)),
-            None => (None, None),
-        };
         ctx.emit(TuiTerminalSessionEvent::ExecuteCommand(Box::new(
             ExecuteCommandEvent {
                 command: command.to_owned(),
                 session_id,
-                workflow_id,
-                workflow_command,
                 should_add_command_to_history: true,
                 source: CommandExecutionSource::User,
             },
@@ -4422,22 +4404,14 @@ impl TuiTerminalSessionView {
         kind: TuiUpArrowHistoryItemKind,
         ctx: &mut ViewContext<Self>,
     ) {
-        let linked_workflow_data = self.input_view.update(ctx, |input, ctx| {
+        self.input_view.update(ctx, |input, ctx| {
             input.set_text(&text, ctx);
             match kind {
-                TuiUpArrowHistoryItemKind::Prompt => {
-                    input.exit_shell_mode(ctx);
-                    None
-                }
-                TuiUpArrowHistoryItemKind::Command {
-                    linked_workflow_data,
-                } => {
-                    input.enter_shell_mode(ctx);
-                    linked_workflow_data
-                }
+                TuiUpArrowHistoryItemKind::Prompt => input.exit_shell_mode(ctx),
+                TuiUpArrowHistoryItemKind::Command => input.enter_shell_mode(ctx),
             }
         });
-        self.handle_submitted(text, linked_workflow_data, ctx);
+        self.handle_submitted(text, ctx);
     }
 
     /// Handles a mouse-click accept on the inline menu: selects the row at

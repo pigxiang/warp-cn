@@ -26,10 +26,13 @@ use crate::ai::execution_profiles::CloudAIExecutionProfileModel;
 use crate::ai::facts::CloudAIFactModel;
 use crate::ai::mcp::CloudMCPServerModel;
 use crate::ai::mcp::templatable::CloudTemplatableMCPServerModel;
+use crate::cloud_object::CloudObjectTypeAndId;
+use crate::cloud_object::CloudWorkflowModel;
 use crate::cloud_object::model::actions::{
     ObjectAction, ObjectActionHistory, ObjectActionSubtype, ObjectActionType,
 };
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
+use crate::cloud_object::model::workflow_enum::CloudWorkflowEnumModel;
 use crate::cloud_object::{
     BulkCreateCloudObjectResult, BulkCreateGenericStringObjectsRequest, CloudModelType,
     CloudObject, CloudObjectEventEntrypoint, CreateCloudObjectResult, CreateObjectRequest,
@@ -37,14 +40,11 @@ use crate::cloud_object::{
     ObjectType, Owner, Revision, RevisionAndLastEditor, ServerCloudObject, ServerCreationInfo,
     UpdateCloudObjectResult,
 };
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::folders::CloudFolderModel;
 use crate::env_vars::CloudEnvVarCollectionModel;
 use crate::notebooks::CloudNotebookModel;
 use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::settings::cloud_preferences::CloudPreferenceModel;
-use crate::workflows::CloudWorkflowModel;
-use crate::workflows::workflow_enum::CloudWorkflowEnumModel;
+use cloud_object_models::CloudFolderModel;
 
 lazy_static! {
     static ref DEFAULT_RETRY_OPTION: RetryOption =

@@ -55,7 +55,6 @@ use crate::settings::{
 };
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::shared_session::manager::Manager as SharedSessionManager;
-use crate::workflows::manager::WorkflowManager;
 use crate::workspace::{OneTimeModalModel, Workspace, WorkspaceAction};
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::{
@@ -335,7 +334,6 @@ pub fn log_out(app: &mut AppContext) {
     });
 
     EnvVarCollectionManager::handle(app).update(app, |manager, _| manager.reset());
-    WorkflowManager::handle(app).update(app, |manager, _| manager.reset());
 
     // Stop and leave all shared sessions
     SharedSessionManager::handle(app).update(app, |manager, ctx| {

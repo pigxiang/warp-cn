@@ -26,10 +26,12 @@ use warp_core::features::FeatureFlag;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::ai_assistant::{
-    requests::GenerateDialogueResult, utils::TranscriptPart, AIGeneratedCommand,
-    GenerateCommandsFromNaturalLanguageError,
+    AIGeneratedCommand, GenerateCommandsFromNaturalLanguageError, requests::GenerateDialogueResult,
+    utils::TranscriptPart,
 };
-use crate::drive::workflows::ai_assist::{GeneratedCommandMetadata, GeneratedCommandMetadataError};
+use crate::server::server_api::generated_command_metadata::{
+    GeneratedCommandMetadata, GeneratedCommandMetadataError,
+};
 
 /// Resolved provider configuration ready to be sent on the wire.
 #[derive(Debug, Clone)]

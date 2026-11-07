@@ -19,11 +19,16 @@ use crate::ai::cloud_environments::{
 };
 use crate::auth::UserUid;
 use crate::auth::user::TEST_USER_UID;
+use crate::cloud_object::CloudObjectTypeAndId;
 use crate::cloud_object::model::actions::{
     ObjectAction, ObjectActionHistory, ObjectActionSubtype, ObjectActionType, ObjectActions,
 };
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, UpdateSource};
+use crate::cloud_object::model::workflow_enum::{
+    CloudWorkflowEnum, CloudWorkflowEnumModel, WorkflowEnum,
+};
+use crate::cloud_object::sharing::{SharingAccessLevel, Subject, UserKind};
 use crate::cloud_object::{
     BulkCreateCloudObjectResult, CloudModelType, CloudObjectEventEntrypoint, CloudObjectGuest,
     CloudObjectLocation, ConflictStatus, CreateCloudObjectResult, CreatedCloudObject,
@@ -33,9 +38,7 @@ use crate::cloud_object::{
     ServerNotebook, ServerObject, ServerObjectGuest, ServerPreference, ServerWorkflow,
     ServerWorkflowEnum, Space, UpdateCloudObjectResult,
 };
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::folders::{CloudFolder, CloudFolderModel, FolderId};
-use crate::drive::sharing::{SharingAccessLevel, Subject, UserKind};
+use crate::cloud_object::{CloudWorkflow, CloudWorkflowModel, WorkflowId};
 use crate::notebooks::{CloudNotebook, CloudNotebookModel, NotebookId};
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::listener::ObjectUpdateMessage;
@@ -51,12 +54,11 @@ use crate::server::ids::{
 };
 use crate::server::sync_queue::SyncQueue;
 use crate::settings::{CloudPreferenceModel, Preference};
-use crate::workflows::workflow::{Argument, ArgumentType, Workflow};
-use crate::workflows::workflow_enum::{
-    CloudWorkflowEnum, CloudWorkflowEnumModel, EnumVariants, WorkflowEnum,
-};
-use crate::workflows::{CloudWorkflow, CloudWorkflowModel, WorkflowId};
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
+use cloud_object_models::EnumVariants;
+use cloud_object_models::{Argument, ArgumentType, Workflow};
+use cloud_object_models::{CloudFolder, CloudFolderModel};
+use warp_server_client::ids::FolderId;
 
 fn create_object<K, M>(
     app: &mut App,
@@ -1948,308 +1950,6 @@ fn test_sync_state_after_object_with_dependencies_created() {
                 false
             }
         });
-    })
-}
-
-#[test]
-fn test_fetch_single_cloud_object_not_pending_no_overwrite() {
-    App::test(ASSETS, |mut app| async move {
-        initialize_app(&mut app);
-        let mut server_api = mock_server_api();
-        let client_id = ClientId::new();
-        let server_id: ServerId = 123.into();
-        let workflow_id: WorkflowId = server_id.into();
-        let sync_id = SyncId::ServerId(workflow_id.into());
-
-        mock_create_workflow(client_id, &mut server_api, workflow_id);
-        mock_fetch_single_cloud_object(&mut server_api, workflow_id, server_id);
-
-        let update_manager_struct = create_update_manager_struct(&mut app, Arc::new(server_api));
-
-        // create a workflow
-        create_workflow(client_id, &mut app, &update_manager_struct.update_manager);
-        // complete the workflow create request
-        SyncQueue::handle(&app)
-            .update(&mut app, |sync_queue, ctx| {
-                ctx.await_spawned_future(sync_queue.spawned_futures()[0])
-            })
-            .await;
-
-        // Flush cloud model events.
-        let _ = cloud_events(&update_manager_struct);
-
-        // call to fetch the server's representation of this object.
-        // because our in-memory workflow doesn't have any pending changes,
-        // this will simply overwrite it with the server version.
-        update_manager_struct
-            .update_manager
-            .update(&mut app, |update_manager, ctx| {
-                let fetch_cloud_object_rx = update_manager.fetch_single_cloud_object(
-                    &server_id,
-                    FetchSingleObjectOption::None,
-                    ctx,
-                );
-                std::mem::drop(fetch_cloud_object_rx);
-                ctx.await_spawned_future(update_manager.spawned_futures[0])
-            })
-            .await;
-
-        assert_workflow_name(&mut app, sync_id, "server workflow");
-
-        let events = db_events(&update_manager_struct);
-
-        assert_eq!(events.len(), 6);
-        // we created a workflow in the db
-        assert!(matches!(
-            &events[0],
-            ModelEvent::UpsertWorkflow { workflow: _ }
-        ));
-        // the successful create triggered a set of the server id
-        assert!(matches!(
-            &events[1],
-            ModelEvent::UpdateObjectAfterServerCreation {
-                client_id: _,
-                server_creation_info: _
-            }
-        ));
-        // because the object had no in flight requests, it was marked as synced in the db
-        assert!(matches!(
-            &events[2],
-            ModelEvent::MarkObjectAsSynced {
-                hashed_sqlite_id: _,
-                revision_and_editor: _,
-                metadata_ts: _
-            }
-        ));
-        assert!(matches!(
-            &events[3],
-            ModelEvent::SyncObjectActions { actions_to_sync: _ }
-        ));
-        // lastly, we upserted the workflow when we got the server version back
-        assert!(matches!(
-            &events[4],
-            ModelEvent::UpsertWorkflow { workflow: _ }
-        ));
-        assert!(matches!(
-            &events[5],
-            ModelEvent::SyncObjectActions { actions_to_sync: _ }
-        ));
-
-        // We emitted an event that the workflow changed.
-        let events = cloud_events(&update_manager_struct);
-        assert_eq!(
-            events,
-            vec![CloudModelEvent::ObjectUpdated {
-                type_and_id: CloudObjectTypeAndId::from_id_and_type(sync_id, ObjectType::Workflow),
-                source: UpdateSource::Server
-            }]
-        );
-    })
-}
-
-#[test]
-fn test_fetch_single_cloud_object_pending_no_overwrite() {
-    App::test(ASSETS, |mut app| async move {
-        initialize_app(&mut app);
-        let mut server_api = mock_server_api();
-        let server_id: ServerId = 123.into();
-        let workflow_id: WorkflowId = server_id.into();
-        let client_id = ClientId::new();
-        let sync_id = SyncId::ServerId(server_id);
-
-        mock_create_workflow(client_id, &mut server_api, workflow_id);
-        mock_fetch_single_cloud_object(&mut server_api, workflow_id, server_id);
-
-        let update_manager_struct = create_update_manager_struct(&mut app, Arc::new(server_api));
-
-        // create a workflow
-        create_workflow(client_id, &mut app, &update_manager_struct.update_manager);
-        // complete the workflow create request
-        SyncQueue::handle(&app)
-            .update(&mut app, |sync_queue, ctx| {
-                // stop dequeueing so we have time afterwards to assert the proper state
-                sync_queue.stop_dequeueing();
-
-                ctx.await_spawned_future(sync_queue.spawned_futures()[0])
-            })
-            .await;
-        // update the workflow (but keep the request in flight)
-        update_workflow(&mut app, &update_manager_struct.update_manager, sync_id);
-
-        // Flush cloud model events.
-        let _ = cloud_events(&update_manager_struct);
-
-        // call to fetch the server's representation of this object.
-        // our in-memory workflow has a pending change, so this will simply set its conflict_status
-        // with the server's object, as we specified not to force an overwrite.
-        update_manager_struct
-            .update_manager
-            .update(&mut app, |update_manager, ctx| {
-                let fetch_cloud_object_rx = update_manager.fetch_single_cloud_object(
-                    &server_id,
-                    FetchSingleObjectOption::None,
-                    ctx,
-                );
-                std::mem::drop(fetch_cloud_object_rx);
-                ctx.await_spawned_future(update_manager.spawned_futures[0])
-            })
-            .await;
-
-        assert_workflow_name(&mut app, sync_id, "client workflow 2");
-
-        // Because the change wasn't overwritten, no event is emitted.
-        assert!(cloud_events(&update_manager_struct).is_empty());
-
-        let events = db_events(&update_manager_struct);
-
-        assert_eq!(events.len(), 7);
-        // we created a workflow in the db
-        assert!(matches!(
-            &events[0],
-            ModelEvent::UpsertWorkflow { workflow: _ }
-        ));
-        // the successful create triggered a set of the server id
-        assert!(matches!(
-            &events[1],
-            ModelEvent::UpdateObjectAfterServerCreation {
-                client_id: _,
-                server_creation_info: _
-            }
-        ));
-        // because the object had no in flight requests, it was marked as synced in the db
-        assert!(matches!(
-            &events[2],
-            ModelEvent::MarkObjectAsSynced {
-                hashed_sqlite_id: _,
-                revision_and_editor: _,
-                metadata_ts: _
-            }
-        ));
-        assert!(matches!(
-            &events[3],
-            ModelEvent::SyncObjectActions { actions_to_sync: _ }
-        ));
-        // updating the workflow caused another upsert in the db
-        assert!(matches!(
-            &events[4],
-            ModelEvent::UpsertWorkflow { workflow: _ }
-        ));
-        // lastly, we upserted the workflow when we got the server version back
-        // (though it's basically a no-op)
-        assert!(matches!(
-            &events[5],
-            ModelEvent::UpsertWorkflow { workflow: _ }
-        ));
-        assert!(matches!(
-            &events[6],
-            ModelEvent::SyncObjectActions { actions_to_sync: _ }
-        ));
-    })
-}
-
-#[test]
-fn test_fetch_single_cloud_object_pending_with_overwrite() {
-    App::test(ASSETS, |mut app| async move {
-        initialize_app(&mut app);
-        let mut server_api = mock_server_api();
-        let server_id: ServerId = 123.into();
-        let client_id = ClientId::new();
-        let workflow_id: WorkflowId = server_id.into();
-        let sync_id = SyncId::ServerId(server_id);
-
-        mock_create_workflow(client_id, &mut server_api, workflow_id);
-        mock_fetch_single_cloud_object(&mut server_api, workflow_id, server_id);
-
-        let update_manager_struct = create_update_manager_struct(&mut app, Arc::new(server_api));
-
-        // create a workflow
-        create_workflow(client_id, &mut app, &update_manager_struct.update_manager);
-        // complete the workflow create request
-        SyncQueue::handle(&app)
-            .update(&mut app, |sync_queue, ctx| {
-                // stop dequeueing so we have time afterwards to assert the proper state
-                sync_queue.stop_dequeueing();
-
-                ctx.await_spawned_future(sync_queue.spawned_futures()[0])
-            })
-            .await;
-        // update the workflow (but keep the request in flight)
-        update_workflow(&mut app, &update_manager_struct.update_manager, sync_id);
-
-        // Flush cloud events.
-        let _ = cloud_events(&update_manager_struct);
-
-        // call to fetch the server's representation of this object.
-        // our in-memory workflow has a pending change, but since we specified to force overwrite,
-        // those changes will be lost and we'll reset back to the server object.
-        update_manager_struct
-            .update_manager
-            .update(&mut app, |update_manager, ctx| {
-                let fetch_cloud_object_rx = update_manager.fetch_single_cloud_object(
-                    &server_id,
-                    FetchSingleObjectOption::ForceOverwrite,
-                    ctx,
-                );
-                std::mem::drop(fetch_cloud_object_rx);
-                ctx.await_spawned_future(update_manager.spawned_futures[0])
-            })
-            .await;
-
-        assert_workflow_name(&mut app, sync_id, "server workflow");
-
-        // There should be an update event for the overwritten data.
-        assert_eq!(
-            cloud_events(&update_manager_struct),
-            vec![CloudModelEvent::ObjectUpdated {
-                type_and_id: CloudObjectTypeAndId::from_id_and_type(sync_id, ObjectType::Workflow),
-                source: UpdateSource::Server
-            }]
-        );
-
-        let events = db_events(&update_manager_struct);
-
-        assert_eq!(events.len(), 7);
-        // we created a workflow in the db
-        assert!(matches!(
-            &events[0],
-            ModelEvent::UpsertWorkflow { workflow: _ }
-        ));
-        // the successful create triggered a set of the server id
-        assert!(matches!(
-            &events[1],
-            ModelEvent::UpdateObjectAfterServerCreation {
-                client_id: _,
-                server_creation_info: _
-            }
-        ));
-        // because the object had no in flight requests, it was marked as synced in the db
-        assert!(matches!(
-            &events[2],
-            ModelEvent::MarkObjectAsSynced {
-                hashed_sqlite_id: _,
-                revision_and_editor: _,
-                metadata_ts: _
-            }
-        ));
-        assert!(matches!(
-            &events[3],
-            ModelEvent::SyncObjectActions { actions_to_sync: _ }
-        ));
-        // updating the workflow caused another upsert in the db
-        assert!(matches!(
-            &events[4],
-            ModelEvent::UpsertWorkflow { workflow: _ }
-        ));
-        // lastly, we upserted the workflow when we got the server version back
-        // (though it's basically a no-op)
-        assert!(matches!(
-            &events[5],
-            ModelEvent::UpsertWorkflow { workflow: _ }
-        ));
-        assert!(matches!(
-            &events[6],
-            ModelEvent::SyncObjectActions { actions_to_sync: _ }
-        ));
     })
 }
 

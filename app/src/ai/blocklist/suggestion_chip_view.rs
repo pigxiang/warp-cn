@@ -1,5 +1,4 @@
 use pathfinder_color::ColorU;
-use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
 use warp_i18n::t;
@@ -8,14 +7,12 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use super::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
 use super::suggested_rule_modal::SuggestedRuleAndId;
-use crate::TelemetryEvent;
-use crate::ai::agent::{SuggestedAgentModeWorkflow, SuggestedLoggingId, SuggestedRule};
+use crate::ai::agent::{SuggestedLoggingId, SuggestedRule};
 use crate::ai::facts::{AIFact, AIMemory, CloudAIFactModel};
+use crate::cloud_object::CloudObjectTypeAndId;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::drive::CloudObjectTypeAndId;
 use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
@@ -36,9 +33,8 @@ const MAX_PROMPT_TOOLTIP_LENGTH: usize = 200;
 /// - Handling clicks to show the appropriate modal dialog via workspace-level events
 /// - Syncing with the cloud model for persistence
 ///
-/// When clicked, the chip emits events to display either the `SuggestedRuleModal` or
-/// `SuggestedAgentModeWorkflowModal` at the workspace level, which position themselves
-/// relative to the chip position.
+/// When clicked, the chip emits an event to display the `SuggestedRuleModal` at the workspace
+/// level, which positions itself relative to the chip position.
 ///
 /// # UI Behavior
 /// - A chip with a saved rule shows a check icon and has a different theme
@@ -106,18 +102,8 @@ impl ActionButtonTheme for SuggestionDismissButtonTheme {
 
 #[derive(Debug, Clone)]
 pub enum SuggestedChipViewEvent {
-    ShowSuggestedRuleDialog {
-        rule_and_id: SuggestedRuleAndId,
-    },
-    OpenAIFactCollection {
-        sync_id: Option<SyncId>,
-    },
-    OpenWorkflow {
-        sync_id: SyncId,
-    },
-    ShowSuggestedAgentModeWorkflowModal {
-        workflow_and_id: SuggestedAgentModeWorkflowAndId,
-    },
+    ShowSuggestedRuleDialog { rule_and_id: SuggestedRuleAndId },
+    OpenAIFactCollection { sync_id: Option<SyncId> },
 }
 
 #[derive(Debug, Clone)]
@@ -127,19 +113,13 @@ pub enum SuggestedViewAction {
 
 #[derive(Debug, Clone)]
 enum Suggestion {
-    Rule {
-        rule: SuggestedRule,
-    },
-    AgentModeWorkflow {
-        workflow: SuggestedAgentModeWorkflow,
-    },
+    Rule { rule: SuggestedRule },
 }
 
 impl Suggestion {
     pub fn icon(&self) -> Icon {
         match self {
             Suggestion::Rule { .. } => Icon::BookOpen,
-            Suggestion::AgentModeWorkflow { .. } => Icon::Prompt,
         }
     }
 
@@ -149,35 +129,18 @@ impl Suggestion {
                 let content = rule.content.clone();
                 t!("ai-ui-tooltip-add-rule", content = content)
             }
-            Suggestion::AgentModeWorkflow { workflow, .. } => {
-                let prompt = if workflow.prompt.chars().count() > MAX_PROMPT_TOOLTIP_LENGTH {
-                    let truncated: String = workflow
-                        .prompt
-                        .chars()
-                        .take(MAX_PROMPT_TOOLTIP_LENGTH - 3)
-                        .collect();
-                    format!("{truncated}...")
-                } else {
-                    workflow.prompt.clone()
-                };
-                t!("ai-ui-tooltip-suggested-prompt", prompt = prompt)
-            }
         }
     }
 
     fn position_id(&self) -> String {
         match self {
             Suggestion::Rule { rule, .. } => format!("rule_position_{}", rule.logging_id),
-            Suggestion::AgentModeWorkflow { workflow, .. } => {
-                format!("agent_mode_workflow_position_{}", workflow.logging_id)
-            }
         }
     }
 
     fn chip_label(&self) -> String {
         match self {
             Suggestion::Rule { rule, .. } => rule.content.clone(),
-            Suggestion::AgentModeWorkflow { workflow, .. } => workflow.name.clone(),
         }
     }
 }
@@ -214,43 +177,9 @@ impl SuggestionChipView {
         me
     }
 
-    pub fn new_agent_mode_workflow_chip(
-        workflow: SuggestedAgentModeWorkflow,
-        ctx: &mut ViewContext<Self>,
-    ) -> Self {
-        send_telemetry_from_ctx!(
-            TelemetryEvent::ShowedSuggestedAgentModeWorkflowChip {
-                logging_id: workflow.logging_id.clone(),
-            },
-            ctx
-        );
-
-        Self::listen_for_warp_drive_events(ctx);
-        let sync_id = SyncId::ClientId(ClientId::default());
-
-        let chip = ctx.add_typed_action_view(|_| {
-            ActionButton::new(workflow.name.clone(), SecondaryTheme)
-                .with_max_label_width(MAX_CHIP_WIDTH)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(SuggestedViewAction::ChipClicked);
-                })
-        });
-
-        let suggestion = Suggestion::AgentModeWorkflow { workflow };
-        let mut me = Self {
-            suggestion,
-            sync_id,
-            chip,
-            is_saved: false,
-        };
-        me.reset_suggestion(ctx);
-        me
-    }
-
     pub fn logging_id(&self) -> SuggestedLoggingId {
         match &self.suggestion {
             Suggestion::Rule { rule, .. } => rule.logging_id.clone(),
-            Suggestion::AgentModeWorkflow { workflow, .. } => workflow.logging_id.clone(),
         }
     }
 
@@ -282,15 +211,7 @@ impl SuggestionChipView {
         {
             self.sync_id = SyncId::ServerId(server_id);
             // Reload the rule from the cloud model.
-            match &mut self.suggestion {
-                Suggestion::Rule { .. } => {
-                    self.load_suggestion(ctx);
-                }
-                Suggestion::AgentModeWorkflow { .. } => {
-                    // Loading agent mode workflows is not supported
-                    // as there is no editing flow for them.
-                }
-            }
+            self.load_suggestion(ctx);
             self.on_add_suggestion(ctx);
         }
     }
@@ -360,9 +281,6 @@ impl SuggestionChipView {
                     ctx.notify();
                 }
             }
-            Suggestion::AgentModeWorkflow { .. } => {
-                // Loading agent mode workflows is not yet supported as there is no editing flow.
-            }
         }
     }
 
@@ -430,35 +348,6 @@ impl TypedActionView for SuggestionChipView {
                                 sync_id: self.sync_id,
                             },
                         });
-                        self.chip.update(ctx, |chip, ctx| {
-                            chip.set_active(true, ctx);
-                        });
-                    }
-                }
-                Suggestion::AgentModeWorkflow { workflow, .. } => {
-                    if CloudModel::as_ref(ctx)
-                        .get_workflow(&self.sync_id)
-                        .is_some()
-                    {
-                        ctx.emit(SuggestedChipViewEvent::OpenWorkflow {
-                            sync_id: self.sync_id,
-                        });
-                    } else {
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::ShowedSuggestedAgentModeWorkflowModal {
-                                logging_id: workflow.logging_id.clone(),
-                            },
-                            ctx
-                        );
-
-                        ctx.emit(
-                            SuggestedChipViewEvent::ShowSuggestedAgentModeWorkflowModal {
-                                workflow_and_id: SuggestedAgentModeWorkflowAndId {
-                                    workflow: workflow.clone(),
-                                    sync_id: self.sync_id,
-                                },
-                            },
-                        );
                         self.chip.update(ctx, |chip, ctx| {
                             chip.set_active(true, ctx);
                         });

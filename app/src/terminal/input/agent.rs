@@ -11,8 +11,8 @@ use warpui::presenter::ChildView;
 use warpui::{AppContext, SingletonEntity as _, ViewHandle};
 
 use super::common::{
-    add_command_xray_overlay, add_input_suggestions_overlays, add_voltron_overlay,
-    add_workflow_info_overlay, wrap_input_with_terminal_padding_and_focus_handler,
+    add_command_xray_overlay, add_input_suggestions_overlays,
+    wrap_input_with_terminal_padding_and_focus_handler,
 };
 use super::{Input, InputAction, InputDropTargetData};
 use crate::BlocklistAIHistoryModel;
@@ -161,21 +161,6 @@ impl Input {
             column.finish(),
             false,
         ));
-
-        if let Some(selected_workflow_state) = self.workflows_state.selected_workflow_state.as_ref()
-            && selected_workflow_state.should_show_more_info_view
-        {
-            add_workflow_info_overlay(
-                &mut stack,
-                selected_workflow_state,
-                self.size_info(app).pane_height_px().as_f32(),
-                menu_positioning,
-            );
-        }
-
-        if self.is_voltron_open && self.is_pane_focused(app) {
-            add_voltron_overlay(&mut stack, &self.voltron_view, menu_positioning);
-        }
 
         if self.is_pane_focused(app) {
             add_input_suggestions_overlays(self, &mut stack, appearance, menu_positioning, app);
@@ -408,37 +393,6 @@ impl Input {
             );
         }
 
-        if let Some(selected_workflow_state) = self.workflows_state.selected_workflow_state.as_ref()
-            && selected_workflow_state.should_show_more_info_view
-        {
-            let prompt_position = self.prompt_save_position_id();
-            let workflows_info_view =
-                Container::new(ChildView::new(&selected_workflow_state.more_info_view).finish())
-                    .finish();
-            stack.add_positioned_overlay_child(
-                ConstrainedBox::new(workflows_info_view)
-                    .with_max_width(CLOUD_MODE_V2_MAX_WIDTH)
-                    .with_max_height(self.size_info(app).pane_height_px().as_f32() * 0.35)
-                    .finish(),
-                OffsetPositioning::from_axes(
-                    PositioningAxis::relative_to_stack_child(
-                        &prompt_position,
-                        PositionedElementOffsetBounds::WindowByPosition,
-                        OffsetType::Pixel(0.),
-                        AnchorPair::new(XAxisAnchor::Left, XAxisAnchor::Left),
-                    ),
-                    PositioningAxis::relative_to_stack_child(
-                        &prompt_position,
-                        PositionedElementOffsetBounds::Unbounded,
-                        OffsetType::Pixel(0.),
-                        AnchorPair::new(YAxisAnchor::Top, YAxisAnchor::Bottom),
-                    ),
-                ),
-            );
-        }
-        if self.is_voltron_open && self.is_pane_focused(app) {
-            add_voltron_overlay(&mut stack, &self.voltron_view, menu_positioning);
-        }
         if self.is_pane_focused(app) {
             add_input_suggestions_overlays(self, &mut stack, appearance, menu_positioning, app);
         }

@@ -35,8 +35,8 @@ use crate::ai::agent_management::telemetry::{AgentManagementTelemetryEvent, Open
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
 use crate::ai::conversation_rename::rename_conversation;
 use crate::appearance::Appearance;
-use crate::drive::sharing::ShareableObject;
-use crate::drive::sharing::dialog::SharingDialog;
+use crate::cloud_object::sharing::ShareableObject;
+use crate::cloud_object::sharing::dialog::SharingDialog;
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys,
     PropagateHorizontalNavigationKeys, SingleLineEditorOptions, TextOptions,

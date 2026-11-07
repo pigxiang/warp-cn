@@ -70,6 +70,7 @@ use crate::ai::blocklist::inline_action::inline_action_icons::icon_size;
 use crate::ai::blocklist::model::AIBlockModelHelper;
 use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::styling::cloud_object_icon_and_name;
 use crate::settings::{AISettings, InputModeSettings, InputSettings};
 use crate::settings_view::SettingsSection;
 use crate::terminal::TerminalView;
@@ -650,13 +651,9 @@ pub fn render_citation(
 
     let (icon, name) = match citation {
         AIAgentCitation::WarpDriveObject { uid } => {
-            let item = CloudModel::as_ref(app)
-                .get_by_uid(uid)?
-                .to_warp_drive_item(appearance)?;
-            (
-                item.icon(appearance, Some(theme.active_ui_text_color())),
-                item.display_name().unwrap_or(String::from("Untitled")),
-            )
+            let object = CloudModel::as_ref(app).get_by_uid(uid)?;
+            let (object_icon, name) = cloud_object_icon_and_name(object, appearance, app);
+            (Some(object_icon), name)
         }
         AIAgentCitation::WarpDocumentation { .. } => {
             let icon = Icon::Warp.to_warpui_icon(theme.foreground()).finish();
@@ -1111,7 +1108,6 @@ impl View for AIBlock {
                 is_references_section_open: self.is_references_section_open,
                 autonomy_setting_speedbump: &self.autonomy_setting_speedbump,
                 suggested_rules: &self.suggested_rules,
-                suggested_agent_mode_workflow: &self.suggested_agent_mode_workflow,
                 manage_rules_button: &self.manage_rules_button,
                 keyboard_navigable_buttons: self.keyboard_navigable_buttons.as_ref(),
                 response_rating: &self.response_rating,

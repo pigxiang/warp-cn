@@ -7,19 +7,13 @@
 //! - DynamicWorkflowEnumSuggestions
 
 use warpui::elements::{
-    Align, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DragBarSide,
-    DropShadow, Element, Empty, Flex, ParentElement, Radius, Resizable, Shrinkable,
-    SizeConstraintCondition, SizeConstraintSwitch, Text,
+    Border, ConstrainedBox, Container, CornerRadius, DragBarSide, DropShadow, Element, Empty, Flex,
+    ParentElement, Radius, Resizable, Shrinkable, SizeConstraintCondition, SizeConstraintSwitch,
 };
 use warpui::presenter::ChildView;
-use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 
 use super::{
-    DYNAMIC_ENUM_FAILURE_MESSAGE, DYNAMIC_ENUM_GENERATE_MESSAGE,
-    DYNAMIC_ENUM_HORIZONTAL_TEXT_PADDING, DYNAMIC_ENUM_MENU_HEIGHT_OFFSET,
-    DYNAMIC_ENUM_MENU_PADDING, DYNAMIC_ENUM_NO_RESULTS_MESSAGE, DYNAMIC_ENUM_PENDING_MESSAGE,
-    DYNAMIC_ENUM_RUN_MESSAGE, DynamicEnumSuggestionStatus, HISTORY_DETAILS_VIEW_WIDTH_REQUIREMENT,
-    Input, InputAction, MenuPositioning, RUN_DYNAMIC_ENUM_COMMAND_KEYSTROKE,
+    HISTORY_DETAILS_VIEW_WIDTH_REQUIREMENT, Input, InputAction, MenuPositioning,
     TERMINAL_VIEW_PADDING_LEFT,
 };
 use crate::appearance::Appearance;
@@ -114,76 +108,6 @@ impl Input {
         )
     }
 
-    pub(super) fn render_workflow_enum_suggestions_menu(
-        &self,
-        appearance: &Appearance,
-        menu_positioning: MenuPositioning,
-    ) -> Box<dyn Element> {
-        let theme = appearance.theme();
-        let corner_radius = CornerRadius::with_all(Radius::Pixels(6.));
-
-        // Same styling as CompletionSuggestions
-        let margin = 0.;
-
-        let content = ChildView::new(&self.input_suggestions).finish();
-
-        self.render_suggestions_container(
-            margin,
-            corner_radius,
-            theme,
-            SuggestionsResizeConfig::WidthAndHeight,
-            menu_positioning,
-            content,
-        )
-    }
-
-    pub(super) fn render_dynamic_workflow_enum_menu(
-        &self,
-        appearance: &Appearance,
-        menu_positioning: MenuPositioning,
-        command: String,
-        status: DynamicEnumSuggestionStatus,
-        suggestions: &[String],
-    ) -> Box<dyn Element> {
-        let theme = appearance.theme();
-        let corner_radius = CornerRadius::with_all(Radius::Pixels(6.));
-
-        let (content, resize_config) = match status {
-            DynamicEnumSuggestionStatus::Unapproved => (
-                self.render_dynamic_enum_command_approval(command, appearance),
-                SuggestionsResizeConfig::WidthOnly,
-            ),
-            DynamicEnumSuggestionStatus::Pending => (
-                self.render_dynamic_enum_status_message(DYNAMIC_ENUM_PENDING_MESSAGE, appearance),
-                SuggestionsResizeConfig::WidthAndHeight,
-            ),
-            DynamicEnumSuggestionStatus::Failure => (
-                self.render_dynamic_enum_status_message(DYNAMIC_ENUM_FAILURE_MESSAGE, appearance),
-                SuggestionsResizeConfig::WidthAndHeight,
-            ),
-            DynamicEnumSuggestionStatus::Success if suggestions.is_empty() => (
-                self.render_dynamic_enum_status_message(
-                    DYNAMIC_ENUM_NO_RESULTS_MESSAGE,
-                    appearance,
-                ),
-                SuggestionsResizeConfig::WidthAndHeight,
-            ),
-            DynamicEnumSuggestionStatus::Success => (
-                ChildView::new(&self.input_suggestions).finish(),
-                SuggestionsResizeConfig::WidthAndHeight,
-            ),
-        };
-
-        self.render_suggestions_container(
-            0.,
-            corner_radius,
-            theme,
-            resize_config,
-            menu_positioning,
-            content,
-        )
-    }
-
     /// Renders the suggestions container with configurable resize behavior.
     fn render_suggestions_container(
         &self,
@@ -266,127 +190,5 @@ impl Input {
             .with_margin_left(margin)
             .with_margin_right(margin)
             .finish()
-    }
-
-    /// Renders the command approval UI for dynamic enum suggestions.
-    fn render_dynamic_enum_command_approval(
-        &self,
-        command: String,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        let theme = appearance.theme();
-        let keybinding_style = UiComponentStyles {
-            height: Some(15.),
-            font_size: Some(appearance.ui_font_size()),
-            margin: Some(Coords {
-                left: 2.,
-                right: 2.,
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        Flex::column()
-            .with_child(
-                ConstrainedBox::new(
-                    Container::new(
-                        Text::new_inline(
-                            String::from(DYNAMIC_ENUM_GENERATE_MESSAGE),
-                            appearance.ui_font_family(),
-                            appearance.ui_font_size(),
-                        )
-                        .with_color(theme.main_text_color(theme.surface_2()).into_solid())
-                        .finish(),
-                    )
-                    .with_uniform_padding(DYNAMIC_ENUM_MENU_PADDING)
-                    .finish(),
-                )
-                .with_max_height(appearance.ui_font_size() + DYNAMIC_ENUM_MENU_HEIGHT_OFFSET)
-                .finish(),
-            )
-            .with_child(
-                Container::new(
-                    Text::new(
-                        command.clone(),
-                        appearance.monospace_font_family(),
-                        appearance.monospace_font_size(),
-                    )
-                    .with_color(theme.main_text_color(theme.background()).into_solid())
-                    .finish(),
-                )
-                .with_uniform_padding(DYNAMIC_ENUM_MENU_PADDING)
-                .with_background(theme.background())
-                .finish(),
-            )
-            .with_child(
-                ConstrainedBox::new(
-                    Flex::row()
-                        .with_child(
-                            Shrinkable::new(
-                                1.,
-                                Container::new(
-                                    appearance
-                                        .ui_builder()
-                                        .keyboard_shortcut(&RUN_DYNAMIC_ENUM_COMMAND_KEYSTROKE)
-                                        .with_style(keybinding_style)
-                                        .build()
-                                        .finish(),
-                                )
-                                .with_uniform_padding(DYNAMIC_ENUM_HORIZONTAL_TEXT_PADDING)
-                                .finish(),
-                            )
-                            .finish(),
-                        )
-                        .with_child(
-                            Shrinkable::new(
-                                1.,
-                                Container::new(
-                                    Text::new_inline(
-                                        String::from(DYNAMIC_ENUM_RUN_MESSAGE),
-                                        appearance.ui_font_family(),
-                                        appearance.ui_font_size(),
-                                    )
-                                    .with_color(theme.sub_text_color(theme.surface_2()).into())
-                                    .finish(),
-                                )
-                                .with_uniform_padding(DYNAMIC_ENUM_HORIZONTAL_TEXT_PADDING)
-                                .finish(),
-                            )
-                            .finish(),
-                        )
-                        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                        .finish(),
-                )
-                .with_max_height(appearance.ui_font_size() + DYNAMIC_ENUM_MENU_HEIGHT_OFFSET)
-                .finish(),
-            )
-            .finish()
-    }
-
-    /// Renders a status message for dynamic enum suggestions.
-    fn render_dynamic_enum_status_message(
-        &self,
-        message: &str,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        let theme = appearance.theme();
-        ConstrainedBox::new(
-            Align::new(
-                Container::new(
-                    Text::new_inline(
-                        String::from(message),
-                        appearance.monospace_font_family(),
-                        appearance.monospace_font_size(),
-                    )
-                    .with_color(theme.sub_text_color(theme.surface_2()).into())
-                    .finish(),
-                )
-                .with_uniform_padding(DYNAMIC_ENUM_HORIZONTAL_TEXT_PADDING)
-                .finish(),
-            )
-            .finish(),
-        )
-        .with_max_height(appearance.monospace_font_size() + DYNAMIC_ENUM_MENU_HEIGHT_OFFSET)
-        .finish()
     }
 }

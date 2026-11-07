@@ -40,6 +40,7 @@ mod tui_theme;
 mod tui_voice;
 mod tui_zero_state;
 mod vim_banner;
+pub mod warp_drive_settings;
 
 #[cfg(test)]
 #[path = "schema_validation_tests.rs"]

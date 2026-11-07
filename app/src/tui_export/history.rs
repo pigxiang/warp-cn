@@ -1,7 +1,7 @@
 use warpui::{AppContext, EntityId, SingletonEntity};
 
 use crate::input_suggestions::HistoryInputSuggestion;
-use crate::terminal::history::{History, LinkedWorkflowData, UpArrowHistoryConfig};
+use crate::terminal::history::{History, UpArrowHistoryConfig};
 use crate::terminal::model::session::SessionId;
 
 /// An owned history item for the TUI up-arrow menu.
@@ -15,9 +15,7 @@ pub struct TuiUpArrowHistoryItem {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TuiUpArrowHistoryItemKind {
     Prompt,
-    Command {
-        linked_workflow_data: Option<LinkedWorkflowData>,
-    },
+    Command,
 }
 
 /// Returns an owned, de-duplicated history snapshot for the TUI up-arrow menu.
@@ -34,11 +32,9 @@ pub fn tui_up_arrow_history(
         .map(|suggestion| {
             let text = suggestion.normalized_text().to_owned();
             match suggestion {
-                HistoryInputSuggestion::Command { entry } => TuiUpArrowHistoryItem {
+                HistoryInputSuggestion::Command { .. } => TuiUpArrowHistoryItem {
                     text,
-                    kind: TuiUpArrowHistoryItemKind::Command {
-                        linked_workflow_data: entry.linked_workflow_data(),
-                    },
+                    kind: TuiUpArrowHistoryItemKind::Command,
                 },
                 HistoryInputSuggestion::AIQuery { .. } => TuiUpArrowHistoryItem {
                     text,

@@ -15,7 +15,6 @@ use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::conversation_status_ui::{STATUS_ELEMENT_PADDING, render_status_element};
 use crate::appearance::Appearance;
 use crate::search::{ItemHighlightState, SearchItem};
-use crate::terminal::history::LinkedWorkflowData;
 use crate::terminal::input::inline_history::data_source::AcceptHistoryItem;
 use crate::terminal::input::inline_menu::styles as inline_styles;
 use crate::util::time_format::format_approx_duration_from_now_utc;
@@ -38,7 +37,6 @@ enum HistoryItemType {
     },
     Command {
         command: String,
-        linked_workflow_data: Option<LinkedWorkflowData>,
     },
     AIPrompt {
         query_text: String,
@@ -65,16 +63,9 @@ impl InlineHistoryItem {
         }
     }
 
-    pub fn command(
-        command: String,
-        linked_workflow_data: Option<LinkedWorkflowData>,
-        timestamp: DateTime<Local>,
-    ) -> Self {
+    pub fn command(command: String, timestamp: DateTime<Local>) -> Self {
         Self {
-            item_type: HistoryItemType::Command {
-                command,
-                linked_workflow_data,
-            },
+            item_type: HistoryItemType::Command { command },
             name_match_result: None,
             prefix_match_len: 0,
             score: OrderedFloat(f64::MIN),
@@ -259,12 +250,8 @@ impl SearchItem for InlineHistoryItem {
                 conversation_id: *conversation_id,
                 title: title.clone(),
             },
-            HistoryItemType::Command {
-                command,
-                linked_workflow_data,
-            } => AcceptHistoryItem::Command {
+            HistoryItemType::Command { command } => AcceptHistoryItem::Command {
                 command: command.clone(),
-                linked_workflow_data: linked_workflow_data.clone(),
             },
             HistoryItemType::AIPrompt { query_text } => AcceptHistoryItem::AIPrompt {
                 query_text: query_text.clone(),

@@ -467,15 +467,6 @@ pub struct EnvVarCollectionPane {
 }
 
 #[derive(Identifiable, Queryable, Selectable)]
-#[diesel(table_name = workflow_panes)]
-#[diesel(primary_key(id))]
-pub struct WorkflowPane {
-    pub id: i32,
-    pub kind: String,
-    pub workflow_id: Option<String>,
-}
-
-#[derive(Identifiable, Queryable, Selectable)]
 #[diesel(table_name = code_panes)]
 #[diesel(primary_key(id))]
 pub struct CodePane {
@@ -577,7 +568,6 @@ pub const ENV_VAR_COLLECTION_PANE_KIND: &str = "env_var_collection";
 pub const CODE_PANE_KIND: &str = "code";
 
 /// The [`pane_leaves::kind`] value for workflow panes.
-pub const WORKFLOW_PANE_KIND: &str = "workflow";
 
 /// The [`pane_leaves::kind`] value for settings panes.
 pub const SETTINGS_PANE_KIND: &str = "settings";
@@ -636,13 +626,6 @@ pub struct NewNotebookPane {
 pub struct NewEnvVarCollectionPane {
     pub id: i32,
     pub env_var_collection_id: Option<String>,
-}
-
-#[derive(Insertable)]
-#[diesel(table_name = workflow_panes)]
-pub struct NewWorkflowPane {
-    pub id: i32,
-    pub workflow_id: Option<String>,
 }
 
 #[derive(Insertable)]

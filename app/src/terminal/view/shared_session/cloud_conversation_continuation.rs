@@ -12,8 +12,8 @@ use crate::ai::ambient_agents::{
 };
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::auth::AuthStateProvider;
+use crate::cloud_object::sharing::SharingAccessLevel;
 use crate::cloud_object::{Owner, ServerGuestSubject};
-use crate::drive::sharing::SharingAccessLevel;
 use crate::server::ids::ServerId;
 use crate::terminal::TerminalModel;
 use crate::terminal::view::ambient_agent::AmbientAgentViewModel;

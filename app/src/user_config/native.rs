@@ -9,12 +9,11 @@ use warpui::{ModelContext, ModelHandle, SingletonEntity};
 
 use super::util::{
     for_each_dir_entry, has_name, is_config_file, parse_model_config_dir_entry,
-    parse_multi_launch_config_dir_entry, parse_multi_workflow_dir_entry,
-    parse_single_theme_dir_entry, parse_tab_config_dir_entry,
+    parse_multi_launch_config_dir_entry, parse_single_theme_dir_entry, parse_tab_config_dir_entry,
 };
 use super::{
     LAUNCH_CONFIG_COMMENT, WarpConfigUpdateEvent, custom_model_routers_dir, launch_configs_dir,
-    tab_configs_dir, themes_dir, workflows_dir,
+    tab_configs_dir, themes_dir,
 };
 use crate::ai::custom_model_routers::{CustomModelRouter, ModelConfigError};
 use crate::features::FeatureFlag;
@@ -25,7 +24,6 @@ use crate::warp_managed_paths_watcher::{
     WarpManagedPathsWatcher, WarpManagedPathsWatcherEvent, repository_update_touches_path,
     repository_update_touches_prefix,
 };
-use crate::workflows::workflow::Workflow;
 
 impl super::WarpConfig {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
@@ -55,13 +53,6 @@ impl super::WarpConfig {
                 },
             );
         }
-        let _ = ctx.spawn(
-            async move { load_workflows(&workflows_dir()) },
-            |me, user_workflows, ctx| {
-                me.local_user_workflows = user_workflows;
-                ctx.emit(WarpConfigUpdateEvent::LocalUserWorkflows);
-            },
-        );
         if FeatureFlag::CustomModelRouters.is_enabled() {
             let _ = ctx.spawn(
                 async move { load_model_configs(&custom_model_routers_dir()) },
@@ -101,17 +92,6 @@ impl super::WarpConfig {
                 |me, theme_config, ctx| {
                     me.theme_config = theme_config;
                     ctx.emit(WarpConfigUpdateEvent::Themes);
-                },
-            );
-        }
-
-        if update_touches_dir(update, &workflows_dir()) {
-            let workflow_dir = workflows_dir();
-            let _ = ctx.spawn(
-                async move { load_workflows(&workflow_dir) },
-                |me, workflows, ctx| {
-                    me.local_user_workflows = workflows;
-                    ctx.emit(WarpConfigUpdateEvent::LocalUserWorkflows);
                 },
             );
         }
@@ -249,15 +229,6 @@ pub fn load_theme_configs(theme_path: &Path) -> WarpThemeConfig {
         .into_iter()
         .for_each(|(theme_name, theme)| theme_configs.add_new_theme(theme_name, theme));
     theme_configs
-}
-
-/// Loads all workflows relative to the `workflow_path`.  A YAML file might
-/// contain multiple workflows.
-pub fn load_workflows(workflow_path: &Path) -> Vec<Workflow> {
-    for_each_dir_entry(workflow_path, parse_multi_workflow_dir_entry)
-        .into_iter()
-        .flatten()
-        .collect_vec()
 }
 
 /// Loads all launch configs relative to the `launch_config_path`. Each workflow is assumed to be in an

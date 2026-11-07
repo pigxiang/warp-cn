@@ -279,6 +279,10 @@ impl<T: EventLoopSender> RemoteServerController<T> {
             return;
         }
 
+        let install_mode = *WarpifySettings::as_ref(ctx)
+            .ssh_extension_install_mode
+            .value();
+
         match result {
             Ok(true) => {
                 let socket_path = transport.socket_path().clone();
@@ -297,7 +301,12 @@ impl<T: EventLoopSender> RemoteServerController<T> {
                     ctx,
                 );
             }
-            Ok(false) if has_old_binary => {
+            // NeverInstall must not trigger a remote download even when a stale
+            // install directory makes this look like an auto-update: the update
+            // path used to bypass the setting and re-fetch the artifact.
+            Ok(false)
+                if has_old_binary && install_mode != SshExtensionInstallMode::NeverInstall =>
+            {
                 // Auto-update: a prior install exists, so skip the modal
                 // and reinstall.
                 self.did_install = true;
@@ -312,39 +321,34 @@ impl<T: EventLoopSender> RemoteServerController<T> {
                     mgr.install_binary(session_id, transport, true, ctx);
                 });
             }
-            Ok(false) => {
-                let install_mode = *WarpifySettings::as_ref(ctx)
-                    .ssh_extension_install_mode
-                    .value();
-                match install_mode {
-                    SshExtensionInstallMode::AlwaysAsk => {
-                        self.state = SshInitState::AwaitingUserChoice {
-                            session_info,
-                            transport,
-                            setup_start,
-                        };
-                        self.model_event_dispatcher.update(ctx, |d, ctx| {
-                            d.request_remote_server_block(session_id, ctx);
-                        });
-                    }
-                    SshExtensionInstallMode::AlwaysInstall => {
-                        self.did_install = true;
-                        self.state = SshInitState::AwaitingInstall {
-                            session_id,
-                            session_info,
-                            transport: transport.clone(),
-                            setup_start,
-                            for_update: false,
-                        };
-                        RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
-                            mgr.install_binary(session_id, transport, false, ctx);
-                        });
-                    }
-                    SshExtensionInstallMode::NeverInstall => {
-                        self.flush_stashed_bootstrap(session_info, ctx);
-                    }
+            Ok(false) => match install_mode {
+                SshExtensionInstallMode::AlwaysAsk => {
+                    self.state = SshInitState::AwaitingUserChoice {
+                        session_info,
+                        transport,
+                        setup_start,
+                    };
+                    self.model_event_dispatcher.update(ctx, |d, ctx| {
+                        d.request_remote_server_block(session_id, ctx);
+                    });
                 }
-            }
+                SshExtensionInstallMode::AlwaysInstall => {
+                    self.did_install = true;
+                    self.state = SshInitState::AwaitingInstall {
+                        session_id,
+                        session_info,
+                        transport: transport.clone(),
+                        setup_start,
+                        for_update: false,
+                    };
+                    RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
+                        mgr.install_binary(session_id, transport, false, ctx);
+                    });
+                }
+                SshExtensionInstallMode::NeverInstall => {
+                    self.flush_stashed_bootstrap(session_info, ctx);
+                }
+            },
             Err(err) => {
                 log::warn!("Remote server binary check failed: session={session_id:?} error={err}");
                 self.flush_stashed_bootstrap(session_info, ctx);

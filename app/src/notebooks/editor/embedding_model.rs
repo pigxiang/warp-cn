@@ -30,6 +30,7 @@ use super::{NotebookWorkflow, rich_text_styles};
 use crate::appearance::Appearance;
 use crate::cloud_object::CloudObject;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::{CloudWorkflow, WorkflowId};
 use crate::completer::SessionAgnosticContext;
 use crate::notebooks::styles::block_footer_action_button;
 use crate::notebooks::telemetry::{ActionEntrypoint, BlockInfo};
@@ -41,7 +42,6 @@ use crate::terminal::input::decorations::{
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::ui_components::icons::Icon;
 use crate::util::bindings::CustomAction;
-use crate::workflows::{CloudWorkflow, WorkflowId};
 
 #[derive(Default)]
 struct MouseStateHandles {

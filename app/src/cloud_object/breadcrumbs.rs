@@ -1,10 +1,9 @@
 use warpui::AppContext;
 
 use super::{CloudObject, Space};
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::folders::CloudFolder;
-use crate::drive::items::WarpDriveItemId;
+use crate::cloud_object::CloudObjectTypeAndId;
 use crate::ui_components::breadcrumb::Breadcrumb;
+use cloud_object_models::CloudFolder;
 
 // Encapsulates an object that can contain other objects, and keeps
 // information necessary to show breadcrumbs.
@@ -46,13 +45,4 @@ impl Space {
 pub enum ContainingObjectKind {
     Space(Space),
     Object(CloudObjectTypeAndId),
-}
-
-impl ContainingObjectKind {
-    pub fn into_item_id(self) -> WarpDriveItemId {
-        match self {
-            ContainingObjectKind::Space(space) => WarpDriveItemId::Space(space),
-            ContainingObjectKind::Object(object) => WarpDriveItemId::Object(object),
-        }
-    }
 }

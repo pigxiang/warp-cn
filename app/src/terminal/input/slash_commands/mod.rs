@@ -44,6 +44,7 @@ use crate::ai::blocklist::{
 };
 use crate::ai::conversation_rename::rename_conversation;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::workflow_command_parser::compute_workflow_display_data;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::slash_command_menu::static_commands::commands;
@@ -69,8 +70,6 @@ use crate::terminal::model::session::Session;
 use crate::terminal::view::{AIQueryRouting, TerminalAction, resolve_ai_query_routing};
 use crate::ui_components::color_dot;
 use crate::view_components::DismissibleToast;
-use crate::workflows::command_parser::compute_workflow_display_data;
-use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
 use crate::workspace::{ForkedConversationDestination, ToastStack, WorkspaceAction};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -418,13 +417,12 @@ impl Input {
                     && self.agent_view_controller.as_ref(ctx).is_fullscreen();
                 record_saved_prompt_accepted(is_in_agent_view, ctx);
 
-                self.show_workflows_info_box_on_workflow_selection(
-                    WorkflowType::Cloud(Box::new(workflow)),
-                    WorkflowSource::WarpAI,
-                    WorkflowSelectionSource::SlashMenu,
-                    None,
-                    ctx,
-                );
+                self.clear_buffer_and_reset_undo_stack(ctx);
+                let content = workflow.model().data.content();
+                self.editor.update(ctx, |editor, ctx| {
+                    editor.set_buffer_text(content, ctx);
+                });
+                self.focus_input_box(ctx);
             }
             SlashCommandsEvent::SelectedStaticCommand {
                 id,

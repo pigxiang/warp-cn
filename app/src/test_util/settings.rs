@@ -27,10 +27,9 @@ pub fn initialize_settings_for_tests_with_mode(
     use warp_core::semantic_selection::SemanticSelection;
 
     use crate::ai::cloud_agent_settings::CloudAgentSettings;
-    use crate::drive::settings::WarpDriveSettings;
-    use crate::search::command_search::settings::CommandSearchSettings;
     use crate::settings::app_icon::AppIconSettings;
     use crate::settings::manager::SettingsManager;
+    use crate::settings::warp_drive_settings::WarpDriveSettings;
     use crate::settings::{
         AISettings, AccessibilitySettings, AliasExpansionSettings, AppEditorSettings,
         BlockVisibilitySettings, ChangelogSettings, CloudPreferencesSettings, CodeSettings,
@@ -72,7 +71,6 @@ pub fn initialize_settings_for_tests_with_mode(
     BlockListSettings::register(app);
     ChangelogSettings::register(app);
     CloudPreferencesSettings::register(app);
-    CommandSearchSettings::register(app);
     DebugSettings::register(app);
     AppIconSettings::register(app);
     EmacsBindingsSettings::register(app);

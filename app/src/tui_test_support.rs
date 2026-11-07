@@ -446,6 +446,5 @@ pub fn register_tui_session_view_test_singletons(app: &mut warpui::App) {
     app.add_singleton_model(
         crate::warp_managed_paths_watcher::WarpManagedPathsWatcher::new_for_testing,
     );
-    app.add_singleton_model(crate::workflows::local_workflows::LocalWorkflows::new);
     app.add_singleton_model(crate::ai::skills::SkillManager::new);
 }

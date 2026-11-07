@@ -320,7 +320,6 @@ fn pane_type_supports_vertical_tabs_detail_sidecar(pane_type: IPaneType) -> bool
         pane_type,
         IPaneType::Terminal
             | IPaneType::Code
-            | IPaneType::Workflow
             | IPaneType::EnvVarCollection
             | IPaneType::AIFact
             | IPaneType::AIDocument
@@ -346,34 +345,6 @@ fn collect_normalized_unique_summary_texts(
             }
             values
         })
-}
-
-#[test]
-fn detail_sidecar_supports_terminal_code_and_warp_drive_object_panes() {
-    assert!(pane_type_supports_vertical_tabs_detail_sidecar(
-        IPaneType::Terminal
-    ));
-    assert!(pane_type_supports_vertical_tabs_detail_sidecar(
-        IPaneType::Code
-    ));
-    assert!(!pane_type_supports_vertical_tabs_detail_sidecar(
-        IPaneType::File
-    ));
-    assert!(pane_type_supports_vertical_tabs_detail_sidecar(
-        IPaneType::Workflow
-    ));
-    assert!(pane_type_supports_vertical_tabs_detail_sidecar(
-        IPaneType::EnvVarCollection
-    ));
-    assert!(pane_type_supports_vertical_tabs_detail_sidecar(
-        IPaneType::AIFact
-    ));
-    assert!(pane_type_supports_vertical_tabs_detail_sidecar(
-        IPaneType::AIDocument
-    ));
-    assert!(!pane_type_supports_vertical_tabs_detail_sidecar(
-        IPaneType::Settings
-    ));
 }
 
 #[test]

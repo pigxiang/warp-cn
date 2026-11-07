@@ -51,7 +51,6 @@ pub enum CustomAction {
     ClearEditor,
     Find,
     SelectAll,
-    Workflows,
     HistorySearch,
     SaveCurrentConfig,
     History,
@@ -99,15 +98,11 @@ pub enum CustomAction {
     ToggleSyncTerminalInputsInCurrentTab,
     DisableSyncTerminalInputs,
     ReopenClosedSession,
-    ToggleWarpDrive,
     AddWindow,
     CloseCurrentSession,
     CloseWindow,
-    NewPersonalWorkflow,
     NewPersonalEnvVars,
-    NewTeamWorkflow,
     NewTeamEnvVars,
-    SearchDrive,
     OpenTeamSettings,
     ShareCurrentSession,
     SharePaneContents,
@@ -285,7 +280,6 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         CustomAction::Find => Keystroke::parse(cmd_or_ctrl_shift("f")).ok(),
         CustomAction::SelectAll => Keystroke::parse("cmdorctrl-a").ok(),
         CustomAction::CommandSearch => Keystroke::parse("ctrl-r").ok(),
-        CustomAction::Workflows => Keystroke::parse("ctrl-shift-R").ok(),
         CustomAction::History => Keystroke::parse("up").ok(),
         CustomAction::IncreaseFontSize => Keystroke::parse("shift-cmdorctrl-+").ok(),
         CustomAction::DecreaseFontSize => Keystroke::parse("shift-cmdorctrl-_").ok(),
@@ -352,7 +346,7 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         CustomAction::ClearBlocks => Keystroke::parse(cmd_or_ctrl_shift("k")).ok(),
         CustomAction::SelectBlockAbove => Keystroke::parse("cmdorctrl-up").ok(),
         CustomAction::SelectBlockBelow => Keystroke::parse("cmdorctrl-down").ok(),
-        // Set this to mac-only. On Linux this conflicts with the binding to save a workflow.
+        // Set this to mac-only to avoid conflicting with terminal input on Linux.
         CustomAction::CreateBlockPermalink => mac_only_keystroke("cmd-shift-S"),
         CustomAction::ToggleBookmarkBlock => Keystroke::parse(cmd_or_ctrl_shift("b")).ok(),
         CustomAction::CopyBlockOutput => Keystroke::parse("cmdorctrl-alt-shift-C").ok(),
@@ -388,13 +382,6 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
             }
         }
         CustomAction::AddWindow => Keystroke::parse(cmd_or_ctrl_shift("n")).ok(),
-        CustomAction::ToggleWarpDrive => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("cmd-\\").ok()
-            } else {
-                Keystroke::parse("ctrl-shift-|").ok()
-            }
-        }
         CustomAction::CloseWindow => mac_only_keystroke("cmd-shift-W"),
         CustomAction::CloseCurrentSession => Keystroke::parse(cmd_or_ctrl_shift("w")).ok(),
         CustomAction::ViewChangelog => Keystroke::parse(cmd_or_ctrl_shift("alt-o")).ok(),
@@ -451,11 +438,8 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         | CustomAction::HistorySearch
         | CustomAction::DisableSyncTerminalInputs
         | CustomAction::ToggleSyncAllTerminalInputsInAllTabs
-        | CustomAction::NewPersonalWorkflow
         | CustomAction::NewPersonalEnvVars
-        | CustomAction::NewTeamWorkflow
         | CustomAction::NewTeamEnvVars
-        | CustomAction::SearchDrive
         | CustomAction::OpenTeamSettings
         | CustomAction::ShareCurrentSession
         | CustomAction::SharePaneContents
@@ -822,7 +806,6 @@ pub enum BindingGroup {
     Close,
     Navigation,
     WarpAi,
-    Workflow,
     Folders,
     KeyboardShortcuts,
     AutoUpdate,
@@ -838,7 +821,6 @@ impl BindingGroup {
             Self::Settings => "settings",
             Self::WarpAi => "warp_ai",
             Self::Navigation => "navigation",
-            Self::Workflow => "workflows",
             Self::Folders => "folders",
             Self::KeyboardShortcuts => "keyboard_shortcuts",
             Self::Close => "close",

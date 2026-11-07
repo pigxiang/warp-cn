@@ -246,7 +246,6 @@ impl TryFrom<PaneNodeSnapshot> for PaneTemplateType {
                 LeafContents::Notebook(_)
                 | LeafContents::EnvVarCollection(_)
                 | LeafContents::Code(_)
-                | LeafContents::Workflow(_)
                 | LeafContents::Settings(_)
                 | LeafContents::AIFact(_)
                 | LeafContents::CodeReview(_)

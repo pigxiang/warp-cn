@@ -62,8 +62,9 @@ use crate::ai::llms::{
 };
 use crate::auth::AuthManager;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::sharing::{SharingAccessLevel, Subject, UserKind};
 use crate::cloud_object::{CloudObject, CloudObjectGuest};
-use crate::drive::sharing::{SharingAccessLevel, Subject, UserKind};
+use crate::cloud_object::{CloudWorkflow, CloudWorkflowModel};
 use crate::features::FeatureFlag;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -76,8 +77,6 @@ use crate::settings::{
     AISettings, AgentModeCommandExecutionPredicate, CodeSettings, FocusedTerminalInfo,
 };
 use crate::system::SystemStats;
-use crate::workflows::workflow::Workflow;
-use crate::workflows::{CloudWorkflow, CloudWorkflowModel};
 use crate::workspaces::gql_convert::{
     PLACEHOLDER_WORKSPACE_UID, workspaces_metadata_response_from_gql,
 };
@@ -91,6 +90,7 @@ use crate::workspaces::workspace::{
     MultiAdminPolicy, PurchaseAddOnCreditsPolicy, SandboxedAgentSettings, SplitListSetting,
     TeamByoSettings, TeamLinkSharingSettings, Workspace, WorkspaceMember, WorkspaceMemberUsageInfo,
 };
+use cloud_object_models::Workflow;
 
 #[derive(Default)]
 struct CachedResources {

@@ -29,8 +29,6 @@ use crate::appearance::Appearance;
 use crate::completer::SessionAgnosticContext;
 use crate::send_telemetry_from_ctx;
 use crate::view_components::action_button::{ActionButton, SecondaryTheme};
-use crate::workflows::WorkflowType;
-use crate::workflows::workflow::{Argument, ArgumentType, Workflow};
 
 const DOCS_URL: &str = "https://docs.warp.dev/platform/";
 const ENV_DOCS_URL: &str =
@@ -63,18 +61,10 @@ pub struct CloudSetupGuideView {
 
 #[derive(Debug, Clone)]
 pub enum CloudSetupGuideAction {
-    CopyCode {
-        code: String,
-        step: SetupGuideStep,
-    },
-    RunWorkflow {
-        workflow: Box<WorkflowType>,
-        step: SetupGuideStep,
-    },
+    CopyCode { code: String, step: SetupGuideStep },
+    RunCode { code: String, step: SetupGuideStep },
     VisitOz,
-    OpenDocs {
-        docs: SetupGuideDocs,
-    },
+    OpenDocs { docs: SetupGuideDocs },
 }
 
 /// Which URL the user clicked in the setup guide (also used in telemetry)
@@ -86,7 +76,7 @@ pub enum SetupGuideDocs {
 }
 
 pub enum CloudSetupGuideEvent {
-    OpenNewTabAndInsertWorkflow(WorkflowType),
+    OpenNewTabAndInsertCode(String),
 }
 
 impl CloudSetupGuideView {
@@ -344,50 +334,11 @@ impl CloudSetupGuideView {
             .map(|parsed| tokens_to_highlight_ranges(parsed, &terminal_colors))
             .unwrap_or_default();
 
-        // Match command to formatted workflow with correct args.
-        let Some((workflow, setup_step)) = (match code {
-            CREATE_ENV_SLASH_CMD => Some((
-                WorkflowType::Local(
-                    Workflow::new("Create Environment", CREATE_ENV_SLASH_CMD).with_arguments(vec![
-                        Argument::new("github link or local filepath", ArgumentType::Text)
-                            .with_description("GitHub link or local filepath to the repository"),
-                    ]),
-                ),
-                SetupGuideStep::CreateEnvironment,
-            )),
-            CREATE_ENV_CLI_CMD => Some((
-                WorkflowType::Local(
-                    Workflow::new("Create Environment (CLI)", CREATE_ENV_CLI_CMD).with_arguments(
-                        vec![
-                            Argument::new("NAME", ArgumentType::Text)
-                                .with_description("Name for the environment"),
-                            Argument::new("DOCKER_IMAGE", ArgumentType::Text)
-                                .with_description("Docker image to use for the environment"),
-                        ],
-                    ),
-                ),
-                SetupGuideStep::CreateEnvironmentCli,
-            )),
-            CREATE_SLACK_INTEGRATION_CMD => Some((
-                WorkflowType::Local(
-                    Workflow::new("Create Slack Integration", CREATE_SLACK_INTEGRATION_CMD)
-                        .with_arguments(vec![
-                            Argument::new("environment_id", ArgumentType::Text)
-                                .with_description("ID of the environment to integrate with"),
-                        ]),
-                ),
-                SetupGuideStep::CreateSlackIntegration,
-            )),
-            CREATE_LINEAR_INTEGRATION_CMD => Some((
-                WorkflowType::Local(
-                    Workflow::new("Create Linear Integration", CREATE_LINEAR_INTEGRATION_CMD)
-                        .with_arguments(vec![
-                            Argument::new("environment_id", ArgumentType::Text)
-                                .with_description("ID of the environment to integrate with"),
-                        ]),
-                ),
-                SetupGuideStep::CreateLinearIntegration,
-            )),
+        let Some(setup_step) = (match code {
+            CREATE_ENV_SLASH_CMD => Some(SetupGuideStep::CreateEnvironment),
+            CREATE_ENV_CLI_CMD => Some(SetupGuideStep::CreateEnvironmentCli),
+            CREATE_SLACK_INTEGRATION_CMD => Some(SetupGuideStep::CreateSlackIntegration),
+            CREATE_LINEAR_INTEGRATION_CMD => Some(SetupGuideStep::CreateLinearIntegration),
             _ => None,
         }) else {
             report_error!(
@@ -402,9 +353,9 @@ impl CloudSetupGuideView {
             highlights.into_iter(),
             CodeBlockOptions {
                 on_open: None,
-                on_execute: Some(Box::new(move |_code, ctx| {
-                    ctx.dispatch_typed_action(CloudSetupGuideAction::RunWorkflow {
-                        workflow: Box::new(workflow.clone()),
+                on_execute: Some(Box::new(move |code, ctx| {
+                    ctx.dispatch_typed_action(CloudSetupGuideAction::RunCode {
+                        code: code.to_string(),
                         step: setup_step,
                     });
                 })),
@@ -650,14 +601,12 @@ impl TypedActionView for CloudSetupGuideView {
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(code.clone()));
             }
-            CloudSetupGuideAction::RunWorkflow { workflow, step } => {
+            CloudSetupGuideAction::RunCode { code, step } => {
                 send_telemetry_from_ctx!(
                     AgentManagementTelemetryEvent::SetupGuideStepRun { step: *step },
                     ctx
                 );
-                ctx.emit(CloudSetupGuideEvent::OpenNewTabAndInsertWorkflow(
-                    (**workflow).clone(),
-                ));
+                ctx.emit(CloudSetupGuideEvent::OpenNewTabAndInsertCode(code.clone()));
             }
             CloudSetupGuideAction::VisitOz => {
                 ctx.open_url(OZ_URL);

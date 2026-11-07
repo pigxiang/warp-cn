@@ -16,7 +16,7 @@ use warpui::{Element, ViewContext};
 use super::env_var_collection::{
     CORE_MAX_WIDTH, EnvVarCollectionAction, EnvVarCollectionView, ROW_SPACING, VariableRowIndex,
 };
-use crate::drive::sharing::ContentEditability;
+use crate::cloud_object::sharing::ContentEditability;
 use crate::env_vars::EnvVarValue;
 use crate::env_vars::active_env_var_collection_data::SavingStatus;
 use crate::external_secrets::{ExternalSecretManager, SecretManager};

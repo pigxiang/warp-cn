@@ -14,7 +14,7 @@ mod palette_styles;
 mod search_bar;
 pub mod search_results_menu;
 pub mod slash_command_menu;
-mod workflows;
+mod workflow_fuzzy_match;
 
 pub use data_source::QueryFilter;
 use filter_chip_renderer::FilterChipRenderer;
@@ -23,4 +23,4 @@ pub use mixer::SyncDataSource;
 pub use result_renderer::ItemHighlightState;
 // Re-export core search types.
 pub use warp_search_core::*;
-pub use workflows::fuzzy_match::FuzzyMatchWorkflowResult;
+pub use workflow_fuzzy_match::FuzzyMatchWorkflowResult;

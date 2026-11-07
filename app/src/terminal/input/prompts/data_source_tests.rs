@@ -4,11 +4,12 @@ use chrono::Utc;
 use cloud_object_client::MockObjectClient;
 use itertools::Itertools;
 use settings::manager::SettingsManager;
-use warpui::{App, SingletonEntity};
+use warpui::{App, ModelHandle, SingletonEntity};
 
 use super::*;
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::view::CloudViewModel;
+use crate::cloud_object::{CloudWorkflowModel, WorkflowId};
 use crate::cloud_object::{
     Owner, Revision, ServerMetadata, ServerPermissions, ServerWorkflow, Space,
 };
@@ -22,12 +23,11 @@ use crate::server::server_api::workspace::MockWorkspaceClient;
 use crate::server::sync_queue::SyncQueue;
 use crate::settings::AISettings;
 use crate::system::SystemStats;
-use crate::workflows::workflow::Workflow;
-use crate::workflows::{CloudWorkflowModel, WorkflowId};
 use crate::workspaces::team::{Team, TeamVisibility};
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::workspace::Workspace;
+use cloud_object_models::Workflow;
 
 const IN_WINDOW_TEAM_PROMPT_ID: i64 = 1;
 const OTHER_TEAM_PROMPT_ID: i64 = 2;
@@ -201,7 +201,7 @@ fn test_prompts_menu_empty_query_only_returns_prompts_in_the_window() {
             user_workspaces.set_team_for_window(window_id, in_window_team.uid, ctx);
         });
 
-        let data_source = app.add_model(|ctx| PromptsMenuDataSource::new(window_id, ctx));
+        let data_source = app.add_model(|_| PromptsMenuDataSource::new(window_id));
 
         assert_eq!(
             prompt_ids_for_query(&data_source, "", &app),
@@ -232,7 +232,7 @@ fn test_prompts_menu_single_character_query_only_returns_prompts_in_the_window()
             user_workspaces.set_team_for_window(window_id, in_window_team.uid, ctx);
         });
 
-        let data_source = app.add_model(|ctx| PromptsMenuDataSource::new(window_id, ctx));
+        let data_source = app.add_model(|_| PromptsMenuDataSource::new(window_id));
 
         assert_eq!(
             prompt_ids_for_query(&data_source, "a", &app),
@@ -284,7 +284,7 @@ fn test_prompts_menu_search_query_only_returns_prompts_in_the_window() {
             user_workspaces.set_team_for_window(window_id, in_window_team.uid, ctx);
         });
 
-        let data_source = app.add_model(|ctx| PromptsMenuDataSource::new(window_id, ctx));
+        let data_source = app.add_model(|_| PromptsMenuDataSource::new(window_id));
 
         assert_eq!(
             prompt_ids_for_query(&data_source, "deployment", &app),
@@ -304,7 +304,7 @@ fn test_prompts_menu_teamless_window_returns_personal_prompts() {
         seed_prompts(&mut app, &in_window_team, &other_team);
 
         let window_id = WindowId::new();
-        let data_source = app.add_model(|ctx| PromptsMenuDataSource::new(window_id, ctx));
+        let data_source = app.add_model(|_| PromptsMenuDataSource::new(window_id));
 
         app.read(|app| {
             assert_eq!(

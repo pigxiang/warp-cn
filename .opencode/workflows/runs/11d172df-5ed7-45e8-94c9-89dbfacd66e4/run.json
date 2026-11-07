@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "run": {
+    "runId": "11d172df-5ed7-45e8-94c9-89dbfacd66e4",
+    "workflow": {
+      "key": null,
+      "name": "unapproved script",
+      "description": "An inline Workflow waiting for approval",
+      "provenance": "inline"
+    },
+    "location": "/Users/xiang/code/rust/warp-cn",
+    "parentSessionID": "ses_e4bd337a1ffebyg6qk46DZE1nq",
+    "status": "failed",
+    "waiting": false,
+    "background": false,
+    "phases": [],
+    "phasesDeclared": false,
+    "currentPhase": null,
+    "units": [],
+    "logs": [
+      "no one approved the inline Workflow (no workflow surface is attached). Open the TUI or the web app and retry, approve inline runs for this project, or set the plugin option inline: \"allow\"."
+    ],
+    "errors": [],
+    "interactions": [],
+    "resolved": [],
+    "usage": {
+      "tokens": {
+        "input": 0,
+        "output": 0,
+        "reasoning": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "cost": 0
+    },
+    "tokensSpent": 0,
+    "budget": {
+      "total": null,
+      "hard": false
+    },
+    "startedAt": 1794026256748,
+    "endedAt": 1794026256762,
+    "resultPreview": null,
+    "resumeOf": null,
+    "error": "no one approved the inline Workflow (no workflow surface is attached). Open the TUI or the web app and retry, approve inline runs for this project, or set the plugin option inline: \"allow\".",
+    "cleanup": "none",
+    "revision": 3
+  },
+  "owner": {
+    "pid": 46954,
+    "instance": "36f603a2-5baa-46b0-8c9d-3a3c4f810862",
+    "startedAt": 1793772647000
+  }
+}

@@ -242,6 +242,22 @@ pub enum ShellFamily {
 }
 
 impl ShellFamily {
+    /// The command that follows new output appended to `path` in this shell family.
+    pub fn tail_command(&self, path: &Path) -> String {
+        match self {
+            // Use debug formatting for `Path` so that any non-Unicode components of the path get
+            // escaped.  This will also add quotes around the path, so there's no need to add them
+            // in the format string.
+            Self::Posix => format!("tail -f {path:?}"),
+            // We avoid the debug formatting here so that backslashes don't get escaped, which is
+            // not desirable for PowerShell.  Note that this may be a lossy conversion if the path
+            // is not valid UTF-8.
+            Self::PowerShell => {
+                format!("Get-Content -Wait -Tail 10 -Path \"{}\"", path.display())
+            }
+        }
+    }
+
     pub fn escape_char(&self) -> EscapeChar {
         match self {
             Self::Posix => EscapeChar::Backslash,

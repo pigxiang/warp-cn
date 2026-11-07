@@ -24,10 +24,10 @@ use crate::auth::AuthStateProvider;
 // The auth-completion trigger for the legacy import is compiled out for eval builds.
 #[cfg(not(feature = "agent_mode_evals"))]
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
+use crate::cloud_object::CloudObjectTypeAndId;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModelEvent, UpdateSource};
 use crate::cloud_object::{CloudObject as _, GenericStringObjectFormat, JsonObjectType};
-use crate::drive::CloudObjectTypeAndId;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
 use crate::settings::cloud_preferences::CloudPreferencesSettings;

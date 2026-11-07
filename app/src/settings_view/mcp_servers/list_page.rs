@@ -42,9 +42,9 @@ use crate::ai::mcp::{
     file_based_manager::FileBasedMCPManagerEvent,
 };
 use crate::appearance::Appearance;
+use crate::cloud_object::CloudObjectTypeAndId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{GenericStringObjectFormat, JsonObjectType};
-use crate::drive::CloudObjectTypeAndId;
 use crate::editor::{
     EditorView, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
@@ -66,7 +66,6 @@ use crate::ui_components::blended_colors;
 use crate::util::truncation::truncate_from_end;
 use crate::view_components::DismissibleToast;
 use crate::view_components::action_button::{ActionButton, NakedTheme};
-use crate::workflows::local_workflows::tail_command_for_shell;
 use crate::workspace::Workspace;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
@@ -635,7 +634,7 @@ impl MCPServersListPageView {
 
             terminal_view_handle.update(ctx, |terminal, ctx| {
                 let shell_family = terminal.shell_family(ctx);
-                let tail_command = tail_command_for_shell(shell_family, log_file_path);
+                let tail_command = shell_family.tail_command(log_file_path);
                 terminal.set_pending_command(&tail_command, ctx);
             });
         })

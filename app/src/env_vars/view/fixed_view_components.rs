@@ -10,7 +10,7 @@ use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlign
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{Element, ViewContext};
 
-use crate::drive::sharing::{ContentEditability, SharingAccessLevel};
+use crate::cloud_object::sharing::{ContentEditability, SharingAccessLevel};
 use crate::env_vars::active_env_var_collection_data::TrashStatus;
 use crate::env_vars::view::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView};
 use crate::ui_components::breadcrumb::BreadcrumbState;

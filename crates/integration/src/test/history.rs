@@ -5,14 +5,12 @@ use warp::integration_testing::command_search::{
     assert_command_search_has_results, assert_command_search_is_open,
     assert_history_filter_is_active,
 };
-use warp::integration_testing::input::assert_workflow_info_box_is_open;
 use warp::integration_testing::step::new_step_with_default_assertions;
 use warp::integration_testing::terminal::{
     assert_input_editor_contents, wait_until_bootstrapped_single_pane_for_tab,
 };
 use warp::integration_testing::view_getters::single_input_view;
 use warp::integration_testing::{self};
-use warp::search::command_search::settings::ShowGlobalWorkflowsInUniversalSearch;
 use warp::sqlite_testing::set_user_and_hostname_for_commands;
 use warp::terminal::input::Input;
 use warp::terminal::model::session::get_local_hostname;
@@ -147,10 +145,6 @@ pub fn test_up_arrow_history_enters_shift_tab_for_workflow() -> Builder {
                 ],
             );
         })
-        .with_user_defaults(HashMap::from([(
-            ShowGlobalWorkflowsInUniversalSearch::storage_key().to_owned(),
-            "true".to_owned(),
-        )]))
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
         .with_step(
             new_step_with_default_assertions(
@@ -407,10 +401,6 @@ pub fn test_history_command_is_linked_to_local_workflow() -> Builder {
                 ],
             );
         })
-        .with_user_defaults(HashMap::from([(
-            ShowGlobalWorkflowsInUniversalSearch::storage_key().to_owned(),
-            "true".to_owned(),
-        )]))
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
         .with_step(
             new_step_with_default_assertions("Open command search")
@@ -438,10 +428,6 @@ pub fn test_history_command_is_linked_to_local_workflow() -> Builder {
                 .add_named_assertion(
                     "Input contains selected history command",
                     assert_input_editor_contents(0, r#"[[ -n "foo" ]]"#),
-                )
-                .add_named_assertion(
-                    "Workflows info box is open",
-                    assert_workflow_info_box_is_open(0, 0),
                 ),
         )
 }

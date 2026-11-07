@@ -9,8 +9,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 pub(crate) use imp::load_tab_configs;
-#[cfg(feature = "local_fs")]
-pub use imp::load_workflows;
 pub use imp::{load_launch_configs, load_theme_configs};
 use lazy_static::lazy_static;
 use warp_core::ui::theme::WarpTheme;
@@ -20,7 +18,6 @@ use crate::ai::custom_model_routers::{CustomModelRouter, ModelConfigError};
 use crate::launch_configs::launch_config::LaunchConfig;
 use crate::tab_configs::{TabConfig, TabConfigError};
 use crate::themes::theme::{ThemeKind, WarpThemeConfig};
-use crate::workflows::workflow::Workflow;
 
 lazy_static! {
     pub static ref LAUNCH_CONFIG_COMMENT: String = format!(
@@ -54,8 +51,6 @@ lazy_static! {
 #[derive(Clone)]
 pub enum WarpConfigUpdateEvent {
     Themes,
-    #[cfg_attr(not(feature = "local_fs"), expect(dead_code))]
-    LocalUserWorkflows,
     LaunchConfigs,
     #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     TabConfigs,
@@ -79,11 +74,10 @@ pub enum WarpConfigUpdateEvent {
     SettingsErrorsCleared,
 }
 
-/// Singleton model containing user configurable file entities like themes, launch configs, and
-/// workflows.
+/// Singleton model containing user configurable file entities like themes and launch configs.
 ///
 /// Emits events when entities are changed, which are detected via filesystem
-/// watchers on the user's `data_dir()` (themes, workflows, launch configs,
+/// watchers on the user's `data_dir()` (themes, launch configs,
 /// tab configs, etc.) and, on platforms where it differs, `config_local_dir()`
 /// (`settings.toml`, `keybindings.yaml`, `user_preferences.json`).
 #[derive(Default)]
@@ -93,7 +87,6 @@ pub struct WarpConfig {
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     tab_config_errors: Vec<TabConfigError>,
     theme_config: WarpThemeConfig,
-    local_user_workflows: Vec<Workflow>,
     /// User-defined custom model routers loaded from `~/.warp/custom_model_routers/`.
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     custom_model_routers: Vec<CustomModelRouter>,
@@ -125,10 +118,6 @@ impl WarpConfig {
 
     pub fn theme_config(&self) -> &WarpThemeConfig {
         &self.theme_config
-    }
-
-    pub fn local_user_workflows(&self) -> &Vec<Workflow> {
-        &self.local_user_workflows
     }
 
     /// The local (YAML-sourced) custom model routers.
@@ -197,12 +186,6 @@ fn base_dir() -> PathBuf {
 /// Returns the path to the directory containing the user's custom themes.
 pub fn themes_dir() -> PathBuf {
     warp_core::paths::themes_dir()
-}
-
-/// Returns the path to the directory containing the user's custom workflows.
-#[cfg_attr(target_family = "wasm", expect(dead_code))]
-pub fn workflows_dir() -> PathBuf {
-    crate::workflows::local_workflows::workflows_dir(base_dir())
 }
 
 /// Returns the path to the directory containing the user's launch

@@ -61,11 +61,11 @@ use crate::util::openable_file_type::FileTarget;
 // (`code::view` resolves to `view.rs` off-wasm and to `wasm.rs` on-wasm, and the
 // tooltips helper is `local_fs`-gated). Gate the re-export to match, otherwise it
 // is flagged as an unused import on the wasm build where those consumers are absent.
+use crate::cloud_object::workflow_content::{WorkflowSource, WorkflowType};
 pub use crate::util::openable_file_type::is_markdown_file;
 #[cfg(not(target_family = "wasm"))]
 pub use crate::util::openable_file_type::renders_in_warp_notebook_viewer;
 use crate::view_components::{MarkdownToggleEvent, MarkdownToggleView};
-use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ActiveSession;
 use crate::{cmd_or_ctrl_shift, safe_warn, send_telemetry_from_ctx};
 

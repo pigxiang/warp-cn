@@ -22,12 +22,12 @@ use warpui::{
 
 use super::{AIFact, CloudAIFact, CloudAIFactModel, is_edit_allowed, is_syncing, style};
 use crate::ai::facts::AIMemory;
+use crate::cloud_object::CloudObjectTypeAndId;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{
     CloudObject, GenericStringObjectFormat, JsonObjectType, Owner, Revision,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
@@ -679,8 +679,7 @@ impl RuleView {
             return None;
         }
 
-        let item = ai_row.fact.to_warp_drive_item(appearance)?;
-        let icon = item.sync_status_icon(
+        let icon = ai_row.fact.metadata.pending_changes_statuses.render_icon(
             SyncQueue::as_ref(app).is_dequeueing(),
             ai_row.mouse_states.sync_status_icon.clone(),
             appearance,

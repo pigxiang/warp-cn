@@ -4358,9 +4358,7 @@ fn submit_accepts_highlighted_command_history_entry() {
                 accepted.borrow().as_slice(),
                 &[(
                     "echo command".to_owned(),
-                    TuiUpArrowHistoryItemKind::Command {
-                        linked_workflow_data: None
-                    }
+                    TuiUpArrowHistoryItemKind::Command
                 )]
             );
         });

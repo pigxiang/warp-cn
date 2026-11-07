@@ -13,6 +13,7 @@ use super::*;
 use crate::auth::auth_manager::AuthManager;
 use crate::auth::user::TEST_USER_UID;
 use crate::auth::{AuthStateProvider, UserUid};
+use crate::cloud_object::CloudWorkflowModel;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::generic_string_model::GenericStringModel;
 use crate::cloud_object::model::view::{
@@ -22,8 +23,6 @@ use crate::cloud_object::{
     CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus,
     NumInFlightRequests, ObjectIdType, Owner, ServerMetadata, ServerPermissions,
 };
-use crate::drive::DriveIndexVariant;
-use crate::drive::folders::{CloudFolderModel, FolderId};
 use crate::features::FeatureFlag;
 use crate::notebooks::{CloudNotebookModel, NotebookId};
 use crate::server::cloud_objects::listener::ObjectUpdateMessage;
@@ -37,13 +36,14 @@ use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings::{Preference, init_and_register_user_preferences};
 use crate::system::SystemStats;
-use crate::workflows::CloudWorkflowModel;
 use crate::workspaces::team::Team;
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::{Workspace, WorkspaceUid};
 use crate::{NetworkStatus, UpdateManager};
+use cloud_object_models::CloudFolderModel;
+use warp_server_client::ids::FolderId;
 
 fn create_cloud_model(
     app: &mut App,
@@ -981,192 +981,6 @@ fn test_force_refresh_correctly_resets_timestamp() {
             assert!(
                 time >= (start + chrono::Duration::minutes(MIN_MINUTES_UNTIL_NEXT_FORCE_REFRESH))
             );
-        });
-    })
-}
-
-#[test]
-fn test_collapse_all_in_location() {
-    /*
-       the folder structure looks like:
-
-       test1
-        ↳ test 4
-         ↳ test 5
-       test 2
-        ↳ test 6
-         ↳ test 7
-       test 3
-
-    */
-    let folder_1_id: SyncId = SyncId::ServerId(1.into());
-    let folder_2_id: SyncId = SyncId::ServerId(2.into());
-    let folder_3_id: SyncId = SyncId::ServerId(3.into());
-    let folder_4_id: SyncId = SyncId::ServerId(4.into());
-    let folder_5_id: SyncId = SyncId::ServerId(5.into());
-    let folder_6_id: SyncId = SyncId::ServerId(6.into());
-    let folder_7_id: SyncId = SyncId::ServerId(7.into());
-
-    let folders = vec![
-        mock_cloud_folder(folder_1_id, "test1".to_string(), None),
-        mock_cloud_folder(folder_2_id, "test2".to_string(), None),
-        mock_cloud_folder(folder_3_id, "test3".to_string(), None),
-        mock_cloud_folder(folder_4_id, "test4".to_string(), Some(folder_1_id)),
-        mock_cloud_folder(folder_5_id, "test5".to_string(), Some(folder_4_id)),
-        mock_cloud_folder(folder_6_id, "test6".to_string(), Some(folder_2_id)),
-        mock_cloud_folder(folder_7_id, "test7".to_string(), Some(folder_6_id)),
-    ]
-    .into_iter()
-    .map(|o| Box::new(o) as Box<dyn CloudObject>)
-    .collect();
-
-    App::test((), |mut app| async move {
-        app.add_singleton_model(UserWorkspaces::default_mock);
-        let cloud_model = create_cloud_model(&mut app, folders);
-
-        cloud_model.update(&mut app, |model, ctx| {
-            // first, collapse all folders in folder 1
-            model.collapse_all_in_location(
-                CloudObjectLocation::Folder(folder_1_id),
-                DriveIndexVariant::MainIndex,
-                ctx,
-            );
-
-            // folders 1, 4, and 5 should be collapsed
-            let folder_1 = folder_from_cloud_model(model, folder_1_id);
-            let folder_4 = folder_from_cloud_model(model, folder_4_id);
-            let folder_5 = folder_from_cloud_model(model, folder_5_id);
-            assert!(!folder_1.model().is_open);
-            assert!(!folder_4.model().is_open);
-            assert!(!folder_5.model().is_open);
-            // but the others are still open
-            let folder_2 = folder_from_cloud_model(model, folder_2_id);
-            let folder_3 = folder_from_cloud_model(model, folder_3_id);
-            let folder_6 = folder_from_cloud_model(model, folder_6_id);
-            let folder_7 = folder_from_cloud_model(model, folder_7_id);
-            assert!(folder_2.model().is_open);
-            assert!(folder_3.model().is_open);
-            assert!(folder_6.model().is_open);
-            assert!(folder_7.model().is_open);
-
-            model.collapse_all_in_location(
-                CloudObjectLocation::Space(Default::default()),
-                DriveIndexVariant::MainIndex,
-                ctx,
-            );
-            // now all folders in this space are collapsed
-            let folder_1 = folder_from_cloud_model(model, folder_1_id);
-            let folder_2 = folder_from_cloud_model(model, folder_2_id);
-            let folder_3 = folder_from_cloud_model(model, folder_3_id);
-            let folder_4 = folder_from_cloud_model(model, folder_4_id);
-            let folder_5 = folder_from_cloud_model(model, folder_5_id);
-            let folder_6 = folder_from_cloud_model(model, folder_6_id);
-            let folder_7 = folder_from_cloud_model(model, folder_7_id);
-            assert!(!folder_1.model().is_open);
-            assert!(!folder_2.model().is_open);
-            assert!(!folder_3.model().is_open);
-            assert!(!folder_4.model().is_open);
-            assert!(!folder_5.model().is_open);
-            assert!(!folder_6.model().is_open);
-            assert!(!folder_7.model().is_open);
-        });
-    })
-}
-
-#[test]
-fn test_collapse_all_in_trash() {
-    /*
-       the folder structure looks like:
-
-       test1 -- trashed by user
-        ↳ test 4
-         ↳ test 5 -- trashed by user
-       test 2 -- trashed by user
-        ↳ test 6
-         ↳ test 7
-       test 3 -- trashed by user
-
-       the structure in the trash index looks like:
-
-       test1 -- trashed by user
-        ↳ test 4
-       test 5 -- trashed by user
-       test 2 -- trashed by user
-        ↳ test 6
-         ↳ test 7
-       test 3 -- trashed by user
-
-    */
-    let folder_1_id: SyncId = SyncId::ServerId(1.into());
-    let folder_2_id: SyncId = SyncId::ServerId(2.into());
-    let folder_3_id: SyncId = SyncId::ServerId(3.into());
-    let folder_4_id: SyncId = SyncId::ServerId(4.into());
-    let folder_5_id: SyncId = SyncId::ServerId(5.into());
-    let folder_6_id: SyncId = SyncId::ServerId(6.into());
-    let folder_7_id: SyncId = SyncId::ServerId(7.into());
-
-    let folders = vec![
-        mock_trashed_cloud_folder(folder_1_id, "test1".to_string(), None),
-        mock_trashed_cloud_folder(folder_2_id, "test2".to_string(), None),
-        mock_trashed_cloud_folder(folder_3_id, "test3".to_string(), None),
-        mock_cloud_folder(folder_4_id, "test4".to_string(), Some(folder_1_id)),
-        mock_trashed_cloud_folder(folder_5_id, "test5".to_string(), Some(folder_4_id)),
-        mock_cloud_folder(folder_6_id, "test6".to_string(), Some(folder_2_id)),
-        mock_cloud_folder(folder_7_id, "test7".to_string(), Some(folder_6_id)),
-    ]
-    .into_iter()
-    .map(|o| Box::new(o) as Box<dyn CloudObject>)
-    .collect();
-
-    App::test((), |mut app| async move {
-        app.add_singleton_model(UserWorkspaces::default_mock);
-        let cloud_model = create_cloud_model(&mut app, folders);
-
-        cloud_model.update(&mut app, |model, ctx| {
-            // first, collapse all folders in folder 1
-            model.collapse_all_in_location(
-                CloudObjectLocation::Folder(folder_1_id),
-                DriveIndexVariant::Trash,
-                ctx,
-            );
-
-            // folders 1, 4 should be collapsed
-            let folder_1 = folder_from_cloud_model(model, folder_1_id);
-            let folder_4 = folder_from_cloud_model(model, folder_4_id);
-            assert!(!folder_1.model().is_open);
-            assert!(!folder_4.model().is_open);
-            // but the others, including folder 5, are still open
-            let folder_2 = folder_from_cloud_model(model, folder_2_id);
-            let folder_3 = folder_from_cloud_model(model, folder_3_id);
-            let folder_5 = folder_from_cloud_model(model, folder_5_id);
-            let folder_6 = folder_from_cloud_model(model, folder_6_id);
-            let folder_7 = folder_from_cloud_model(model, folder_7_id);
-            assert!(folder_2.model().is_open);
-            assert!(folder_3.model().is_open);
-            assert!(folder_5.model().is_open);
-            assert!(folder_6.model().is_open);
-            assert!(folder_7.model().is_open);
-
-            model.collapse_all_in_location(
-                CloudObjectLocation::Space(Default::default()),
-                DriveIndexVariant::Trash,
-                ctx,
-            );
-            // now all folders in this space are collapsed
-            let folder_1 = folder_from_cloud_model(model, folder_1_id);
-            let folder_2 = folder_from_cloud_model(model, folder_2_id);
-            let folder_3 = folder_from_cloud_model(model, folder_3_id);
-            let folder_4 = folder_from_cloud_model(model, folder_4_id);
-            let folder_5 = folder_from_cloud_model(model, folder_5_id);
-            let folder_6 = folder_from_cloud_model(model, folder_6_id);
-            let folder_7 = folder_from_cloud_model(model, folder_7_id);
-            assert!(!folder_1.model().is_open);
-            assert!(!folder_2.model().is_open);
-            assert!(!folder_3.model().is_open);
-            assert!(!folder_4.model().is_open);
-            assert!(!folder_5.model().is_open);
-            assert!(!folder_6.model().is_open);
-            assert!(!folder_7.model().is_open);
         });
     })
 }

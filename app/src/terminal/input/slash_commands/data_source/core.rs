@@ -674,7 +674,7 @@ impl InlineItem {
     }
 
     pub(crate) fn from_saved_prompt(
-        saved_prompt: &crate::workflows::CloudWorkflow,
+        saved_prompt: &crate::cloud_object::CloudWorkflow,
         app: &AppContext,
     ) -> Self {
         let appearance = Appearance::as_ref(app);

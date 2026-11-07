@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 
 use itertools::{Itertools, Position};
+use warpui::Element;
 use warpui::elements::{
     CrossAxisAlignment, Flex, Hoverable, MainAxisSize, MouseStateHandle, ParentElement, Shrinkable,
 };
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
-use warpui::{AppContext, Element, EventContext};
 
 use crate::appearance::Appearance;
 
@@ -91,12 +91,8 @@ fn render_breadcrumb<T: Breadcrumb>(
     }
 }
 
-/// Render a row of interactive breadcrumbs.
-pub fn render_breadcrumbs<T, I>(
-    breadcrumbs: I,
-    appearance: &Appearance,
-    on_click: fn(&mut EventContext, &AppContext, &T) -> (),
-) -> Box<dyn Element>
+/// Render a row of breadcrumbs.
+pub fn render_breadcrumbs<T, I>(breadcrumbs: I, appearance: &Appearance) -> Box<dyn Element>
 where
     T: Breadcrumb,
     I: IntoIterator<Item = BreadcrumbState<T>>,
@@ -113,7 +109,6 @@ where
                     matches!(position, Position::Last | Position::Only),
                     appearance,
                 )
-                .on_click(move |ctx, app, _| on_click(ctx, app, &breadcrumb.breadcrumb))
                 .finish(),
             )
             .finish()

@@ -40,7 +40,6 @@ mod sync_inputs;
 mod typeahead;
 mod video_recording;
 mod websockets;
-mod workflows;
 mod workspace;
 
 use std::borrow::Cow;
@@ -154,9 +153,6 @@ use warp::integration_testing::view_getters::{
     single_terminal_pane_view_for_tab, single_terminal_view, single_terminal_view_for_tab,
     workspace_view,
 };
-use warp::integration_testing::warp_drive::{
-    assert_is_left_panel_open, assert_warp_drive_is_closed, assert_warp_drive_is_open,
-};
 use warp::integration_testing::window::{
     add_and_save_window, add_window, add_window_and_check_bounds, close_window,
     save_active_window_id,
@@ -188,7 +184,6 @@ use warp::terminal::view::{
 };
 use warp::terminal::{TerminalView, shell};
 use warp::util::bindings::CustomAction;
-use warp::workflows::categories::CategoriesView;
 use warp::workspace::{
     NEW_SESSION_MENU_BUTTON_POSITION_ID, NEW_TAB_BUTTON_POSITION_ID, Workspace, WorkspaceAction,
 };
@@ -204,7 +199,6 @@ use warpui_core::{
     AssetProvider, Event, SingletonEntity, UpdateView, ViewHandle, async_assert, async_assert_eq,
 };
 pub use websockets::*;
-pub use workflows::*;
 pub use workspace::*;
 
 use crate::builder::cargo_target_tmpdir;
@@ -231,62 +225,6 @@ use super::util::{self, write_all_rc_files_for_test, write_rc_files_for_test};
 
 fn new_builder() -> Builder {
     Builder::new()
-}
-
-/// Adds a workflow file, containing two workflows, to the mocked out warp
-/// config directory and verifies that the workflows appear in the workflow menu.
-pub fn test_add_workflows_to_warp_config() -> Builder {
-    new_builder()
-        .with_setup(move |utils| {
-            utils.set_env("WARP_CONFIG_WATCHER_DELAY_MS", Some((10).to_string()));
-
-            std::fs::create_dir_all(integration_testing::workflow::workflows_dir())
-                .expect("Should be able to create workflows dir");
-        })
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(
-            TestStep::new("Should have no local workflows").add_named_assertion(
-                "Should have no local workflows",
-                |app, window_id| {
-                    let workflows: ViewHandle<CategoriesView> = view_of_type(app, window_id, 0);
-
-                    workflows.read(app, |workflows, _| {
-                        // Note that this can be a synchronous assertion because unlike the next test step,
-                        // we don't have concurrency with a WarpConfig watcher thread
-                        assert_eq!(
-                            workflows.local_workflows().count(),
-                            0,
-                            "There should not be any local workflows"
-                        );
-                    });
-                    AssertionOutcome::Success
-                },
-            ),
-        )
-        .with_step(
-            TestStep::new("Write a new file containing two workflows")
-                .with_setup(|_utils| {
-                    integration_testing::create_file_from_assets(
-                        TEST_ONLY_ASSETS,
-                        "test_workflow.yaml",
-                        &integration_testing::workflow::workflows_dir().join("test_workflow.yaml"),
-                    );
-                })
-                .add_named_assertion(
-                    "The two added workflows should be in the view",
-                    |app, window_id| {
-                        let workflows: ViewHandle<CategoriesView> = view_of_type(app, window_id, 0);
-
-                        let num_workflows =
-                            workflows.read(app, |workflows, _| workflows.local_workflows().count());
-                        async_assert!(
-                            num_workflows == 2,
-                            "Expected to find two workflows, instead found {}",
-                            num_workflows
-                        )
-                    },
-                ),
-        )
 }
 
 pub fn test_launch_warp_with_theme_in_warp_config() -> Builder {
@@ -593,8 +531,7 @@ pub fn test_suggestions_menu_positioning() -> Builder {
         )
         .with_step(
             new_step_with_default_assertions("Open Warp Drive")
-                .with_click_on_saved_position("workspace:toggle_left_panel")
-                .add_assertion(assert_is_left_panel_open()),
+                .with_click_on_saved_position("workspace:toggle_left_panel"),
         )
         .with_step(
             new_step_with_default_assertions("Assert that suggestions menu updated")
@@ -6818,32 +6755,6 @@ pub fn test_agent_mode_pane_minimum_size() -> Builder {
                         })
                     },
                 ),
-        )
-}
-
-// cheating a little bit in this test; it's hard to tell if the create folder dialog is open from
-// the workspace view, but we DO force warp drive open to show the dialog, so we can look for that
-pub fn test_create_folder_from_command_palette() -> Builder {
-    new_builder()
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(join_a_workspace())
-        .with_step(go_offline())
-        .with_steps(
-            open_command_palette_and_run_action("Create a New Team Folder")
-                .add_assertion(assert_warp_drive_is_closed()),
-        )
-        .with_steps(
-            open_command_palette_and_run_action("Create a New Personal Folder")
-                .add_assertion(assert_warp_drive_is_closed()),
-        )
-        .with_step(go_online())
-        .with_steps(
-            open_command_palette_and_run_action("Create a New Team Folder")
-                .add_assertion(assert_warp_drive_is_open()),
-        )
-        .with_steps(
-            open_command_palette_and_run_action("Create a New Personal Folder")
-                .add_assertion(assert_warp_drive_is_open()),
         )
 }
 

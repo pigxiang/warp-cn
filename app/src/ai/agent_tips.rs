@@ -76,7 +76,6 @@ pub trait AITip: Clone {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AgentTipKind {
     CodebaseContext,
-    WarpDrive,
     General,
     Mcp,
     SlashCommands,
@@ -121,13 +120,6 @@ static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
                 query: None,
             }),
             kind: AgentTipKind::General,
-        },
-        AgentTip {
-            description_key: "ai-ui-agent-tip-warp-drive",
-            link: Some("https://docs.warp.dev/knowledge-and-collaboration/warp-drive".to_string()),
-            binding_name: None,
-            action: Some(WorkspaceAction::OpenWarpDrive),
-            kind: AgentTipKind::WarpDrive,
         },
         AgentTip {
             description_key: "ai-ui-agent-tip-redirect-agent",
@@ -219,13 +211,6 @@ static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
             binding_name: None,
             action: None,
             kind: AgentTipKind::General,
-        },
-        AgentTip {
-            description_key: "ai-ui-agent-tip-add-prompt",
-            link: None,
-            binding_name: None,
-            action: None,
-            kind: AgentTipKind::WarpDrive,
         },
         AgentTip {
             description_key: "ai-ui-agent-tip-add-rule",
@@ -445,9 +430,6 @@ impl WorkspaceAction {
         match self {
             WorkspaceAction::OpenPalette { .. } => {
                 Some(warp_i18n::t!("ai-ui-agent-tip-action-open-palette"))
-            }
-            WorkspaceAction::OpenWarpDrive => {
-                Some(warp_i18n::t!("ai-ui-agent-tip-action-warp-drive"))
             }
             WorkspaceAction::ToggleRightPanel => {
                 Some(warp_i18n::t!("ai-ui-agent-tip-action-show-diff-view"))

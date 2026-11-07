@@ -29,12 +29,12 @@ use warpui::{AppContext, Element, LayoutContext, SingletonEntity, SizeConstraint
 
 use crate::cloud_object::CloudObject;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::drive::DriveObjectType;
-use crate::drive::cloud_object_styling::warp_drive_icon_color;
+use crate::cloud_object::styling::DriveObjectType;
+use crate::cloud_object::styling::warp_drive_icon_color;
+use crate::cloud_object::{CloudWorkflow, WorkflowId};
 use crate::server::ids::{HashableId, ToServerId};
 use crate::ui_components::icons::Icon;
-use crate::workflows::workflow::Workflow;
-use crate::workflows::{CloudWorkflow, WorkflowId};
+use cloud_object_models::Workflow;
 
 // Spacing for the embedded workflow card.
 const EMBED_WORKFLOW_SPACING: BlockSpacing = BlockSpacing {

@@ -46,7 +46,7 @@ use crate::server::telemetry::{TelemetryEvent, WarpAIActionType};
 use crate::terminal::resizable_data::{DEFAULT_WARP_AI_WIDTH, ModalType, ResizableData};
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
-use crate::util::bindings::{cmd_or_ctrl_shift, BindingDescriptionFluentExt, CustomAction};
+use crate::util::bindings::{BindingDescriptionFluentExt, CustomAction, cmd_or_ctrl_shift};
 use crate::workspace::{ActiveSession, TAB_BAR_HEIGHT};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
@@ -97,7 +97,6 @@ pub enum AIAssistantPanelEvent {
     ClosePanel,
     PasteInTerminalInput(Arc<String>),
     FocusTerminalInput,
-    OpenWorkflowModalWithCommand(String),
 }
 
 /// Which child view is currently focused. It must be exactly one of these.
@@ -552,11 +551,6 @@ impl AIAssistantPanelView {
             TranscriptEvent::ClickedCodeBlock | TranscriptEvent::FocusTranscript => {
                 self.focus_state = PanelFocusState::Transcript;
                 ctx.focus_self();
-            }
-            TranscriptEvent::OpenWorkflowModalWithCommand(command) => {
-                ctx.emit(AIAssistantPanelEvent::OpenWorkflowModalWithCommand(
-                    command.clone(),
-                ));
             }
         }
     }

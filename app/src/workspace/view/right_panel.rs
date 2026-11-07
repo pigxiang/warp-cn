@@ -36,7 +36,6 @@ use crate::code_review::code_review_view::{
 };
 use crate::code_review::diff_state::DiffStateModel;
 use crate::code_review::telemetry_event::CodeReviewContextDestination;
-use crate::drive::panel::{MAX_SIDEBAR_WIDTH_RATIO, MIN_SIDEBAR_WIDTH};
 use crate::pane_group::pane::view::header::PANE_HEADER_HEIGHT;
 use crate::pane_group::pane::view::header::components::HEADER_EDGE_PADDING;
 use crate::pane_group::{
@@ -46,6 +45,7 @@ use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::terminal::CLIAgent;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::MenuPositioning;
+use crate::terminal::resizable_data::{MAX_PANEL_WIDTH_RATIO, MIN_PANEL_WIDTH};
 use crate::terminal::resizable_data::{ModalType, ResizableData};
 use crate::terminal::view::TerminalView;
 use crate::ui_components::buttons::icon_button_with_color;
@@ -1900,8 +1900,8 @@ impl View for RightPanelView {
                 ctx.notify();
             })
             .with_bounds_callback(Box::new(|window_size| {
-                let min_width = MIN_SIDEBAR_WIDTH;
-                let max_width = window_size.x() * MAX_SIDEBAR_WIDTH_RATIO;
+                let min_width = MIN_PANEL_WIDTH;
+                let max_width = window_size.x() * MAX_PANEL_WIDTH_RATIO;
                 (min_width, max_width.max(min_width))
             }))
             .finish()

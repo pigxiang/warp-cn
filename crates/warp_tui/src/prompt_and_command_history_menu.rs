@@ -246,17 +246,9 @@ impl TuiPromptAndCommandHistoryMenuModel {
             text: input_text(&self.input_editor, ctx),
             kind: TuiUpArrowHistoryItemKind::Prompt,
         });
-        let linked_workflow_data = match &accepted.kind {
-            TuiUpArrowHistoryItemKind::Prompt => None,
-            TuiUpArrowHistoryItemKind::Command {
-                linked_workflow_data,
-            } => linked_workflow_data.clone(),
-        };
         accepted.kind = match self.input_mode.as_ref(ctx).input_type() {
             InputType::AI => TuiUpArrowHistoryItemKind::Prompt,
-            InputType::Shell => TuiUpArrowHistoryItemKind::Command {
-                linked_workflow_data,
-            },
+            InputType::Shell => TuiUpArrowHistoryItemKind::Command,
         };
         self.close(ctx);
         Some(accepted)

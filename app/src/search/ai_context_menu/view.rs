@@ -25,7 +25,6 @@ use warpui::{
 use super::styles;
 use crate::appearance::Appearance;
 use crate::debounce;
-use crate::drive::settings::WarpDriveSettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::blocks::data_source::BlockDataSource;
 #[cfg(not(target_family = "wasm"))]
@@ -47,14 +46,13 @@ use crate::search::ai_context_menu::mixer::{AIContextMenuMixer, AIContextMenuSea
 use crate::search::ai_context_menu::rules::data_source::RulesDataSource;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::skills::data_source::SkillsDataSource;
-#[cfg(not(target_family = "wasm"))]
-use crate::search::ai_context_menu::workflows::data_source::WorkflowDataSource;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
 #[cfg(not(target_family = "wasm"))]
 use crate::search::mixer::AddAsyncSourceOptions;
 use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
 use crate::search::search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering};
 use crate::settings::InputSettings;
+use crate::settings::warp_drive_settings::WarpDriveSettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::workspace::ActiveSession;
 
@@ -82,7 +80,6 @@ pub enum AIContextMenuCategory {
     RepoFiles,
     Commands,
     Blocks,
-    Workflows,
     Diffs,
     Docs,
     Tasks,
@@ -105,7 +102,6 @@ impl AIContextMenuCategory {
             AIContextMenuCategory::RepoFiles => "Files and folders",
             AIContextMenuCategory::Commands => "Commands",
             AIContextMenuCategory::Blocks => "Blocks",
-            AIContextMenuCategory::Workflows => "Workflows",
             AIContextMenuCategory::Diffs => "Diffs",
             AIContextMenuCategory::Docs => "Docs",
             AIContextMenuCategory::Tasks => "Past tasks",
@@ -128,7 +124,6 @@ impl AIContextMenuCategory {
             AIContextMenuCategory::RepoFiles => "bundled/svg/folder.svg",
             AIContextMenuCategory::Commands => "bundled/svg/terminal.svg",
             AIContextMenuCategory::Blocks => "bundled/svg/terminal.svg",
-            AIContextMenuCategory::Workflows => "bundled/svg/workflow.svg",
             AIContextMenuCategory::Diffs => "bundled/svg/diff.svg",
             AIContextMenuCategory::Docs => "bundled/svg/docs.svg",
             AIContextMenuCategory::Tasks => "bundled/svg/tasks.svg",
@@ -416,9 +411,6 @@ impl AIContextMenu {
         if is_in_ambient_agent {
             let mut categories = vec![];
             if show_warp_drive {
-                if FeatureFlag::DriveObjectsAsContext.is_enabled() {
-                    categories.push(AIContextMenuCategory::Workflows);
-                }
                 categories.push(AIContextMenuCategory::Rules);
             }
             return categories;
@@ -448,9 +440,6 @@ impl AIContextMenu {
                 && !is_shared_session_viewer
             {
                 categories.push(AIContextMenuCategory::Code);
-            }
-            if show_warp_drive && FeatureFlag::DriveObjectsAsContext.is_enabled() {
-                categories.push(AIContextMenuCategory::Workflows);
             }
             if FeatureFlag::DiffSetAsContext.is_enabled()
                 && is_active_dir_in_git_repo
@@ -912,20 +901,6 @@ impl AIContextMenu {
                 });
             }
             #[cfg(not(target_family = "wasm"))]
-            NavigationState::Category(AIContextMenuCategory::Workflows) => {
-                let workflow_data_source = ctx.add_model(|_| WorkflowDataSource::new());
-                self.mixer.update(ctx, |mixer, ctx| {
-                    mixer.add_sync_source(workflow_data_source, [QueryFilter::Workflows]);
-                    mixer.run_query(
-                        Query {
-                            text: "".into(),
-                            filters: HashSet::new(),
-                        },
-                        ctx,
-                    );
-                });
-            }
-            #[cfg(not(target_family = "wasm"))]
             NavigationState::Category(AIContextMenuCategory::Rules) => {
                 let rules_data_source = ctx.add_model(|_| RulesDataSource::new());
                 self.mixer.update(ctx, |mixer, ctx| {
@@ -1069,12 +1044,6 @@ impl AIContextMenu {
                             },
                             ctx,
                         );
-                    });
-                }
-                AIContextMenuCategory::Workflows => {
-                    let workflow_data_source = ctx.add_model(|_| WorkflowDataSource::new());
-                    self.mixer.update(ctx, |mixer, _ctx| {
-                        mixer.add_sync_source(workflow_data_source, [QueryFilter::Workflows]);
                     });
                 }
                 AIContextMenuCategory::Rules => {

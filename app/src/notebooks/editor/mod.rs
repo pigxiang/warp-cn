@@ -19,12 +19,13 @@ use warpui::fonts::FamilyId;
 use warpui::ui_components::checkbox::HOVER_BACKGROUND_COLOR;
 
 use crate::appearance::Appearance;
+use crate::cloud_object::CloudWorkflow;
+use crate::cloud_object::workflow_content::{WorkflowSource, WorkflowType};
 use crate::notebooks::editor::embedded_item::EmbeddedWorkflow;
 use crate::settings::{FontSettings, derived_notebook_font_size};
 use crate::themes::theme::Fill;
 use crate::ui_components::icons::Icon;
 use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
-use crate::workflows::{CloudWorkflow, WorkflowSource, WorkflowType};
 
 mod block_insertion_menu;
 mod embedded_item;

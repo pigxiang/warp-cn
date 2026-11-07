@@ -14,11 +14,11 @@ use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{Revision, ServerAIExecutionProfile, ServerMetadata, ServerPermissions};
-use crate::drive::settings::WarpDriveSettings;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::sync_queue::SyncQueue;
+use crate::settings::warp_drive_settings::WarpDriveSettings;
 use crate::settings::{
     AISettings, CodeSettings, PrivacySettings, UsageDisplayUnit,
     apply_account_first_onboarding_settings, apply_onboarding_settings,

@@ -86,8 +86,8 @@ use crate::server::server_api::managed_secrets::AppManagedSecretManager as Manag
 use crate::server::server_api::{ServerApi, ServerApiProvider};
 use crate::server::team_scope::RequestTeamScope;
 use crate::terminal::view::ConversationRestorationInNewPaneType;
-use crate::workflows::workflow::Workflow;
 use crate::workspaces::user_workspaces::HeadlessTeamScope;
+use cloud_object_models::Workflow;
 
 mod admin;
 mod agent_config;

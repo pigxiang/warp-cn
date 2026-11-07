@@ -16,7 +16,7 @@ use warp_graphql::mutations::generate_commands::{GenerateCommandsFailureType, Ge
 use crate::ai::{RequestLimitInfo, RequestLimitRefreshDuration};
 use crate::server::telemetry::OpenedWarpAISource;
 use crate::terminal::model::terminal_model::BlockIndex;
-use crate::workflows::workflow::{Argument, Workflow};
+use cloud_object_models::{Argument, Workflow};
 
 pub mod execution_context;
 pub mod panel;

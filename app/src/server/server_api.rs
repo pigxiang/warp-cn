@@ -4,6 +4,7 @@ pub mod block;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) mod download;
 pub mod factory;
+pub mod generated_command_metadata;
 pub mod harness_support;
 pub mod integrations;
 pub mod managed_mcp;

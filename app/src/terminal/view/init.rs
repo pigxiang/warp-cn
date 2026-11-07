@@ -453,17 +453,6 @@ pub fn init(app: &mut AppContext) {
             id!("Terminal") & ne!("TerminalView_BlockSelectionCardinality", "None"),
         ),
         EditableBinding::new(
-            "terminal:toggle_teams_modal",
-            BindingDescription::fluent("binding-terminal-view-toggle-teams-modal"),
-            TerminalAction::OpenWorkflowModal,
-        )
-        .with_key_binding(cmd_or_ctrl_shift("s"))
-        .with_context_predicate(
-            id!("Terminal")
-                & !id!("IMEOpen")
-                & ne!("TerminalView_BlockSelectionCardinality", "None"),
-        ),
-        EditableBinding::new(
             "terminal:copy_git_branch",
             BindingDescription::fluent("binding-terminal-view-copy-git-branch"),
             TerminalAction::CopyGitBranch,

@@ -7,17 +7,18 @@ use crate::app_state::WindowSnapshot;
 
 pub const DEFAULT_UNIVERSAL_SEARCH_WIDTH: f32 = 700.;
 pub const DEFAULT_WARP_AI_WIDTH: f32 = 410.;
-pub const DEFAULT_VOLTRON_WIDTH: f32 = 700.;
-pub const DEFAULT_WARP_DRIVE_INDEX_WIDTH: f32 = 300.;
 pub const DEFAULT_SETTINGS_PANEL_WIDTH: f32 = 194.;
 pub const DEFAULT_LEFT_PANEL_WIDTH: f32 = 240.;
 pub const DEFAULT_RIGHT_PANEL_WIDTH: f32 = 480.;
 /// A naming system for the ResizableStateHandles
+/// Minimum width of a side panel (left or right).
+pub const MIN_PANEL_WIDTH: f32 = 250.;
+/// Maximum width of a side panel, as a fraction of the window width.
+pub const MAX_PANEL_WIDTH_RATIO: f32 = 0.75;
+
 pub enum ModalType {
     UniversalSearchWidth,
     WarpAIWidth,
-    VoltronWidth,
-    WarpDriveIndexWidth,
     SettingsPanelWidth,
     LeftPanelWidth,
     RightPanelWidth,
@@ -28,8 +29,6 @@ pub enum ModalType {
 pub struct ModalSizes {
     pub universal_search_width: ResizableStateHandle,
     pub warp_ai_width: ResizableStateHandle,
-    pub voltron_width: ResizableStateHandle,
-    pub warp_drive_index_width: ResizableStateHandle,
     pub settings_panel_width: ResizableStateHandle,
     pub left_panel_width: ResizableStateHandle,
     pub right_panel_width: ResizableStateHandle,
@@ -48,12 +47,6 @@ impl ModalSizes {
         let warp_ai_width = window_snapshot
             .warp_ai_width
             .unwrap_or(DEFAULT_WARP_AI_WIDTH);
-        let voltron_width = window_snapshot
-            .voltron_width
-            .unwrap_or(DEFAULT_VOLTRON_WIDTH);
-        let warp_drive_index_width = window_snapshot
-            .warp_drive_index_width
-            .unwrap_or(DEFAULT_WARP_DRIVE_INDEX_WIDTH);
         let settings_panel_width = DEFAULT_SETTINGS_PANEL_WIDTH;
         let left_panel_width = window_snapshot.left_panel_width.unwrap_or(left_panel_size);
         let right_panel_width = window_snapshot
@@ -63,8 +56,6 @@ impl ModalSizes {
         Self {
             universal_search_width: resizable_state_handle(universal_search_width),
             warp_ai_width: resizable_state_handle(warp_ai_width),
-            voltron_width: resizable_state_handle(voltron_width),
-            warp_drive_index_width: resizable_state_handle(warp_drive_index_width),
             settings_panel_width: resizable_state_handle(settings_panel_width),
             left_panel_width: resizable_state_handle(left_panel_width),
             right_panel_width: resizable_state_handle(right_panel_width),
@@ -75,8 +66,6 @@ impl ModalSizes {
         ModalSizes {
             universal_search_width: resizable_state_handle(DEFAULT_UNIVERSAL_SEARCH_WIDTH),
             warp_ai_width: resizable_state_handle(DEFAULT_WARP_AI_WIDTH),
-            voltron_width: resizable_state_handle(DEFAULT_VOLTRON_WIDTH),
-            warp_drive_index_width: resizable_state_handle(DEFAULT_WARP_DRIVE_INDEX_WIDTH),
             settings_panel_width: resizable_state_handle(DEFAULT_SETTINGS_PANEL_WIDTH),
             left_panel_width: resizable_state_handle(left_default),
             right_panel_width: resizable_state_handle(right_default),
@@ -88,8 +77,6 @@ impl ModalSizes {
         match modal {
             ModalType::UniversalSearchWidth => self.universal_search_width.clone(),
             ModalType::WarpAIWidth => self.warp_ai_width.clone(),
-            ModalType::VoltronWidth => self.voltron_width.clone(),
-            ModalType::WarpDriveIndexWidth => self.warp_drive_index_width.clone(),
             ModalType::SettingsPanelWidth => self.settings_panel_width.clone(),
             ModalType::LeftPanelWidth => self.left_panel_width.clone(),
             ModalType::RightPanelWidth => self.right_panel_width.clone(),
@@ -103,8 +90,6 @@ impl Default for ModalSizes {
         Self {
             universal_search_width: resizable_state_handle(DEFAULT_UNIVERSAL_SEARCH_WIDTH),
             warp_ai_width: resizable_state_handle(DEFAULT_WARP_AI_WIDTH),
-            voltron_width: resizable_state_handle(DEFAULT_VOLTRON_WIDTH),
-            warp_drive_index_width: resizable_state_handle(DEFAULT_WARP_DRIVE_INDEX_WIDTH),
             settings_panel_width: resizable_state_handle(DEFAULT_SETTINGS_PANEL_WIDTH),
             left_panel_width: resizable_state_handle(DEFAULT_LEFT_PANEL_WIDTH),
             right_panel_width: resizable_state_handle(DEFAULT_RIGHT_PANEL_WIDTH),

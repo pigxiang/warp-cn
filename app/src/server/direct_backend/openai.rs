@@ -7,20 +7,22 @@
 //! Same wire format powers OpenAI-compatible gateways (vLLM, LiteLLM,
 //! DeepSeek, Qwen, Ollama, OpenRouter, …) — only the `base_url` differs.
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::ai_assistant::{
-    requests::GenerateDialogueResult, utils::TranscriptPart, AIGeneratedCommand,
-    GenerateCommandsFromNaturalLanguageError,
+    AIGeneratedCommand, GenerateCommandsFromNaturalLanguageError, requests::GenerateDialogueResult,
+    utils::TranscriptPart,
 };
-use crate::drive::workflows::ai_assist::{GeneratedCommandMetadata, GeneratedCommandMetadataError};
+use crate::server::server_api::generated_command_metadata::{
+    GeneratedCommandMetadata, GeneratedCommandMetadataError,
+};
 
 use super::common::{
-    api_url, byok_unlimited_request_limit, parse_commands_payload, parse_metadata_payload,
-    truncate_for_log, COMMANDS_SYSTEM_PROMPT, DIALOGUE_SYSTEM_PROMPT, METADATA_SYSTEM_PROMPT,
+    COMMANDS_SYSTEM_PROMPT, DIALOGUE_SYSTEM_PROMPT, METADATA_SYSTEM_PROMPT, api_url,
+    byok_unlimited_request_limit, parse_commands_payload, parse_metadata_payload, truncate_for_log,
 };
 use super::{LlmBackend, ResolvedProvider};
 

@@ -86,7 +86,6 @@ use crate::view_components::dropdown::{
     Dropdown, DropdownAction, DropdownItemAction, DropdownStyle,
 };
 use crate::view_components::{DismissibleToast, FilterableDropdown};
-use crate::workflows::WorkflowType;
 use crate::workspace::{
     ForkedConversationDestination, RestoreConversationLayout, ToastStack, WorkspaceAction,
 };
@@ -328,9 +327,9 @@ impl AgentManagementView {
 
         let cloud_setup_guide_view = ctx.add_typed_action_view(CloudSetupGuideView::new);
         ctx.subscribe_to_view(&cloud_setup_guide_view, |_, _, event, ctx| match event {
-            CloudSetupGuideEvent::OpenNewTabAndInsertWorkflow(workflow) => {
-                ctx.emit(AgentManagementViewEvent::OpenNewTabAndRunWorkflow(
-                    Box::new(workflow.clone()),
+            CloudSetupGuideEvent::OpenNewTabAndInsertCode(code) => {
+                ctx.emit(AgentManagementViewEvent::OpenNewTabAndInsertCode(
+                    code.clone(),
                 ));
             }
         });
@@ -2358,7 +2357,7 @@ pub enum AgentManagementViewAction {
 }
 
 pub enum AgentManagementViewEvent {
-    OpenNewTabAndRunWorkflow(Box<WorkflowType>),
+    OpenNewTabAndInsertCode(String),
     OpenPlan { document_uid: String },
 }
 

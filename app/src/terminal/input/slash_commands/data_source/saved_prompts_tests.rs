@@ -3,9 +3,9 @@ use std::sync::Arc;
 use ordered_float::OrderedFloat;
 
 use super::{SavedPromptCandidate, SavedPromptsSnapshot, fuzzy_match_saved_prompts};
+use crate::cloud_object::CloudWorkflowModel;
 use crate::server::ids::{ClientId, SyncId};
-use crate::workflows::CloudWorkflowModel;
-use crate::workflows::workflow::Workflow;
+use cloud_object_models::Workflow;
 
 const TEST_FONT_FAMILY: warpui::fonts::FamilyId = warpui::fonts::FamilyId(0);
 

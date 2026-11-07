@@ -9,13 +9,13 @@ use super::{
     ShareableLinkError,
 };
 use crate::app_state::{LeafContents, NotebookPaneSnapshot};
+use crate::cloud_object::workflow_content::WorkflowSelectionSource;
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::notebooks::file::{FileNotebookEvent, FileNotebookView};
 use crate::notebooks::link::{LinkEvent, NotebookLinks};
 use crate::pane_group::{DefaultSessionModeBehavior, Direction};
 use crate::terminal::model::session::Session;
-use crate::workflows::WorkflowSelectionSource;
 
 pub struct FilePane {
     view: ViewHandle<PaneView<FileNotebookView>>,
@@ -190,11 +190,6 @@ fn subscribe_to_link_model(
                 session: session.clone(),
             })
         }
-        LinkEvent::OpenWarpDriveLink {
-            open_warp_drive_args,
-        } => ctx.emit(crate::pane_group::Event::OpenWarpDriveLink {
-            open_warp_drive_args: open_warp_drive_args.clone(),
-        }),
         LinkEvent::StartLocalSession { path } => {
             pane_group.add_session_in_directory(
                 Direction::Right,

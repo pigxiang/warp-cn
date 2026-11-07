@@ -4,15 +4,6 @@ use warpui::{async_assert, async_assert_eq};
 use crate::integration_testing::view_getters::{input_view, single_input_view_for_tab};
 use crate::terminal::input::InputSuggestionsMode;
 
-pub fn assert_workflow_info_box_is_open(tab_idx: usize, pane_idx: usize) -> AssertionCallback {
-    Box::new(move |app, window_id| {
-        let input = input_view(app, window_id, tab_idx, pane_idx);
-        input.read(app, |input, _ctx| {
-            async_assert!(input.is_workflows_info_box_open())
-        })
-    })
-}
-
 pub fn input_editor_is_focused(tab_idx: usize) -> AssertionCallback {
     Box::new(move |app, window_id| {
         let input = single_input_view_for_tab(app, window_id, tab_idx);

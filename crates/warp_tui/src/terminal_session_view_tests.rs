@@ -3489,7 +3489,7 @@ fn submit_is_blocked_during_bootstrap_and_allowed_at_prompt() {
                 .lock()
                 .block_list_mut()
                 .reinit_shell(None);
-            view.handle_submitted("draft".to_owned(), None, ctx);
+            view.handle_submitted("draft".to_owned(), ctx);
         });
 
         assert_eq!(

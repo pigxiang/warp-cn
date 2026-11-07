@@ -19,7 +19,6 @@ use super::searcher::{EmbeddingSearchItemAction, EmbeddingSearchMixer};
 use crate::appearance::Appearance;
 use crate::cloud_object::Space;
 use crate::search::notebook_embedding::notebooks::CloudNotebooksDataSource;
-use crate::search::notebook_embedding::workflows::CloudWorkflowsDataSource;
 use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
 use crate::search::search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering};
 
@@ -125,10 +124,6 @@ impl EmbeddingSearchMenu {
         self.mixer.update(ctx, |mixer, ctx| {
             mixer.reset(ctx);
 
-            mixer.add_sync_source(
-                CloudWorkflowsDataSource::new(self.embedding_space, ctx),
-                HashSet::new(),
-            );
             mixer.add_sync_source(
                 CloudNotebooksDataSource::new(self.embedding_space, ctx),
                 HashSet::new(),

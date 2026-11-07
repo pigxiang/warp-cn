@@ -12,6 +12,8 @@ use warpui::{App, Entity, ModelHandle, SingletonEntity};
 
 use super::QueueDependency;
 use crate::ai::facts::{AIFact, AIMemory, CloudAIFactModel};
+use crate::cloud_object::CloudObjectTypeAndId;
+use crate::cloud_object::CloudWorkflowModel;
 use crate::cloud_object::model::actions::{
     ObjectAction, ObjectActionHistory, ObjectActionSubtype, ObjectActionType,
 };
@@ -21,7 +23,6 @@ use crate::cloud_object::{
     GenericStringObjectFormat, JsonObjectType, ObjectIdType, ObjectType, Owner, Revision,
     RevisionAndLastEditor, ServerCreationInfo, UpdateCloudObjectResult,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::notebooks::{CloudNotebookModel, NotebookId};
 use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::server::ids::{ClientId, HashableId, ServerId, ServerIdAndType, SyncId};
@@ -33,9 +34,8 @@ use crate::server::sync_queue::{
 };
 use crate::system::SystemStats;
 use crate::test_util::assert_eventually;
-use crate::workflows::CloudWorkflowModel;
-use crate::workflows::workflow::{Argument, ArgumentType, Workflow};
 use crate::{NetworkStatus, QueueItem, SyncQueue};
+use cloud_object_models::{Argument, ArgumentType, Workflow};
 
 #[derive(Default)]
 struct Events(Vec<SyncQueueEvent>);

@@ -45,7 +45,6 @@ impl CustomEndpointSettingsModel {
                     model.sync_or_migrate(ctx);
                 }
                 WarpConfigUpdateEvent::Themes
-                | WarpConfigUpdateEvent::LocalUserWorkflows
                 | WarpConfigUpdateEvent::LaunchConfigs
                 | WarpConfigUpdateEvent::TabConfigs
                 | WarpConfigUpdateEvent::TabConfigErrors(_)
