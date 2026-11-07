@@ -91,7 +91,6 @@ impl ZeroState {
             {
                 valid_filters.push(QueryFilter::AgentModeWorkflows);
             }
-            valid_filters.push(QueryFilter::EnvironmentVariables);
         }
 
         // Don't show Files filter if the user is a viewer of a shared session

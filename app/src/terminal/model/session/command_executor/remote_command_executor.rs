@@ -9,7 +9,9 @@ use itertools::Itertools as _;
 
 use super::shared::shell_escape_single_quotes;
 use super::{CommandExecutor, CommandOutput, ExecuteCommandOptions};
-use crate::env_vars::{EnvVarValue, serialize_variables_for_shell};
+use cloud_object_models::EnvVarValue;
+
+use super::shared::serialize_variables_for_shell;
 use crate::terminal::shell::Shell;
 
 /// `CommandExecutor` implementation that executes the given `command` in a forked process

@@ -1298,36 +1298,6 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([
         EditableBinding::new(
-            "workspace:create_team_env_vars",
-            BindingDescription::new(t!("command-new-team-env-vars")).with_custom_description(
-                bindings::MAC_MENUS_CONTEXT,
-                t!("command-new-team-env-vars-mac"),
-            ),
-            WorkspaceAction::CreateTeamEnvVarCollection,
-        )
-        .with_custom_action(CustomAction::NewTeamEnvVars)
-        .with_context_predicate(
-            id!("Workspace")
-                & id!(flags::ENABLE_WARP_DRIVE)
-                & id!("WarpDrive_BelongsToTeam")
-                & id!("IsOnline"),
-        )
-        .with_group(bindings::BindingGroup::EnvVarCollection.as_str()),
-        EditableBinding::new(
-            "workspace:create_personal_env_vars",
-            BindingDescription::new(t!("command-new-personal-env-vars")).with_custom_description(
-                bindings::MAC_MENUS_CONTEXT,
-                t!("command-new-personal-env-vars-mac"),
-            ),
-            WorkspaceAction::CreatePersonalEnvVarCollection,
-        )
-        .with_group(bindings::BindingGroup::EnvVarCollection.as_str())
-        .with_custom_action(CustomAction::NewPersonalEnvVars)
-        .with_context_predicate(id!("Workspace") & id!(flags::ENABLE_WARP_DRIVE)),
-    ]);
-
-    app.register_editable_bindings([
-        EditableBinding::new(
             "workspace:shift_focus_left",
             BindingDescription::fluent("binding-workspace-shift-focus-left"),
             WorkspaceAction::FocusLeftPanel,

@@ -16,12 +16,9 @@ use super::view::free_ai_removal_modal::{
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::ai::{AIRequestUsageModel, AIRequestUsageModelEvent};
 use crate::auth::auth_manager::AuthManagerEvent;
-use crate::auth::{AuthManager, AuthStateProvider, UserUid};
+use crate::auth::{AuthManager, AuthStateProvider};
 use crate::channel::{Channel, ChannelState};
 use crate::root_view::{RootView, has_completed_local_onboarding};
-use crate::settings::cloud_preferences_syncer::{
-    CloudPreferencesSyncer, CloudPreferencesSyncerEvent,
-};
 use crate::settings::{AISettings, CodeSettings};
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::session_settings::{AgentToolbarChipSelection, SessionSettings};
@@ -63,20 +60,12 @@ pub struct OneTimeModalModel {
     /// intentionally excluded from `is_any_modal_open` (which suppresses terminal
     /// focus stealing) to keep the terminal usable while it is visible.
     active_feature_intro: Option<FeatureIntroId>,
-    /// Whether the initial one-time modal checks have run. The seen markers are
-    /// cloud-synced settings, so event-driven re-checks must wait for the initial
-    /// cloud preferences load to avoid acting on stale values.
+    /// Whether the initial one-time modal checks have run.
     has_completed_initial_modal_checks: bool,
     /// Whether `UserWorkspaces` has emitted `TeamsChanged`, meaning workspace billing
     /// data reflects more than the local cache and "no workspace" can be trusted to
     /// mean a solo (Free) user rather than not-yet-loaded data.
     has_fetched_workspaces: bool,
-    /// The user whose cloud preferences have completed an initial load this session. A
-    /// re-login of the same user (e.g. the Sign in with ChatGPT handoff) resets the syncer's
-    /// loaded state without necessarily re-emitting `InitialLoadCompleted`, but the synced
-    /// markers already loaded for that user remain trustworthy. A full logout wipes the local
-    /// copies of those markers, so it clears this too.
-    cloud_preferences_loaded_for: Option<UserUid>,
     /// The window ID where the currently open one-time modal should be displayed.
     /// This is captured when a modal is first opened and ensures the modal stays on that window.
     target_window_id: Option<WindowId>,
@@ -121,7 +110,7 @@ impl OneTimeModalModel {
         }
 
         // Subscribe to auth manager events to automatically trigger modal when user becomes onboarded
-        ctx.subscribe_to_model(&AuthManager::handle(ctx), |_, _, event, ctx| {
+        ctx.subscribe_to_model(&AuthManager::handle(ctx), |me, _, event, ctx| {
             let AuthManagerEvent::AuthComplete = event else {
                 return;
             };
@@ -129,20 +118,9 @@ impl OneTimeModalModel {
             let auth_state = crate::auth::AuthStateProvider::as_ref(ctx).get().clone();
             let is_existing_user = auth_state.is_onboarded().unwrap_or_default();
             if is_existing_user {
-                // Settings modals settings are synced to the cloud, not respecting the user's sync setting, so they
-                // must all await initial load to be triggered, else we risk reading a stale triggered value.
-                ctx.subscribe_to_model(
-                    &CloudPreferencesSyncer::handle(ctx),
-                    move |me, _, event, ctx| {
-                        if let CloudPreferencesSyncerEvent::InitialLoadCompleted = event {
-                            ctx.unsubscribe_from_model(&CloudPreferencesSyncer::handle(ctx));
-                            me.record_cloud_preferences_loaded(ctx);
-                            me.has_completed_initial_modal_checks = true;
-                            me.check_and_trigger_all_modals(ctx);
-                            maybe_ensure_handoff_chip_in_toolbar(ctx);
-                        }
-                    },
-                );
+                me.has_completed_initial_modal_checks = true;
+                me.check_and_trigger_all_modals(ctx);
+                maybe_ensure_handoff_chip_in_toolbar(ctx);
             } else {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     if let Err(e) = settings
@@ -182,19 +160,9 @@ impl OneTimeModalModel {
                     }
                 });
                 // New signups skip the launch-modal queue, but the ChatGPT plan modal is
-                // aimed at them and its seen marker is cloud-synced like the others, so it
-                // still waits for the initial preferences load.
+                // aimed at them.
                 if FeatureFlag::ChatGPTSubscription.is_enabled() {
-                    ctx.subscribe_to_model(
-                        &CloudPreferencesSyncer::handle(ctx),
-                        move |me, _, event, ctx| {
-                            if let CloudPreferencesSyncerEvent::InitialLoadCompleted = event {
-                                ctx.unsubscribe_from_model(&CloudPreferencesSyncer::handle(ctx));
-                                me.record_cloud_preferences_loaded(ctx);
-                                me.maybe_trigger_chatgpt_plan_modal(ctx);
-                            }
-                        },
-                    );
+                    me.maybe_trigger_chatgpt_plan_modal(ctx);
                 }
             }
         });
@@ -218,30 +186,8 @@ impl OneTimeModalModel {
             active_feature_intro: None,
             has_completed_initial_modal_checks: false,
             has_fetched_workspaces: false,
-            cloud_preferences_loaded_for: None,
             target_window_id: None,
         }
-    }
-
-    fn record_cloud_preferences_loaded(&mut self, ctx: &ModelContext<Self>) {
-        self.cloud_preferences_loaded_for = AuthStateProvider::as_ref(ctx).get().user_id();
-    }
-
-    /// Forgets that the current user's cloud preferences were loaded. Logout clears the local
-    /// copies of the synced markers, so the next login must wait for a fresh initial load
-    /// before trusting them again.
-    pub fn on_log_out(&mut self) {
-        self.cloud_preferences_loaded_for = None;
-    }
-
-    /// Whether the current user's cloud-synced markers can be trusted: either the syncer is in
-    /// its loaded state, or it completed a load for this same user earlier in the session.
-    fn are_cloud_preferences_loaded(&self, ctx: &ModelContext<Self>) -> bool {
-        if CloudPreferencesSyncer::as_ref(ctx).has_completed_initial_load() {
-            return true;
-        }
-        self.cloud_preferences_loaded_for.is_some()
-            && self.cloud_preferences_loaded_for == AuthStateProvider::as_ref(ctx).get().user_id()
     }
 
     /// Returns whether the Oz launch modal is currently open.
@@ -514,9 +460,7 @@ impl OneTimeModalModel {
         if !ApiKeyManager::as_ref(ctx).has_chatgpt_subscription() {
             return false;
         }
-        if !self.are_cloud_preferences_loaded(ctx)
-            || *AISettings::as_ref(ctx).did_show_chatgpt_plan_modal
-        {
+        if *AISettings::as_ref(ctx).did_show_chatgpt_plan_modal {
             return false;
         }
 

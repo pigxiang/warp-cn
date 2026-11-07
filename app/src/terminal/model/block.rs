@@ -44,7 +44,6 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::redaction::redact_secrets;
 use crate::context_chips::prompt_snapshot::PromptSnapshot;
 use crate::server::block::DisplaySetting;
-use crate::server::ids::SyncId;
 use crate::terminal::block_filter::BlockFilterQuery;
 use crate::terminal::block_list_element::GridType;
 use crate::terminal::event::{
@@ -144,15 +143,6 @@ const BACKGROUND_OUTPUT_RENDER_DELAY_MS: u64 = 100;
 /// how many rows to take for much narrower terminals, to ensure we have enough content
 /// for block summaries given to AI.
 const MIN_TERMINAL_WIDTH_FOR_TRUNCATION_CALCULATIONS: usize = 150;
-
-/// Blocklist Env Var metadata associated with this block.
-#[derive(Debug, Clone)]
-pub struct BlocklistEnvVarMetadata {
-    /// The id used to uniquely identify the block's execution
-    pub block_id: String,
-    /// whether or not the env var block should be hidden
-    pub should_hide_block: bool,
-}
 
 /// Tracks which views (terminal and/or agent conversations) a block should be visible in.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -360,9 +350,6 @@ pub struct Block {
     /// in cloud mode.
     is_oz_environment_startup_command: bool,
 
-    /// Blocklist Env var metadata associated with this block, if any.
-    env_var_metadata: Option<BlocklistEnvVarMetadata>,
-
     /// Represents the 'interaction mode' for a command block with respect to the agent.
     ///
     /// See doc comment on [`InteractionMode`] for detailed explanation of semantics.
@@ -382,9 +369,6 @@ pub struct Block {
     home_dir: Option<String>,
 
     filter_query: Option<BlockFilterQuery>,
-
-    /// If the command included an env var invocation. If not this will be None.
-    cloud_env_var_collection_id: Option<SyncId>,
 
     /// The last time this block was painted (i.e.: visible in the window),
     /// if ever.
@@ -996,14 +980,12 @@ impl Block {
             block_index,
             shell_host: None,
             is_for_in_band_command: false,
-            env_var_metadata: None,
             interaction_mode: InteractionMode::default(),
             block_banner: None,
             ignore_next_rprompt: false,
             prompt_snapshot: None,
             home_dir: None,
             filter_query: None,
-            cloud_env_var_collection_id: None,
             last_painted_at: None.into(),
             has_received_user_input: false,
             hidden: false,
@@ -1189,15 +1171,6 @@ impl Block {
 
         self.header_grid.start_command_grid();
         self.wakeup_after_delay();
-    }
-
-    /// Returns the `env_var_metadata` associated with this block, if any.
-    pub fn env_var_metadata(&self) -> Option<&BlocklistEnvVarMetadata> {
-        self.env_var_metadata.as_ref()
-    }
-
-    pub fn set_env_var_metadata(&mut self, env_var_metadata: BlocklistEnvVarMetadata) {
-        self.env_var_metadata = Some(env_var_metadata);
     }
 
     pub fn all_bytes_scanned_for_secrets(&self) -> bool {
@@ -1435,10 +1408,6 @@ impl Block {
         (is_bootstrap_block && !self.show_bootstrap_block)
             || is_empty_bootstrap_script_execution_block
             || is_empty_background_block
-            || self
-                .env_var_metadata
-                .as_ref()
-                .is_some_and(|metadata| metadata.should_hide_block)
             || (self.is_for_in_band_command && !self.show_in_band_command_blocks)
             || self.interaction_mode.should_hide_block()
     }
@@ -2673,14 +2642,6 @@ impl Block {
 
     pub fn set_home_dir(&mut self, home_dir: Option<String>) {
         self.home_dir = home_dir;
-    }
-
-    pub fn set_cloud_env_var_state(&mut self, env_var_collection_id: Option<SyncId>) {
-        self.cloud_env_var_collection_id = env_var_collection_id;
-    }
-
-    pub fn cloud_env_var_collection_state(&self) -> Option<SyncId> {
-        self.cloud_env_var_collection_id
     }
 
     pub fn server_pwd(&self) -> Option<Cow<'_, str>> {

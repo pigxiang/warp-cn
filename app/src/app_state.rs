@@ -136,7 +136,6 @@ pub enum LeafContents {
     Notebook(NotebookPaneSnapshot),
     AIDocument(AIDocumentPaneSnapshot),
     Code(CodePaneSnapShot),
-    EnvVarCollection(EnvVarCollectionPaneSnapshot),
     EnvironmentManagement(EnvironmentManagementPaneSnapshot),
     Settings(SettingsPaneSnapshot),
     AIFact(AIFactPaneSnapshot),
@@ -175,7 +174,6 @@ impl LeafContents {
             | LeafContents::Notebook(_)
             | LeafContents::AIDocument(_)
             | LeafContents::Code(_)
-            | LeafContents::EnvVarCollection(_)
             | LeafContents::Settings(_)
             | LeafContents::AIFact(_)
             | LeafContents::CustomRouterEditor
@@ -244,15 +242,6 @@ pub enum CodePaneSnapShot {
         active_tab_index: usize,
         /// The full `CodeSource` for this pane, serialized as JSON in the DB.
         source: Option<CodeSource>,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum EnvVarCollectionPaneSnapshot {
-    // CloudEnvVarCollection snapshots operate under the same heuristics
-    // as WorkflowPaneSnapshot::CloudWorkflow
-    CloudEnvVarCollection {
-        env_var_collection_id: Option<SyncId>,
     },
 }
 

@@ -1,7 +1,6 @@
-use settings::{RespectUserSyncSetting, SyncToCloud};
 use warp::features::FeatureFlag;
 use warp::integration_testing::cloud_object::{
-    assert_cloud_preference_exists, assert_notebook_metadata_revision,
+    assert_notebook_metadata_revision,
 };
 use warp::integration_testing::step::{
     new_step_with_default_assertions, new_step_with_default_assertions_for_pane,
@@ -10,7 +9,6 @@ use warp::integration_testing::tab::assert_pane_title;
 use warp::integration_testing::terminal::wait_until_bootstrapped_single_pane_for_tab;
 use warp::integration_testing::view_getters::single_terminal_view_for_tab;
 use warp::integration_testing::{self};
-use warp::settings::Preference;
 use warp::settings_view::{SettingsSection, SettingsView};
 use warp::sqlite_testing::set_user_and_hostname_for_blocks;
 use warp::terminal::model::session::get_local_hostname;
@@ -325,34 +323,6 @@ pub fn test_restore_snapshot_with_background_output() -> Builder {
                         AssertionOutcome::Success
                     })
                 }),
-        )
-}
-
-/// Tests restoring a snapshot that includes a test json object.
-///
-/// The test json object has as its contents the string "egpmggresq"
-pub fn test_restore_snapshot_with_test_json_object() -> Builder {
-    new_builder()
-        .with_setup(|_utils| {
-            integration_testing::create_file_from_assets(
-                TEST_ONLY_ASSETS,
-                "test_json_object.sqlite",
-                &integration_testing::persistence::database_file_path_for_scope(
-                    &integration_testing::persistence::PersistenceScope::App,
-                ),
-            );
-        })
-        .with_step(
-            TestStep::new("Verify json object contents").add_assertion(
-                assert_cloud_preference_exists(
-                    Preference::new(
-                        "HonorPS1".to_string(),
-                        "false",
-                        SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-                    )
-                    .expect("error creating preference"),
-                ),
-            ),
         )
 }
 

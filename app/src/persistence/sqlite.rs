@@ -57,9 +57,9 @@ use super::block_list::{
 };
 use super::model::{
     self, AI_DOCUMENT_PANE_KIND, AI_FACT_PANE_KIND, ActiveMCPServer, CODE_PANE_KIND,
-    CurrentUserInformation, ENV_VAR_COLLECTION_PANE_KIND, EXECUTION_PROFILE_EDITOR_PANE_KIND,
-    MCP_SERVER_PANE_KIND, MCPEnvironmentVariables, NOTEBOOK_PANE_KIND, NewActiveMCPServer, NewApp,
-    NewCommand, NewServerExperiment, NewTab, NewTabGroup, NewTeam, NewWindow, NewWorkspace,
+    CurrentUserInformation, EXECUTION_PROFILE_EDITOR_PANE_KIND, MCP_SERVER_PANE_KIND,
+    MCPEnvironmentVariables, NOTEBOOK_PANE_KIND, NewActiveMCPServer, NewApp, NewCommand,
+    NewServerExperiment, NewTab, NewTabGroup, NewTeam, NewWindow, NewWorkspace,
     NewWorkspaceMetadata, NewWorkspaceTeam, Project, SETTINGS_PANE_KIND, TERMINAL_PANE_KIND, Tab,
     TabGroup, Window, WorkspaceMetadata as WorkspaceMetadataModel,
 };
@@ -74,10 +74,9 @@ use crate::ai::mcp::{TemplatableMCPServer, TemplatableMCPServerInstallation};
 use crate::ai::persisted_workspace::EnablementState;
 use crate::app_state::{
     AIFactPaneSnapshot, AmbientAgentPaneSnapshot, AppState, BranchSnapshot, CodePaneSnapShot,
-    CodePaneTabSnapshot, CodeReviewPaneSnapshot, EnvVarCollectionPaneSnapshot, LeafContents,
-    LeafSnapshot, LeftPanelSnapshot, NotebookPaneSnapshot, PaneFlex, PaneNodeSnapshot,
-    RightPanelSnapshot, SettingsPaneSnapshot, SplitDirection, TabGroupSnapshot, TabSnapshot,
-    TerminalPaneSnapshot, WindowSnapshot,
+    CodePaneTabSnapshot, CodeReviewPaneSnapshot, LeafContents, LeafSnapshot, LeftPanelSnapshot,
+    NotebookPaneSnapshot, PaneFlex, PaneNodeSnapshot, RightPanelSnapshot, SettingsPaneSnapshot,
+    SplitDirection, TabGroupSnapshot, TabSnapshot, TerminalPaneSnapshot, WindowSnapshot,
 };
 use crate::auth::UserUid;
 use crate::auth::auth_manager::PersistedCurrentUserInformation;
@@ -85,7 +84,7 @@ use crate::auth::auth_state::AuthStateProvider;
 use crate::cloud_object::model::actions::{
     ObjectAction, ObjectActionSubtype, object_action_from_persisted,
 };
-use crate::cloud_object::model::generic_string_model::{CloudStringObject, GenericStringObjectId};
+use crate::cloud_object::model::generic_string_model::CloudStringObject;
 use crate::cloud_object::{CloudObject, ObjectIdType};
 use crate::code::editor_management::CodeSource;
 use crate::persistence::block_list::{
@@ -97,7 +96,7 @@ use crate::persistence::model::{
     ProjectRules, UserProfile,
 };
 use crate::server::experiments::ServerExperiment;
-use crate::server::ids::{ClientId, HashableId, ServerId, SyncId};
+use crate::server::ids::{ServerId, SyncId};
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings_view::SettingsSection;
 use crate::suggestions::ignored_suggestions_model::SuggestionType;
@@ -918,8 +917,6 @@ fn save_app_state(conn: &mut SqliteConnection, app_state: &AppState) -> Result<(
         diesel::delete(schema::terminal_panes::dsl::terminal_panes).execute(conn)?;
         diesel::delete(schema::notebook_panes::dsl::notebook_panes).execute(conn)?;
         diesel::delete(schema::code_panes::dsl::code_panes).execute(conn)?;
-        diesel::delete(schema::env_var_collection_panes::dsl::env_var_collection_panes)
-            .execute(conn)?;
         diesel::delete(schema::workflow_panes::dsl::workflow_panes).execute(conn)?;
         diesel::delete(schema::settings_panes::dsl::settings_panes).execute(conn)?;
         diesel::delete(schema::ai_memory_panes::dsl::ai_memory_panes).execute(conn)?;
@@ -1195,7 +1192,6 @@ fn save_pane_state(
     let kind = match &snapshot.contents {
         LeafContents::Terminal(_) => TERMINAL_PANE_KIND,
         LeafContents::Notebook(_) => NOTEBOOK_PANE_KIND,
-        LeafContents::EnvVarCollection(_) => ENV_VAR_COLLECTION_PANE_KIND,
         LeafContents::Code(_) => CODE_PANE_KIND,
         LeafContents::Settings(_) => SETTINGS_PANE_KIND,
         LeafContents::AIFact(_) => AI_FACT_PANE_KIND,
@@ -1313,23 +1309,6 @@ fn save_pane_state(
                     .values(tab_row)
                     .execute(conn)?;
             }
-        }
-        LeafContents::EnvVarCollection(env_var_collection_snapshot) => {
-            let env_var_collection_id = match env_var_collection_snapshot {
-                EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
-                    env_var_collection_id,
-                } => env_var_collection_id
-                    .map(|id| id.sqlite_uid_hash(ObjectIdType::GenericStringObject)),
-            };
-
-            let env_var_collection = model::NewEnvVarCollectionPane {
-                id,
-                env_var_collection_id,
-            };
-
-            diesel::insert_into(schema::env_var_collection_panes::dsl::env_var_collection_panes)
-                .values(env_var_collection)
-                .execute(conn)?;
         }
         LeafContents::EnvironmentManagement(_) => {
             // Unreachable: filtered by `is_persisted` in `save_app_state`.
@@ -2272,28 +2251,6 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                         source,
                     })
                 }
-                ENV_VAR_COLLECTION_PANE_KIND => {
-                    let env_var_collection_pane =
-                        schema::env_var_collection_panes::dsl::env_var_collection_panes
-                            .find(node.id)
-                            .select(model::EnvVarCollectionPane::as_select())
-                            .first(conn)?;
-
-                    let env_var_collection_id = env_var_collection_pane
-                        .env_var_collection_id
-                        .and_then(|id| {
-                            ClientId::from_hash(&id).map(SyncId::ClientId).or_else(|| {
-                                GenericStringObjectId::from_hash(&id)
-                                    .map(|id| SyncId::ServerId(id.into()))
-                            })
-                        });
-
-                    LeafContents::EnvVarCollection(
-                        EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
-                            env_var_collection_id,
-                        },
-                    )
-                }
                 SETTINGS_PANE_KIND => {
                     let settings_pane = schema::settings_panes::dsl::settings_panes
                         .find(node.id)
@@ -2403,17 +2360,18 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
 
 fn box_persisted_generic_string_object(
     object: PersistedGenericStringObject,
-) -> Box<dyn CloudObject> {
+) -> Option<Box<dyn CloudObject>> {
     match object {
-        PersistedGenericStringObject::Preference(object) => Box::new(object),
-        PersistedGenericStringObject::EnvVarCollection(object) => Box::new(object),
-        PersistedGenericStringObject::WorkflowEnum(object) => Box::new(object),
-        PersistedGenericStringObject::AIFact(object) => Box::new(object),
-        PersistedGenericStringObject::MCPServer(object) => Box::new(object),
-        PersistedGenericStringObject::TemplatableMCPServer(object) => Box::new(object),
-        PersistedGenericStringObject::AIExecutionProfile(object) => Box::new(object),
-        PersistedGenericStringObject::CloudEnvironment(object) => Box::new(object),
-        PersistedGenericStringObject::ScheduledAmbientAgent(object) => Box::new(object),
+        // Settings and environment-variable objects are not synced in this fork.
+        PersistedGenericStringObject::Preference(_)
+        | PersistedGenericStringObject::EnvVarCollection(_) => None,
+        PersistedGenericStringObject::WorkflowEnum(object) => Some(Box::new(object)),
+        PersistedGenericStringObject::AIFact(object) => Some(Box::new(object)),
+        PersistedGenericStringObject::MCPServer(object) => Some(Box::new(object)),
+        PersistedGenericStringObject::TemplatableMCPServer(object) => Some(Box::new(object)),
+        PersistedGenericStringObject::AIExecutionProfile(object) => Some(Box::new(object)),
+        PersistedGenericStringObject::CloudEnvironment(object) => Some(Box::new(object)),
+        PersistedGenericStringObject::ScheduledAmbientAgent(object) => Some(Box::new(object)),
     }
 }
 
@@ -2685,7 +2643,7 @@ fn read_sqlite_data(
     cloud_objects.extend(
         generic_string_persistence::read_generic_string_objects(conn, &read_context)?
             .into_iter()
-            .map(box_persisted_generic_string_object),
+            .filter_map(box_persisted_generic_string_object),
     );
 
     let db_teams: Vec<model::Team> = schema::teams::dsl::teams.load(conn)?;

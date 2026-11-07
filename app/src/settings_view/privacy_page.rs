@@ -117,7 +117,6 @@ pub fn data_management_url(custom_token: Option<&str>) -> String {
 
 pub struct PrivacyPageView {
     page: PageType<Self>,
-    local_only_icon_tooltip_states: RefCell<HashMap<String, MouseStateHandle>>,
     /// This needs to mirror the length of PrivacySettings::user_secret_regex_list.
     added_user_secret_regex_list_button_handles: Vec<MouseStateHandle>,
     /// Set of indices for regex items that are pending removal
@@ -222,7 +221,6 @@ impl PrivacyPageView {
 
         let mut privacy_page_view = Self {
             page: Self::build_page(),
-            local_only_icon_tooltip_states: Default::default(),
             added_user_secret_regex_list_button_handles: Default::default(),
             pending_regex_removals: Default::default(),
             pending_timer: None,
@@ -1216,12 +1214,7 @@ impl SettingsWidget for SecretRedactionWidget {
         let ui_builder = appearance.ui_builder();
         let is_enterprise_enabled = privacy_settings.is_enterprise_secret_redaction_enabled();
 
-        let local_only_icon_state = LocalOnlyIconState::for_setting(
-            SafeModeEnabled::storage_key(),
-            SafeModeEnabled::sync_to_cloud(),
-            &mut view.local_only_icon_tooltip_states.borrow_mut(),
-            app,
-        );
+        let local_only_icon_state = LocalOnlyIconState::Hidden;
 
         let secret_redaction_title_row = Container::new(
             Flex::row()
@@ -1284,12 +1277,7 @@ impl SettingsWidget for SecretRedactionWidget {
 
         if *safe_mode_settings.safe_mode_enabled {
             // Add the secret display mode dropdown
-            let local_only_icon_state = LocalOnlyIconState::for_setting(
-                SecretDisplayModeSetting::storage_key(),
-                SecretDisplayModeSetting::sync_to_cloud(),
-                &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                app,
-            );
+            let local_only_icon_state = LocalOnlyIconState::Hidden;
 
             // Create the label with local-only icon if needed
             let label_with_icon = super::settings_page::render_dropdown_item_label(
@@ -1695,7 +1683,6 @@ impl SettingsWidget for CrashReportsWidget {
 #[derive(Default)]
 struct BlockWarpCloudServicesWidget {
     switch_state: SwitchStateHandle,
-    local_only_icon_tooltip_states: RefCell<HashMap<String, MouseStateHandle>>,
 }
 
 impl SettingsWidget for BlockWarpCloudServicesWidget {
@@ -1713,12 +1700,7 @@ impl SettingsWidget for BlockWarpCloudServicesWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         let warp_privacy = WarpDrivePrivacySettings::as_ref(app);
-        let local_only_icon_state = LocalOnlyIconState::for_setting(
-            BlockWarpCloudServices::storage_key(),
-            BlockWarpCloudServices::sync_to_cloud(),
-            &mut self.local_only_icon_tooltip_states.borrow_mut(),
-            app,
-        );
+        let local_only_icon_state = LocalOnlyIconState::Hidden;
         Flex::column()
             .with_child(render_body_item::<PrivacyPageAction>(
                 warp_i18n::t!("settings-privacy-block-cloud-services-title"),

@@ -29,7 +29,6 @@ pub mod user_query;
 use std::any::Any;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::fmt::Write;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -110,9 +109,7 @@ use super::alias::is_expandable_alias;
 use super::block_list_viewport::InputMode;
 use super::event::{BlockCompletedEvent, BlockType, UserBlockCompleted};
 use super::ligature_settings::LigatureSettings;
-use super::model::block::{
-    AgentInteractionMetadata, BlockId, BlockMetadata, BlocklistEnvVarMetadata,
-};
+use super::model::block::{AgentInteractionMetadata, BlockId, BlockMetadata};
 use super::model::completions::ShellCompletion;
 use super::model::session::{Session, SessionId, SessionType, Sessions};
 use super::prompt_render_helper::{
@@ -212,9 +209,9 @@ use crate::ai::skills::{SkillOpenOrigin, SkillTelemetryEvent};
 use crate::ai_assistant::execution_context::execution_context_for_session;
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::channel::{Channel, ChannelState};
+use crate::cloud_object::CloudObjectLookup as _;
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{CloudObject, CloudObjectLookup as _};
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::code_review::diff_state::DiffMode;
@@ -233,7 +230,6 @@ use crate::editor::{
     PropagateHorizontalNavigationKeys, ReplicaId, TextColors, default_cursor_colors,
     position_id_for_cached_point, position_id_for_cursor, position_id_for_first_cursor,
 };
-use crate::env_vars::EnvVarCollectionExt;
 use crate::features::FeatureFlag;
 use crate::input_suggestions::{
     Event as InputSuggestionsEvent, HistoryInputSuggestion, InputSuggestions,
@@ -886,10 +882,6 @@ pub enum CommandExecutionSource {
     /// A command dispatched by the queued-prompts panel. It should execute like a user command but
     /// must not treat the current editor contents as the submitted command.
     QueuedCommand,
-
-    EnvVarCollection {
-        metadata: BlocklistEnvVarMetadata,
-    },
 }
 
 impl CommandExecutionSource {
@@ -1261,10 +1253,6 @@ impl MenuPositioningProvider for MenuPositioning {
     }
 }
 
-struct EnvVarCollectionState {
-    selected_env_vars: Option<SyncId>,
-}
-
 /// Helper struct for performing alias expansion.
 struct ExpansionInfo {
     /// The expanded text to replace the alias with.
@@ -1598,7 +1586,6 @@ pub struct Input {
     terminal_view_id: EntityId,
     view_id: EntityId,
     input_render_state_model_handle: ModelHandle<InputRenderStateModel>,
-    env_var_collection_state: EnvVarCollectionState,
     command_x_ray_description: Option<Arc<Description>>,
     last_parsed_tokens: Option<decorations::ParsedTokensSnapshot>,
     debounce_input_background_tx: Sender<InputBackgroundJobOptions>,
@@ -3373,10 +3360,6 @@ impl Input {
 
         ctx.subscribe_to_model(&LigatureSettings::handle(ctx), |_, _, _, ctx| ctx.notify());
 
-        let env_var_collection_state = EnvVarCollectionState {
-            selected_env_vars: None,
-        };
-
         let last_word_insertion = LastWordInsertion {
             insert_command_from_history_index: 0,
             is_latest_editor_event: false,
@@ -3952,7 +3935,6 @@ impl Input {
             active_block_metadata: None,
             view_id,
             input_render_state_model_handle,
-            env_var_collection_state,
             command_x_ray_description: None,
             last_parsed_tokens: None,
             debounce_input_background_tx,
@@ -7794,13 +7776,6 @@ impl Input {
             .active_block_mut()
             .set_home_dir(home_dir);
 
-        let env_var_collection_id = self.env_var_collection_state.selected_env_vars;
-        self.model
-            .lock()
-            .block_list_mut()
-            .active_block_mut()
-            .set_cloud_env_var_state(env_var_collection_id);
-
         // Record whether NLD was overridden (input type manually locked) at submission time.
         let nld_overridden = self.ai_input_model.as_ref(ctx).is_input_type_locked();
         self.model
@@ -8064,10 +8039,6 @@ impl Input {
         }
     }
 
-    fn clear_selected_env_var_collection(&mut self) {
-        self.env_var_collection_state.selected_env_vars = None;
-    }
-
     /// Returns the starting byte index position of the last selection.
     fn start_byte_index_of_last_selection(&self, ctx: &ViewContext<Self>) -> ByteOffset {
         self.editor
@@ -8145,28 +8116,6 @@ impl Input {
                 ctx,
             );
         })
-    }
-
-    /// Builds a prefix for applying env vars to a command in the current session.
-    fn env_vars_command_prefix(&self, env_vars_id: &SyncId, ctx: &AppContext) -> Option<String> {
-        let shell_type = self.active_session(ctx)?.shell().shell_type();
-        let env_vars = &CloudModel::as_ref(ctx)
-            .get_env_var_collection(env_vars_id)?
-            .model()
-            .string_model;
-
-        if shell_type == ShellType::Fish {
-            // Warp currently doesn't support newlines in Fish, just prepend the vars
-            let mut command = env_vars.export_variables_for_shell(ShellType::Fish);
-            command.push(' ');
-            Some(command)
-        } else {
-            // Add newlines at the end to separate the vars from the comment/command
-            Some(format!(
-                "# Environment variables\n{}\n\n",
-                env_vars.export_variables(" ", shell_type.into())
-            ))
-        }
     }
 
     fn handle_suggestions_event(
@@ -14873,15 +14822,9 @@ impl Input {
             .get(session_id)
             .and_then(|session| {
                 session.subshell_info().as_ref().map(|info| {
-                    if let Some(env_var_collection_name) = &info.env_var_collection_name {
-                        Some(SubshellRenderState::Flag(SubshellSource::EnvVarCollection(
-                            env_var_collection_name.to_owned(),
-                        )))
-                    } else {
-                        info.spawning_command.split_whitespace().next().map(|exec| {
-                            SubshellRenderState::Flag(SubshellSource::Command(exec.to_owned()))
-                        })
-                    }
+                    info.spawning_command.split_whitespace().next().map(|exec| {
+                        SubshellRenderState::Flag(SubshellSource::Command(exec.to_owned()))
+                    })
                 })
             })?;
 

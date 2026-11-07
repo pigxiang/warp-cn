@@ -281,10 +281,6 @@ fn valid_query_filters(app: &AppContext) -> Vec<QueryFilter> {
         filters.push(QueryFilter::PromptHistory);
     }
 
-    if WarpDriveSettings::is_warp_drive_enabled(app) {
-        filters.push(QueryFilter::EnvironmentVariables);
-    }
-
     filters
 }
 

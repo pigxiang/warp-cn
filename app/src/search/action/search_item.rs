@@ -12,8 +12,6 @@ use warpui::ui_components::components::UiComponent;
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
-use crate::cloud_object::styling::DriveObjectType;
-use crate::cloud_object::styling::warp_drive_icon_color;
 use crate::features::FeatureFlag;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::{
@@ -195,7 +193,6 @@ impl SearchItemIcon for BindingGroup {
             Self::KeyboardShortcuts => Icon::Keyboard,
             Self::AutoUpdate => Icon::AutoUpdate,
             Self::Notifications => Icon::Bell,
-            Self::EnvVarCollection => Icon::EnvVarCollection,
             Self::Terminal => Icon::Terminal,
         }
     }
@@ -214,9 +211,6 @@ impl SearchItemIcon for BindingGroup {
                 ColorU::from_u32(colors::WARP_AI)
             }
             Self::WarpAi => appearance.theme().foreground().into_solid(),
-            Self::EnvVarCollection => {
-                warp_drive_icon_color(appearance, DriveObjectType::EnvVarCollection)
-            }
         }
     }
 }

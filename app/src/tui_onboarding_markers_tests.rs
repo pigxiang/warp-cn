@@ -6,8 +6,8 @@ use async_trait::async_trait;
 use warpui::App;
 
 use super::{
-    MarkerLoadResult, MarkerPersistenceAction, TuiOnboardingMarker, TuiOnboardingMarkers,
-    TuiOnboardingMarkersState, load_markers_with_timeout, marker_persistence_action,
+    MarkerLoadResult, TuiOnboardingMarker, TuiOnboardingMarkers, TuiOnboardingMarkersState,
+    load_markers_with_timeout,
 };
 use crate::server::server_api::tui_onboarding::{
     MockTuiOnboardingClient, TuiOnboardingClient, TuiOnboardingMarkersSnapshot,
@@ -27,7 +27,6 @@ fn markers_are_unavailable_until_initial_load_resolves() {
     let mut markers = TuiOnboardingMarkers {
         state: TuiOnboardingMarkersState::Loading,
         load_generation: 0,
-        persist_markers: false,
         onboarding_client: None,
         load_timeout: Duration::from_secs(3),
     };
@@ -54,22 +53,6 @@ fn marker_consumption_is_monotonic_and_independent() {
     assert!(!markers.take_available(TuiOnboardingMarker::FirstZeroState));
     assert!(markers.take_available(TuiOnboardingMarker::FirstCreditGate));
     assert!(!markers.take_available(TuiOnboardingMarker::FirstCreditGate));
-}
-
-#[test]
-fn marker_persistence_creates_updates_or_skips_without_writing_false() {
-    assert_eq!(
-        marker_persistence_action(None),
-        MarkerPersistenceAction::Create
-    );
-    assert_eq!(
-        marker_persistence_action(Some(false)),
-        MarkerPersistenceAction::Update
-    );
-    assert_eq!(
-        marker_persistence_action(Some(true)),
-        MarkerPersistenceAction::None
-    );
 }
 
 #[test]

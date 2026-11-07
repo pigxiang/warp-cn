@@ -26,7 +26,6 @@ pub enum DriveObjectType {
         is_ai_document: bool,
     },
     Folder,
-    EnvVarCollection,
     MCPServer,
     MCPServerCollection,
 }
@@ -46,7 +45,6 @@ impl From<DriveObjectType> for Icon {
                 }
             }
             DriveObjectType::Folder => Icon::Folder,
-            DriveObjectType::EnvVarCollection => Icon::EnvVarCollection,
             DriveObjectType::MCPServer => Icon::Dataflow,
             DriveObjectType::MCPServerCollection => Icon::Dataflow,
         }
@@ -59,7 +57,6 @@ impl fmt::Display for DriveObjectType {
             DriveObjectType::Notebook { .. } => write!(f, "notebook"),
             DriveObjectType::Workflow => write!(f, "workflow"),
             DriveObjectType::Folder => write!(f, "folder"),
-            DriveObjectType::EnvVarCollection => write!(f, "env var collection"),
             DriveObjectType::AgentModeWorkflow => write!(f, "prompt"),
             DriveObjectType::AIFact => write!(f, "ai fact"),
             DriveObjectType::AIFactCollection => write!(f, "ai fact collection"),
@@ -92,9 +89,6 @@ pub fn cloud_object_icon_and_name(
         }
         CloudObjectTypeAndId::Folder(_) => DriveObjectType::Folder,
         CloudObjectTypeAndId::GenericStringObject { object_type, id: _ } => match object_type {
-            GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection) => {
-                DriveObjectType::EnvVarCollection
-            }
             GenericStringObjectFormat::Json(JsonObjectType::AIFact) => DriveObjectType::AIFact,
             GenericStringObjectFormat::Json(JsonObjectType::MCPServer)
             | GenericStringObjectFormat::Json(JsonObjectType::TemplatableMCPServer) => {
@@ -122,18 +116,6 @@ pub fn cloud_object_icon_and_name(
             .get_folder(&id)
             .map(|folder| folder.model().name.clone()),
         CloudObjectTypeAndId::GenericStringObject { object_type, id } => match object_type {
-            GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection) => {
-                CloudModel::as_ref(app)
-                    .get_env_var_collection(&id)
-                    .map(|collection| {
-                        collection
-                            .model()
-                            .string_model
-                            .title
-                            .clone()
-                            .unwrap_or_default()
-                    })
-            }
             _ => None,
         },
     }
@@ -158,15 +140,6 @@ pub fn warp_drive_icon_color(
         }
         DriveObjectType::Notebook { .. } => {
             let color: Fill = appearance.theme().terminal_colors().normal.blue.into();
-            color
-                .on_background(
-                    appearance.theme().surface_1(),
-                    MinimumAllowedContrast::NonText,
-                )
-                .into()
-        }
-        DriveObjectType::EnvVarCollection => {
-            let color: Fill = appearance.theme().terminal_colors().normal.magenta.into();
             color
                 .on_background(
                     appearance.theme().surface_1(),

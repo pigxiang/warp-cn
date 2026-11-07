@@ -8,8 +8,6 @@
 //! those call sites working untouched.
 
 use std::borrow::Cow;
-use std::cell::RefCell;
-use std::collections::HashMap;
 
 use settings::Setting;
 use warp_core::context_flag::ContextFlag;
@@ -85,12 +83,11 @@ pub fn render_ai_setting_toggle<S: Setting>(
     is_setting_enabled: bool,
     is_setting_toggleable: bool,
     switch_state: SwitchStateHandle,
-    tooltip_states: &RefCell<HashMap<String, MouseStateHandle>>,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     build_toggle_element(
-        setting_label_element::<S>(label, is_setting_toggleable, tooltip_states, app),
+        setting_label_element::<S>(label, is_setting_toggleable, app),
         render_ai_feature_switch(
             switch_state,
             is_setting_enabled,
@@ -107,13 +104,11 @@ pub fn render_ai_setting_toggle<S: Setting>(
 pub fn render_ai_setting_label<S: Setting>(
     label: impl Into<String>,
     is_setting_toggleable: bool,
-    tooltip_states: &RefCell<HashMap<String, MouseStateHandle>>,
     app: &AppContext,
 ) -> Box<dyn Element> {
     Container::new(setting_label_element::<S>(
         label,
         is_setting_toggleable,
-        tooltip_states,
         app,
     ))
     .with_margin_bottom(HEADER_PADDING)
@@ -126,19 +121,13 @@ pub fn render_ai_setting_label<S: Setting>(
 fn setting_label_element<S: Setting>(
     label: impl Into<String>,
     is_setting_toggleable: bool,
-    tooltip_states: &RefCell<HashMap<String, MouseStateHandle>>,
     app: &AppContext,
 ) -> Box<dyn Element> {
     render_body_item_label::<SettingsAction>(
         label.into(),
         Some(styles::header_font_color(is_setting_toggleable, app)),
         None,
-        LocalOnlyIconState::for_setting(
-            S::storage_key(),
-            S::sync_to_cloud(),
-            &mut tooltip_states.borrow_mut(),
-            app,
-        ),
+        LocalOnlyIconState::Hidden,
         ToggleState::Enabled,
         Appearance::as_ref(app),
     )

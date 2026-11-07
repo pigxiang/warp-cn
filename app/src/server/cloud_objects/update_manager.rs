@@ -42,7 +42,6 @@ use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::CloudObjectTypeAndId;
 use crate::cloud_object::drive_helpers::{
-    is_feature_gated_anonymous_user_past_env_var_limit,
     is_feature_gated_anonymous_user_past_notebook_limit,
     is_feature_gated_anonymous_user_past_workflow_limit,
 };
@@ -64,13 +63,11 @@ use crate::cloud_object::{
     GenericServerObject, GenericStringObjectFormat, JsonObjectType, NumInFlightRequests,
     ObjectDeleteResult, ObjectIdType, ObjectMetadataUpdateResult, ObjectPermissionsUpdateData,
     ObjectType, Owner, Revision, RevisionAndLastEditor, ServerAIExecutionProfile, ServerAIFact,
-    ServerAmbientAgentEnvironment, ServerCloudAgentConfig, ServerCloudObject,
-    ServerEnvVarCollection, ServerMCPServer, ServerMetadata, ServerPermissions, ServerPreference,
-    ServerScheduledAmbientAgent, ServerTemplatableMCPServer, ServerWorkflowEnum, Space,
-    UpdateCloudObjectResult,
+    ServerAmbientAgentEnvironment, ServerCloudAgentConfig, ServerCloudObject, ServerMCPServer,
+    ServerMetadata, ServerPermissions, ServerScheduledAmbientAgent, ServerTemplatableMCPServer,
+    ServerWorkflowEnum, Space, UpdateCloudObjectResult,
 };
 use crate::cloud_object::{CloudWorkflowModel, WorkflowId};
-use crate::env_vars::{CloudEnvVarCollectionModel, EnvVarCollection};
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 use crate::notebooks::{CloudNotebookModel, NotebookId};
 use crate::persistence::ModelEvent;
@@ -85,7 +82,6 @@ use crate::server::server_api::object::{GuestIdentifier, ObjectClient};
 use crate::server::sync_queue::{
     CreationFailureReason, GenericStringObjectToCreate, QueueItem, SyncQueue, SyncQueueEvent,
 };
-use crate::settings::cloud_preferences::Preference;
 use crate::workspaces::team_tester::{TeamTesterStatus, TeamTesterStatusEvent};
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
@@ -142,9 +138,6 @@ pub struct ObjectOperationResult {
 pub enum UpdateManagerEvent {
     ObjectOperationComplete {
         result: ObjectOperationResult,
-    },
-    CloudPreferencesUpdated {
-        updated: Vec<Preference>,
     },
     MCPGalleryUpdated {
         templates: Vec<MCPGalleryTemplate>,
@@ -857,44 +850,14 @@ impl UpdateManager {
             },
         ];
 
-        let mut updated_preferences: Vec<Preference> = Vec::new();
         // Handle generic string object updates.
         for (format, objects) in response.updated_generic_string_objects {
             match format {
                 GenericStringObjectFormat::Json(JsonObjectType::Preference) => {
-                    let typed_objects = objects
-                        .iter()
-                        .filter_map(|obj| {
-                            let server_obj: Option<&ServerPreference> = obj.into();
-                            if let Some(server_obj) = server_obj {
-                                updated_preferences.push(server_obj.model.string_model.clone());
-                            }
-                            server_obj.cloned()
-                        })
-                        .collect::<Vec<_>>();
-
-                    let event = Self::handle_object_updates(
-                        typed_objects,
-                        force_refresh,
-                        !is_first_load,
-                        ctx,
-                    );
-                    sqlite_events.push(event);
+                    // Settings objects are not synced in this fork; ignore any updates.
                 }
                 GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection) => {
-                    let typed_objects = objects
-                        .iter()
-                        .filter_map(|obj| {
-                            let server_obj: Option<&ServerEnvVarCollection> = obj.into();
-                            server_obj.cloned()
-                        })
-                        .collect::<Vec<_>>();
-                    sqlite_events.push(Self::handle_object_updates(
-                        typed_objects,
-                        force_refresh,
-                        !is_first_load,
-                        ctx,
-                    ));
+                    // Environment-variable collections are not synced in this fork; ignore updates.
                 }
                 GenericStringObjectFormat::Json(JsonObjectType::WorkflowEnum) => {
                     let typed_objects = objects
@@ -1092,12 +1055,6 @@ impl UpdateManager {
         if !response.mcp_gallery.is_empty() {
             ctx.emit(UpdateManagerEvent::MCPGalleryUpdated {
                 templates: response.mcp_gallery,
-            });
-        }
-
-        if !updated_preferences.is_empty() {
-            ctx.emit(UpdateManagerEvent::CloudPreferencesUpdated {
-                updated: updated_preferences,
             });
         }
     }
@@ -1354,13 +1311,6 @@ impl UpdateManager {
         // Update sqlite.
         let cloud_model = CloudModel::as_ref(ctx);
         self.save_in_memory_object_to_sqlite(cloud_model, &uid);
-
-        if let ServerCloudObject::Preference(preference) = &cloud_object {
-            let preference = preference.model.string_model.clone();
-            ctx.emit(UpdateManagerEvent::CloudPreferencesUpdated {
-                updated: vec![preference],
-            });
-        }
     }
 
     /// Compare incoming metadata_ts and in_memory metadata_ts to determine whether to accept a new incoming metadata
@@ -1773,41 +1723,7 @@ impl UpdateManager {
                     }]);
                 }
             }
-            ServerCloudObject::EnvVarCollection(env_var_collection) => {
-                CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
-                    cloud_model.overwrite_env_var_collection(
-                        env_var_collection.clone().model.string_model,
-                        env_var_collection.id,
-                        ctx,
-                    );
-                    let env_var_collection_metadata = env_var_collection.clone().metadata;
-                    cloud_model.set_latest_revision_and_editor(
-                        uid,
-                        RevisionAndLastEditor {
-                            revision: env_var_collection_metadata.revision,
-                            last_editor_uid: env_var_collection_metadata.last_editor_uid,
-                        },
-                        ctx,
-                    );
-                    if let Some(object) = cloud_model.get_mut_by_uid(uid) {
-                        object.decrement_in_flight_request_count(
-                            CloudObjectSyncStatus::NoLocalChanges,
-                        );
-                        ctx.notify();
-                    }
-                });
-
-                let cloud_model = CloudModel::as_ref(ctx);
-                if let Some(env_var_collection) = cloud_model
-                    .get_object_of_type::<GenericStringObjectId, CloudEnvVarCollectionModel>(
-                        &env_var_collection.id,
-                    )
-                {
-                    self.save_to_db([ModelEvent::UpsertGenericStringObject {
-                        object: Box::new(env_var_collection.clone()),
-                    }]);
-                }
-            }
+            ServerCloudObject::EnvVarCollection(_) => {}
             ServerCloudObject::WorkflowEnum(workflow_enum) => {
                 // Workflow enums exhibit the same behavior as notebooks, workflows, and environment variables on conflict:
                 // If we detect a conflict, we reset the client state to the enum that the server returned as the source of truth.
@@ -1953,21 +1869,6 @@ impl UpdateManager {
         self.update_object(
             CloudWorkflowEnumModel::new(workflow_enum),
             workflow_enum_id,
-            revision_ts,
-            ctx,
-        );
-    }
-
-    pub fn update_env_var_collection(
-        &mut self,
-        env_var_collection: EnvVarCollection,
-        env_var_collection_id: SyncId,
-        revision_ts: Option<Revision>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.update_object(
-            CloudEnvVarCollectionModel::new(env_var_collection),
-            env_var_collection_id,
             revision_ts,
             ctx,
         );
@@ -3096,17 +2997,9 @@ impl UpdateManager {
             CloudObjectTypeAndId::Workflow(workflow_id) => {
                 self.duplicate_object_internal::<WorkflowId, CloudWorkflowModel>(workflow_id, ctx);
             }
-            CloudObjectTypeAndId::GenericStringObject { object_type, id } => {
-                if let GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection) =
-                    object_type
-                {
-                    self.duplicate_object_internal::<GenericStringObjectId, CloudEnvVarCollectionModel>(
-                        id, ctx,
-                    );
-                } else {
-                    report_error!("Tried to duplicate an unsupported type: json object");
-                    debug_assert!(false, "Tried to duplicate an unsupported type: json object");
-                }
+            CloudObjectTypeAndId::GenericStringObject { .. } => {
+                report_error!("Tried to duplicate an unsupported type: json object");
+                debug_assert!(false, "Tried to duplicate an unsupported type: json object");
             }
             CloudObjectTypeAndId::Folder(_) => {
                 // Duplicating folders not currently supported.
@@ -3465,45 +3358,6 @@ impl UpdateManager {
             entrypoint,
             force_expand,
             None,
-            // When adding the initiated_by parameter to this function call, InitiatedBy::User was set as a default value.
-            // This can be changed to InitiatedBy::System if this action was automatically kicked off by the system and we do not want a user facing toast.
-            InitiatedBy::User,
-            ctx,
-        );
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn create_env_var_collection(
-        &mut self,
-        client_id: ClientId,
-        owner: Owner,
-        initial_folder_id: Option<SyncId>,
-        model: CloudEnvVarCollectionModel,
-        entrypoint: CloudObjectEventEntrypoint,
-        force_expand: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let count = CloudModel::handle(ctx).read(ctx, |model, ctx| {
-            model
-                .active_non_welcome_env_var_collections_in_space(Space::Personal, ctx)
-                .count()
-        });
-        if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {
-            is_feature_gated_anonymous_user_past_env_var_limit(auth_state_provider.get(), count + 1)
-        }) {
-            AuthManager::handle(ctx).update(ctx, |auth_manager: &mut AuthManager, ctx| {
-                auth_manager.anonymous_user_hit_drive_object_limit(ctx);
-            });
-            return;
-        };
-
-        self.create_object(
-            model,
-            owner,
-            client_id,
-            entrypoint,
-            force_expand,
-            initial_folder_id,
             // When adding the initiated_by parameter to this function call, InitiatedBy::User was set as a default value.
             // This can be changed to InitiatedBy::System if this action was automatically kicked off by the system and we do not want a user facing toast.
             InitiatedBy::User,

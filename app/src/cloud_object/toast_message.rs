@@ -79,13 +79,6 @@ impl CloudObjectToastMessage {
                 Some("This workflow could not be saved because changes were made while you were editing.".to_string())
             }
             (
-                ObjectType::GenericStringObject(GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection)),
-                ObjectOperation::Update,
-                OperationSuccessType::Rejection,
-            ) => {
-                Some("Environment variables could not be saved because changes were made while you were editing.".to_string())
-            }
-            (
                 ObjectType::GenericStringObject(GenericStringObjectFormat::Json(JsonObjectType::AIFact)),
                 ObjectOperation::Update,
                 OperationSuccessType::Rejection,

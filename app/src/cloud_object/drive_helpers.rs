@@ -11,7 +11,6 @@ use crate::cloud_object::model::persistence::CloudModel;
 enum AnonymousUserObjectLimit {
     Notebook,
     Workflow,
-    EnvVarCollection,
 }
 
 impl AnonymousUserObjectLimit {
@@ -19,7 +18,6 @@ impl AnonymousUserObjectLimit {
         match self {
             Self::Notebook => num_objects > limits.notebook_limit,
             Self::Workflow => num_objects > limits.workflow_limit,
-            Self::EnvVarCollection => num_objects > limits.env_var_limit,
         }
     }
 }
@@ -59,17 +57,6 @@ pub(crate) fn is_feature_gated_anonymous_user_past_workflow_limit(
     )
 }
 
-pub(crate) fn is_feature_gated_anonymous_user_past_env_var_limit(
-    auth_state: &AuthState,
-    num_objects: usize,
-) -> bool {
-    is_feature_gated_anonymous_user_past_limit(
-        auth_state,
-        num_objects,
-        AnonymousUserObjectLimit::EnvVarCollection,
-    )
-}
-
 fn has_feature_gated_anonymous_user_reached_limit(
     ctx: &mut AppContext,
     num_objects: usize,
@@ -101,18 +88,5 @@ pub fn has_feature_gated_anonymous_user_reached_notebook_limit(ctx: &mut AppCont
         ctx,
         count + 1,
         AnonymousUserObjectLimit::Notebook,
-    )
-}
-
-pub fn has_feature_gated_anonymous_user_reached_env_var_limit(ctx: &mut AppContext) -> bool {
-    let count = CloudModel::handle(ctx).read(ctx, |model, ctx| {
-        model
-            .active_non_welcome_env_var_collections_in_space(Space::Personal, ctx)
-            .count()
-    });
-    has_feature_gated_anonymous_user_reached_limit(
-        ctx,
-        count + 1,
-        AnonymousUserObjectLimit::EnvVarCollection,
     )
 }

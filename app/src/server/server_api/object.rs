@@ -143,7 +143,6 @@ use crate::cloud_object::{
     ServerFolder, ServerMetadata, ServerNotebook, ServerObject, ServerPermissions, ServerWorkflow,
     TryFromGql as _, UpdateCloudObjectResult,
 };
-use crate::env_vars::EnvVarCollection;
 use crate::notebooks::{NotebookId, SerializedNotebook};
 use crate::server::graphql::schema::{
     action_type_to_gql_action_type, object_action_history_from_gql,
@@ -153,7 +152,6 @@ use crate::server::graphql::{get_request_context, get_user_facing_error_message}
 use crate::server::ids::{ClientId, HashableId, ServerId, ServerIdAndType, SyncId, ToServerId};
 use crate::server::server_api::ServerApi;
 use crate::server::sync_queue::SerializedModel;
-use crate::settings::Preference;
 use crate::workspaces::gql_convert::object_update_message_from_gql;
 use crate::workspaces::user_profiles::UserProfileWithUID;
 use warp_server_client::ids::FolderId;
@@ -769,20 +767,9 @@ impl ObjectClient for ServerApi {
                 if let Some(objects) = output.generic_string_objects {
                     for gso in objects {
                         match gso.format {
-                            warp_graphql::generic_string_object::GenericStringObjectFormat::JsonEnvVarCollection => {
-                                parse_server_gso::<EnvVarCollection, JsonSerializer>(
-                                    &mut updated_generic_string_objects,
-                                    GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection),
-                                    gso,
-                                );
-                            }
-                            warp_graphql::generic_string_object::GenericStringObjectFormat::JsonPreference => {
-                                parse_server_gso::<Preference, JsonSerializer>(
-                                    &mut updated_generic_string_objects,
-                                    GenericStringObjectFormat::Json(JsonObjectType::Preference),
-                                    gso,
-                                );
-                            }
+                            // Settings and environment-variable objects are not synced in this fork.
+                            warp_graphql::generic_string_object::GenericStringObjectFormat::JsonPreference
+                            | warp_graphql::generic_string_object::GenericStringObjectFormat::JsonEnvVarCollection => {}
                             warp_graphql::generic_string_object::GenericStringObjectFormat::JsonWorkflowEnum => {
                                 parse_server_gso::<WorkflowEnum, JsonSerializer>(
                                     &mut updated_generic_string_objects,

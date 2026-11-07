@@ -32,8 +32,7 @@ use warpui::image_cache::ImageType;
 use super::super::{AltScreen, BlockList};
 use super::ansi::{BootstrappedValue, FinishUpdateValue, InputBufferValue, Mode, PendingHook};
 use super::block::{
-    AgentInteractionMetadata, Block, BlockId, BlockMetadata, BlockSize, BlockState,
-    BlocklistEnvVarMetadata, SerializedBlock,
+    AgentInteractionMetadata, Block, BlockId, BlockMetadata, BlockSize, BlockState, SerializedBlock,
 };
 use super::blockgrid::BlockGrid;
 use super::blocks::{ActiveBlockCompletion, BlockFilter};
@@ -475,8 +474,6 @@ pub struct TerminalModel {
     /// This is only `Some()` in between receiving the SourcedRcFile DCS and the next InitShell
     /// DCS, where it is consumed into `self.pending_session_info`.
     did_receive_rc_file_dcs: Option<bool>,
-    env_var_collection_name: Option<String>,
-
     /// Whether or not the underlying shell process has terminated.
     handled_exit: bool,
     pending_shell_recovery_status: Option<ObservedExitStatus>,
@@ -586,9 +583,6 @@ pub struct SubshellInitializationInfo {
     /// `true` if the subshell bootstrap was triggered by an RC file snippet that emits the
     /// `SourcedRcFileForWarp` DCS.
     pub was_triggered_by_rc_file_snippet: bool,
-
-    /// The subshell was triggered from an EVC invocation
-    pub env_var_collection_name: Option<String>,
 
     /// If the subshell is from an SSH command, store the connection details.
     /// Note that these details come from parsing the ssh command, not from retrieving
@@ -1117,7 +1111,6 @@ impl TerminalModel {
             did_receive_rc_file_dcs: None,
             handled_exit: false,
             pending_shell_recovery_status: None,
-            env_var_collection_name: None,
             shell_launch_state: shell_state,
             obfuscate_secrets,
             shared_session_status,
@@ -1740,19 +1733,6 @@ impl TerminalModel {
     /// the user's behalf, we consider the active block started.
     pub fn start_command_execution(&mut self) -> StartCommandOutcome {
         self.start_command_execution_for_kind(CommandStartKind::UserOrQueued)
-    }
-
-    pub fn start_command_execution_from_env_var_collection(
-        &mut self,
-        env_var_metadata: BlocklistEnvVarMetadata,
-    ) -> StartCommandOutcome {
-        let outcome = self.start_command_execution_for_kind(CommandStartKind::UserOrQueued);
-        if outcome.is_accepted() {
-            self.block_list
-                .active_block_mut()
-                .set_env_var_metadata(env_var_metadata);
-        }
-        outcome
     }
 
     /// Starts the execution for a command in a shared session (sharer or viewer).
@@ -2467,10 +2447,6 @@ impl TerminalModel {
     fn apply_preexec(&mut self, data: PreexecValue) {
         self.block_list.apply_preexec_to_active(data);
         self.emit_handler_event(HandlerEvent::Preexec);
-    }
-
-    pub fn set_env_var_collection_name(&mut self, value: Option<String>) {
-        self.env_var_collection_name = value;
     }
 
     /// Informs the terminal model to start watching for ssh output that indicates the session
@@ -3199,7 +3175,6 @@ impl ansi::Handler for TerminalModel {
             let subshell_info = if data.is_subshell {
                 let was_triggered_by_rc_file_snippet =
                     self.did_receive_rc_file_dcs.take().unwrap_or(false);
-                let env_var_collection_name = self.env_var_collection_name.take();
                 let spawning_command = self.block_list().active_block().command_to_string();
 
                 let ssh_connection_info =
@@ -3208,7 +3183,6 @@ impl ansi::Handler for TerminalModel {
                 Some(SubshellInitializationInfo {
                     spawning_command,
                     was_triggered_by_rc_file_snippet,
-                    env_var_collection_name,
                     ssh_connection_info,
                 })
             } else {

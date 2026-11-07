@@ -104,9 +104,6 @@ impl Listener {
         // - or a user has access to >= 1 cloud object
         // In either of these cases, it's worth creating a websocket for cloud object updates.
         //
-        // Note that we also want a websocket for CloudPreferences, but this is handled via listening
-        // to the cloud model for the creation of cloud preferences objects (which happens when settings sync
-        // is enabled for the first time).
         ctx.subscribe_to_model(
             &UserWorkspaces::handle(ctx),
             Self::handle_user_workspaces_event,

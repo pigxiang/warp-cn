@@ -2835,7 +2835,7 @@ impl AIBlock {
             }
 
             for citation in &output.citations {
-                if is_command_copied_from_document(command, citation, shell_type, ctx)
+                if is_command_copied_from_document(command, citation, ctx)
                     && let Some(requested_command) =
                         self.requested_commands.get(requested_command_action_id)
                 {

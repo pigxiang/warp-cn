@@ -30,14 +30,7 @@ use crate::cloud_object::model::persistence::{CloudModelEvent, UpdateSource};
 use crate::cloud_object::{CloudObject as _, GenericStringObjectFormat, JsonObjectType};
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
-use crate::settings::cloud_preferences::CloudPreferencesSettings;
-use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
-// The syncer's initial-load trigger for the legacy import is compiled out for eval builds.
-#[cfg(not(feature = "agent_mode_evals"))]
-use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncerEvent;
-use crate::settings::{
-    AISettings, AISettingsChangedEvent, AgentModeCommandExecutionPredicate, ExecutionProfiles,
-};
+use crate::settings::{AISettings, AISettingsChangedEvent, AgentModeCommandExecutionPredicate};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{CloudModel, LaunchMode, TelemetryEvent, send_telemetry_from_ctx};
 
@@ -420,17 +413,6 @@ impl AIExecutionProfilesModel {
                         }
                     });
                 }
-
-                if ctx.has_singleton_model::<CloudPreferencesSyncer>() {
-                    ctx.subscribe_to_model(
-                        &CloudPreferencesSyncer::handle(ctx),
-                        |me, _, event, ctx| {
-                            if matches!(event, CloudPreferencesSyncerEvent::InitialLoadCompleted) {
-                                me.migrate_settings_profiles(ctx);
-                            }
-                        },
-                    );
-                }
                 ctx.subscribe_to_model(&CloudModel::handle(ctx), |me, _, event, ctx| {
                     if !me.settings_are_authoritative() {
                         me.handle_cloud_model_event(event, ctx);
@@ -516,17 +498,6 @@ impl AIExecutionProfilesModel {
         if !uses_file_backed_profiles {
             model.maybe_inherit_from_legacy_settings(ctx);
         }
-        // The syncer may finish before this model is registered. In that case its one-shot event
-        // cannot reach this subscription, so run migration from the already-completed state.
-        // Eval builds never import legacy cloud profiles into settings.
-        #[cfg(not(feature = "agent_mode_evals"))]
-        if uses_file_backed_profiles
-            && imports_legacy_profiles
-            && ctx.has_singleton_model::<CloudPreferencesSyncer>()
-            && CloudPreferencesSyncer::as_ref(ctx).has_completed_initial_load()
-        {
-            model.migrate_settings_profiles(ctx);
-        }
         model
     }
 
@@ -560,25 +531,6 @@ impl AIExecutionProfilesModel {
         profiles
     }
 
-    fn cloud_collection_exists(ctx: &AppContext) -> bool {
-        CloudModel::as_ref(ctx)
-            .get_all_cloud_preferences_by_storage_key()
-            .contains_key(ExecutionProfiles::storage_key())
-    }
-
-    /// Returns whether settings sync must apply an existing cloud collection before local changes.
-    ///
-    /// Deferring in this state prevents stale legacy or local values from overwriting a newer
-    /// collection received from another client.
-    fn cloud_collection_awaiting_reconciliation(ctx: &AppContext) -> bool {
-        *CloudPreferencesSettings::as_ref(ctx)
-            .settings_sync_enabled
-            .value()
-            && Self::cloud_collection_exists(ctx)
-            && ctx.has_singleton_model::<CloudPreferencesSyncer>()
-            && !CloudPreferencesSyncer::as_ref(ctx).has_completed_initial_load()
-    }
-
     /// Makes a locally edited pending collection authoritative in [`AISettings`].
     ///
     /// Returns `false` without changing authority when cloud reconciliation must run first or when
@@ -591,10 +543,6 @@ impl AIExecutionProfilesModel {
         if AuthStateProvider::as_ref(ctx).get().user_id().is_some()
             && !UpdateManager::as_ref(ctx).has_completed_initial_load()
         {
-            return false;
-        }
-
-        if Self::cloud_collection_awaiting_reconciliation(ctx) {
             return false;
         }
         let update_result = AISettings::handle(ctx).update(ctx, |settings, ctx| {
@@ -678,28 +626,9 @@ impl AIExecutionProfilesModel {
             .execution_profiles
             .is_value_explicitly_set()
         {
-            if ctx.has_singleton_model::<CloudPreferencesSyncer>()
-                && !CloudPreferencesSyncer::as_ref(ctx).has_completed_initial_load()
-            {
-                return;
-            }
             self.preserve_profile_onboarding_overrides = true;
-            Self::sync_explicit_settings_collection(ctx);
             self.settings_migration_state = SettingsMigrationState::Complete;
             return;
-        }
-        if Self::cloud_collection_awaiting_reconciliation(ctx) {
-            return;
-        }
-
-        if *CloudPreferencesSettings::as_ref(ctx)
-            .settings_sync_enabled
-            .value()
-            && Self::cloud_collection_exists(ctx)
-        {
-            log::error!(
-                "Failed to apply cloud execution profiles; recovering from legacy profiles"
-            );
         }
 
         let owned_legacy_profiles = CloudModel::as_ref(ctx)
@@ -780,22 +709,6 @@ impl AIExecutionProfilesModel {
             }
         }
     }
-    /// Uploads an explicit local collection after the deferred migration check.
-    ///
-    /// Only the legacy import calls this, so eval builds compile it out.
-    #[cfg(not(feature = "agent_mode_evals"))]
-    fn sync_explicit_settings_collection(ctx: &mut ModelContext<Self>) {
-        if !ctx.has_singleton_model::<CloudPreferencesSyncer>() {
-            return;
-        }
-        CloudPreferencesSyncer::handle(ctx).update(ctx, |syncer, ctx| {
-            syncer.maybe_sync_local_prefs_to_cloud(
-                vec![ExecutionProfiles::storage_key().to_string()],
-                ctx,
-            );
-        });
-    }
-
     /// Returns whether onboarding must leave the existing default profile unchanged.
     pub fn should_preserve_onboarding_profile(&self, ctx: &AppContext) -> bool {
         if self.settings_are_authoritative() {

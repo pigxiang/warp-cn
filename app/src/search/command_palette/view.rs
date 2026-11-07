@@ -38,7 +38,6 @@ use crate::search::result_renderer::QueryResultRenderer;
 use crate::search::search_bar::{
     SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering, SelectionUpdate,
 };
-use crate::server::ids::SyncId;
 use crate::server::telemetry::{LaunchConfigUiLocation, TelemetryEvent};
 use crate::session_management::SessionSource;
 use crate::settings::CtrlTabBehavior;
@@ -85,7 +84,6 @@ pub enum Action {
 #[derive(Debug)]
 pub enum Event {
     /// Invoke the env var collection identified by `id`.
-    InvokeEnvironmentVariables { id: SyncId },
     Close {
         accepted_action_type: Option<&'static str>,
     },

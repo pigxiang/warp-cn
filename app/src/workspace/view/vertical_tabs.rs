@@ -906,7 +906,6 @@ pub(super) enum SummaryPaneKind {
     CodeDiff,
     File,
     Settings,
-    EnvVarCollection,
     EnvironmentManagement,
     AIFact,
     AIDocument,
@@ -3370,10 +3369,6 @@ fn resolve_icon_with_status_variant(
             icon_color: main_text,
         },
         // Cloud object types use their established index colors
-        TypedPane::EnvVarCollection => IconWithStatusVariant::Neutral {
-            icon: typed.icon(),
-            icon_color: drive_color(DriveObjectType::EnvVarCollection),
-        },
         TypedPane::AIFact => IconWithStatusVariant::Neutral {
             icon: typed.icon(),
             icon_color: drive_color(DriveObjectType::AIFact),
@@ -3615,7 +3610,6 @@ enum TypedPane<'a> {
     CodeDiff,
     File,
     Settings,
-    EnvVarCollection,
     EnvironmentManagement,
     AIFact,
     AIDocument,
@@ -3647,7 +3641,6 @@ impl TypedPane<'_> {
             TypedPane::CodeDiff => SummaryPaneKind::CodeDiff,
             TypedPane::File => SummaryPaneKind::File,
             TypedPane::Settings => SummaryPaneKind::Settings,
-            TypedPane::EnvVarCollection => SummaryPaneKind::EnvVarCollection,
             TypedPane::EnvironmentManagement => SummaryPaneKind::EnvironmentManagement,
             TypedPane::AIFact => SummaryPaneKind::AIFact,
             TypedPane::AIDocument => SummaryPaneKind::AIDocument,
@@ -3671,7 +3664,6 @@ impl TypedPane<'_> {
             TypedPane::CodeDiff => "Code Diff",
             TypedPane::File => "File",
             TypedPane::Settings => "Settings",
-            TypedPane::EnvVarCollection => "Environment Variables",
             TypedPane::EnvironmentManagement => "Environments",
             TypedPane::AIFact => "Rules",
             TypedPane::AIDocument => "Plan",
@@ -3691,7 +3683,6 @@ impl TypedPane<'_> {
             | TypedPane::CodeDiff
             | TypedPane::File
             | TypedPane::Settings
-            | TypedPane::EnvVarCollection
             | TypedPane::EnvironmentManagement
             | TypedPane::AIFact
             | TypedPane::AIDocument
@@ -3707,7 +3698,6 @@ impl TypedPane<'_> {
             TypedPane::CodeDiff => WarpIcon::Diff,
             TypedPane::File => WarpIcon::File,
             TypedPane::Settings | TypedPane::EnvironmentManagement => WarpIcon::Gear,
-            TypedPane::EnvVarCollection => WarpIcon::EnvVarCollection,
             TypedPane::AIFact => WarpIcon::BookOpen,
             TypedPane::AIDocument => WarpIcon::Compass,
             TypedPane::ExecutionProfileEditor => WarpIcon::Lightning,
@@ -3850,7 +3840,6 @@ fn build_vertical_tabs_summary_data(
             TypedPane::CodeDiff
             | TypedPane::File
             | TypedPane::Settings
-            | TypedPane::EnvVarCollection
             | TypedPane::EnvironmentManagement
             | TypedPane::AIFact
             | TypedPane::AIDocument
@@ -3992,7 +3981,6 @@ impl<'a> PaneProps<'a> {
             | TypedPane::CodeDiff
             | TypedPane::File
             | TypedPane::Settings
-            | TypedPane::EnvVarCollection
             | TypedPane::EnvironmentManagement
             | TypedPane::AIFact
             | TypedPane::AIDocument
@@ -4406,7 +4394,6 @@ impl PaneGroup {
             IPaneType::CodeDiff => TypedPane::CodeDiff,
             IPaneType::File => TypedPane::File,
             IPaneType::Settings => TypedPane::Settings,
-            IPaneType::EnvVarCollection => TypedPane::EnvVarCollection,
             IPaneType::EnvironmentManagement => TypedPane::EnvironmentManagement,
             IPaneType::AIFact => TypedPane::AIFact,
             IPaneType::AIDocument => TypedPane::AIDocument,
@@ -5151,7 +5138,6 @@ pub(super) fn render_summary_pane_kind_icon_circle(
         | SummaryPaneKind::CodeDiff
         | SummaryPaneKind::File
         | SummaryPaneKind::Settings
-        | SummaryPaneKind::EnvVarCollection
         | SummaryPaneKind::EnvironmentManagement
         | SummaryPaneKind::AIFact
         | SummaryPaneKind::AIDocument
@@ -5227,10 +5213,6 @@ fn summary_pane_kind_icon(
         SummaryPaneKind::Settings | SummaryPaneKind::EnvironmentManagement => {
             (WarpIcon::Gear, main_text)
         }
-        SummaryPaneKind::EnvVarCollection => (
-            WarpIcon::EnvVarCollection,
-            drive_color(DriveObjectType::EnvVarCollection),
-        ),
         SummaryPaneKind::AIFact => (WarpIcon::BookOpen, drive_color(DriveObjectType::AIFact)),
         SummaryPaneKind::AIDocument => (WarpIcon::Compass, sub_text),
         SummaryPaneKind::ExecutionProfileEditor => (WarpIcon::Lightning, sub_text),
@@ -7073,7 +7055,6 @@ fn code_detail_kind_label(file_name: &str) -> Option<String> {
 
 fn typed_pane_warp_drive_object_type(typed: &TypedPane<'_>) -> Option<DriveObjectType> {
     match typed {
-        TypedPane::EnvVarCollection => Some(DriveObjectType::EnvVarCollection),
         TypedPane::AIFact => Some(DriveObjectType::AIFact),
         TypedPane::AIDocument => Some(DriveObjectType::Notebook {
             is_ai_document: true,
@@ -7102,7 +7083,7 @@ fn render_detail_section(
             app,
         ),
         TypedPane::Code(_) => render_code_detail_section(props, appearance, app),
-        TypedPane::EnvVarCollection | TypedPane::AIFact | TypedPane::AIDocument => {
+        TypedPane::AIFact | TypedPane::AIDocument => {
             render_warp_drive_object_detail_section(props, appearance, app)
         }
         TypedPane::CodeDiff

@@ -4,9 +4,6 @@
 //! Codex, Gemini CLI) rather than Warp's own AI, so its settings are always
 //! interactive regardless of the global AI toggle.
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-
 use enum_iterator::all;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use regex::Regex;
@@ -42,8 +39,7 @@ use crate::appearance::Appearance;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::settings::{
     AISettings, AISettingsChangedEvent, AutoDismissRichInputAfterSubmit,
-    AutoOpenRichInputOnCLIAgentStart, AutoToggleRichInput, ShouldRenderCLIAgentToolbar,
-    SubmitRichInputOnCtrlEnter,
+    AutoOpenRichInputOnCLIAgentStart, ShouldRenderCLIAgentToolbar, SubmitRichInputOnCtrlEnter,
 };
 use crate::terminal::CLIAgent;
 use crate::util::bindings;
@@ -55,7 +51,6 @@ const PAGE_TITLE: &str = "Third party CLI agents";
 
 pub struct CLIAgentsPageView {
     page: PageType<Self>,
-    local_only_icon_tooltip_states: RefCell<HashMap<String, MouseStateHandle>>,
     cli_agent_footer_command_editor: ViewHandle<SubmittableTextInput>,
     cli_agent_footer_command_mouse_state_handles: Vec<MouseStateHandle>,
     cli_agent_footer_command_agent_dropdowns: Vec<ViewHandle<Dropdown<CLIAgentsPageAction>>>,
@@ -116,7 +111,6 @@ impl CLIAgentsPageView {
 
         Self {
             page: Self::build_page(),
-            local_only_icon_tooltip_states: Default::default(),
             cli_agent_footer_command_editor,
             cli_agent_footer_command_mouse_state_handles,
             cli_agent_footer_command_agent_dropdowns: Self::create_cli_agent_dropdowns(ctx),
@@ -434,7 +428,6 @@ impl SettingsWidget for CLIAgentWidget {
             *ai_settings.should_render_cli_agent_footer,
             true,
             self.cli_agent_footer_toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         );
 
@@ -518,12 +511,7 @@ impl SettingsWidget for CLIAgentAutoToggleRichInputWidget {
                     "Requires the Warp plugin for your coding agent".to_owned(),
                 ),
             }),
-            LocalOnlyIconState::for_setting(
-                AutoToggleRichInput::storage_key(),
-                AutoToggleRichInput::sync_to_cloud(),
-                &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                app,
-            ),
+            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
         );
@@ -575,7 +563,6 @@ impl SettingsWidget for CLIAgentAutoOpenRichInputWidget {
             *AISettings::as_ref(app).auto_open_rich_input_on_cli_agent_start,
             true,
             self.toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         )
     }
@@ -613,7 +600,6 @@ impl SettingsWidget for CLIAgentAutoDismissRichInputWidget {
             *AISettings::as_ref(app).auto_dismiss_rich_input_after_submit,
             true,
             self.toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         )
     }
@@ -651,7 +637,6 @@ impl SettingsWidget for CLIAgentSubmitRichInputWidget {
             *AISettings::as_ref(app).submit_on_ctrl_enter,
             true,
             self.toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         )
     }

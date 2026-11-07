@@ -27,7 +27,6 @@ use warpui::{
 };
 
 use super::ai_queries::AIQueriesDataSource;
-use super::env_var_collections::EnvVarCollectionDataSource;
 use super::history::history_data_source_for_session;
 use super::zero_state::{CommandSearchZeroStateEvent, CommandSearchZeroStateView};
 use crate::ai_assistant::GenerateCommandsFromNaturalLanguageError;
@@ -48,7 +47,6 @@ use crate::server::ids::ServerId;
 use crate::server::server_api::ai::AIClient;
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings::AISettings;
-use crate::settings::warp_drive_settings::WarpDriveSettings;
 use crate::terminal::input::MenuPositioning;
 use crate::terminal::model::session::SessionId;
 use crate::terminal::resizable_data::{DEFAULT_UNIVERSAL_SEARCH_WIDTH, ModalType, ResizableData};
@@ -227,17 +225,6 @@ impl CommandSearchView {
             // Add data sources in lowest->highest priority order.  If results from two
             // data sources produce the same ranking score, the data source added first
             // will show up higher in the list (i.e.: further away from the input).
-            if WarpDriveSettings::is_warp_drive_enabled(ctx) {
-                // EnvVarCollectionDataSource stays synchronous because each match target is
-                // structurally short (title, variable name, description). The per-item fuzzy
-                // match cost is negligible, so offloading to an async task would add complexity
-                // without meaningful performance benefit.
-                mixer.add_sync_source(
-                    EnvVarCollectionDataSource::new(),
-                    HashSet::from([QueryFilter::EnvironmentVariables]),
-                );
-            }
-
             if FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
             {
                 mixer.add_sync_source(
@@ -435,7 +422,7 @@ impl CommandSearchView {
             let was_immediately_executed = match &result_action {
                 ExecuteHistory(_) | RunAIQuery(_) => true,
 
-                AcceptHistory(_) | AcceptEnvVarCollection(_) | AcceptAIQuery(_) => false,
+                AcceptHistory(_) | AcceptAIQuery(_) => false,
             };
 
             let (a11y_content, a11y_help_content) = if was_immediately_executed {

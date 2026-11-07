@@ -30,7 +30,6 @@ mod default_terminal;
 mod download_method;
 #[cfg(windows)]
 mod dynamic_libraries;
-mod env_vars;
 mod experiments;
 mod external_secrets;
 #[cfg(target_family = "wasm")]
@@ -278,7 +277,6 @@ use crate::code::global_buffer_model::GlobalBufferModel;
 use crate::code::language_server_shutdown_manager::LanguageServerShutdownManager;
 use crate::context_chips::prompt::Prompt;
 use crate::default_terminal::DefaultTerminal;
-use crate::env_vars::manager::EnvVarCollectionManager;
 use crate::experiments::ImprovedPaletteSearch;
 pub use crate::global_resource_handles::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 use crate::gpu_state::GPUState;
@@ -304,9 +302,6 @@ pub use crate::server::telemetry::{
 };
 use crate::server::telemetry::{AppStartupInfo, CloseTarget, PaletteSource, TelemetryCollector};
 use crate::session_management::{RunningSessionSummary, SessionNavigationData};
-use crate::settings::cloud_preferences_syncer::{
-    CloudPreferencesSyncerEvent, initialize_cloud_preferences_syncer,
-};
 use crate::settings::manager::SettingsManager;
 use crate::settings::{AISettings, AccessibilitySettings, ScrollSettings, SelectionSettings};
 use crate::settings_view::DisplayCount;
@@ -1684,18 +1679,6 @@ pub(crate) fn initialize_app(
     let tips_handle = ctx.add_model(|_| user_defaults_on_startup.tips_data);
     let user_default_shell_unsupported_banner_model_handle =
         ctx.add_model(|_| user_defaults_on_startup.user_default_shell_unsupported_banner_state);
-    // Extract the full-file parse error (if any) before the settings_file_error
-    // value is moved below. Only FileParseFailed gates the broken-file guard
-    // in `initialize_cloud_preferences_syncer`; InvalidSettings means TOML
-    // parsed but individual values were wrong, which doesn't mean local
-    // state is unusable.
-    let startup_toml_parse_error_for_syncer = user_defaults_on_startup
-        .settings_file_error
-        .as_ref()
-        .and_then(|err| match err {
-            settings::SettingsFileError::FileParseFailed(msg) => Some(msg.clone()),
-            settings::SettingsFileError::InvalidSettings(_) => None,
-        });
     let settings_file_error = user_defaults_on_startup.settings_file_error;
     ctx.add_singleton_model(move |_ctx| {
         GlobalResourceHandlesProvider::new(GlobalResourceHandles {
@@ -2178,10 +2161,8 @@ pub(crate) fn initialize_app(
     cloud_object::sharing::dialog::init(ctx);
     ai_assistant::panel::init(ctx);
     settings_view::update_environment_form::init(ctx);
-    env_vars::env_var_collection_block::init(ctx);
     context_chips::display_menu::init(ctx);
     context_chips::node_version_popup::init(ctx);
-    env_vars::view::env_var_collection::init(ctx);
     ai::agent::todos::popup::init(ctx);
     terminal::view::init_environment::mode_selector::init(ctx);
     coding_entrypoints::project_buttons::init(ctx);
@@ -2363,19 +2344,9 @@ pub(crate) fn initialize_app(
         )
     });
 
-    let toml_file_path = settings::user_preferences_toml_file_path();
-    let cloud_preferences_syncer = ctx.add_singleton_model(move |ctx| {
-        initialize_cloud_preferences_syncer(
-            toml_file_path,
-            startup_toml_parse_error_for_syncer.as_deref(),
-            ctx,
-        )
-    });
-    ctx.subscribe_to_model(&cloud_preferences_syncer, |_, event, ctx| {
-        if let CloudPreferencesSyncerEvent::InitialLoadCompleted = event {
-            window_settings::migrate_legacy_background_backdrop(ctx);
-        }
-    });
+    // One-time migration of the legacy blur-texture backdrop setting; previously
+    // deferred until cloud preferences finished their initial load.
+    window_settings::migrate_legacy_background_backdrop(ctx);
     ai::custom_endpoints::init(launch_mode, ctx);
 
     // LogManager must be registered before any subsystem (e.g. MCP, LSP) that creates file-based loggers.
@@ -2532,8 +2503,6 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(
         terminal::shared_session::permissions_manager::SessionPermissionsManager::new,
     );
-
-    ctx.add_singleton_model(EnvVarCollectionManager::new);
 
     if FeatureFlag::ScheduledAmbientAgents.is_enabled() {
         ctx.add_singleton_model(ScheduledAgentManager::new);

@@ -14,7 +14,7 @@ pub use warp_server_auth::{auth_state, credentials, user, user_uid};
 #[cfg(target_family = "wasm")]
 pub mod web_handoff;
 
-use ::settings::{Setting, SettingsManager, ToggleableSetting};
+use ::settings::{Setting, ToggleableSetting};
 use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 pub use auth_manager::AuthManager;
 pub use auth_state::AuthStateProvider;
@@ -42,7 +42,6 @@ use crate::ai::request_usage_model::AIRequestUsageModel;
 use crate::ai_assistant::requests::REQUEST_LIMIT_INFO_CACHE_KEY;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code::editor_management::{CodeEditorStatus, CodeEditorSummary};
-use crate::env_vars::manager::EnvVarCollectionManager;
 use crate::palette::PaletteMode;
 use crate::root_view::RootView;
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -50,12 +49,12 @@ use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::{PaletteSource, TelemetryEvent};
 use crate::session_management::{RunningSessionSummary, SessionNavigationData};
 use crate::settings::{
-    AISettings, CRASH_REPORTING_ENABLED_DEFAULTS_KEY, CloudPreferencesSettings, PrivacySettings,
+    AISettings, CRASH_REPORTING_ENABLED_DEFAULTS_KEY, PrivacySettings,
     TELEMETRY_ENABLED_DEFAULTS_KEY,
 };
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::shared_session::manager::Manager as SharedSessionManager;
-use crate::workspace::{OneTimeModalModel, Workspace, WorkspaceAction};
+use crate::workspace::{Workspace, WorkspaceAction};
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::{
     GlobalResourceHandlesProvider, focus_running_window_and_show_native_modal, persistence,
@@ -296,7 +295,6 @@ pub fn log_out(app: &mut AppContext) {
     if FeatureFlag::ChatGPTSubscription.is_enabled() {
         ChatGPTSubscriptionModel::handle(app).update(app, |model, ctx| model.reset(ctx));
     }
-    OneTimeModalModel::handle(app).update(app, |model, _| model.on_log_out());
     BlocklistAIHistoryModel::handle(app).update(app, |history_model, _| {
         history_model.reset();
     });
@@ -333,8 +331,6 @@ pub fn log_out(app: &mut AppContext) {
         preferences.reset_session_overrides();
     });
 
-    EnvVarCollectionManager::handle(app).update(app, |manager, _| manager.reset());
-
     // Stop and leave all shared sessions
     SharedSessionManager::handle(app).update(app, |manager, ctx| {
         manager.stop_all_shared_sessions(ctx);
@@ -368,18 +364,6 @@ pub fn log_out(app: &mut AppContext) {
 // This is so they do not experience the old settings when they log in with a different account.
 // Partial deletion of user defaults is a stopgap for Logout v0. The correct solution is:
 fn remove_cloud_persisted_settings(app: &mut AppContext) {
-    let is_settings_sync_enabled = *CloudPreferencesSettings::as_ref(app).settings_sync_enabled;
-    if is_settings_sync_enabled {
-        SettingsManager::handle(app).update(app, |settings_manager, ctx| {
-            let errors = settings_manager.clear_cloud_settings_local_state(ctx);
-            for e in errors {
-                report_error!(
-                    e.context("Failed to remove cloud synced setting from user defaults")
-                );
-            }
-        });
-    }
-
     if let Err(e) = app
         .private_user_preferences()
         .remove_value(TELEMETRY_ENABLED_DEFAULTS_KEY)

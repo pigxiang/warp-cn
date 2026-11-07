@@ -645,7 +645,6 @@ pub struct WarpAgentPageView {
     self_handle: WeakViewHandle<Self>,
     voice_input_toggle_key_dropdown: ViewHandle<Dropdown<WarpAgentPageAction>>,
     voice_input_language_dropdown: ViewHandle<FilterableDropdown<WarpAgentPageAction>>,
-    local_only_icon_tooltip_states: RefCell<HashMap<String, MouseStateHandle>>,
     autodetection_denylist_editor: ViewHandle<EditorView>,
     agent_toolbar_inline_editor: ViewHandle<AgentToolbarInlineEditor>,
 
@@ -1209,7 +1208,6 @@ impl WarpAgentPageView {
             voice_input_toggle_key_dropdown,
             voice_input_language_dropdown,
             autodetection_denylist_editor,
-            local_only_icon_tooltip_states: Default::default(),
             agent_toolbar_inline_editor,
             thinking_display_mode_dropdown,
             orchestration_message_display_mode_dropdown,
@@ -3123,9 +3121,6 @@ impl TypedActionView for WarpAgentPageView {
                 ctx.notify();
             }
             WarpAgentPageAction::ToggleAgentAttribution => {
-                // The updated value syncs to warp-server automatically via
-                // `CloudPreferencesSyncer` as a `JsonPreference` GSO keyed
-                // `Global_AgentAttributionEnabled`; no bespoke server call needed.
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     report_if_error!(
                         settings
@@ -3422,7 +3417,6 @@ impl SettingsWidget for NextCommandWidget {
                     *ai_settings.intelligent_autosuggestions_enabled_internal,
                     is_toggleable,
                     self.toggle.clone(),
-                    &view.local_only_icon_tooltip_states,
                     app,
                 ),
             )
@@ -3467,7 +3461,6 @@ impl SettingsWidget for PromptSuggestionsWidget {
                     *ai_settings.prompt_suggestions_enabled_internal,
                     is_toggleable,
                     self.toggle.clone(),
-                    &view.local_only_icon_tooltip_states,
                     app,
                 ),
             )
@@ -3512,7 +3505,6 @@ impl SettingsWidget for SuggestedCodeBannersWidget {
                     *ai_settings.code_suggestions_enabled_internal,
                     is_toggleable,
                     self.toggle.clone(),
-                    &view.local_only_icon_tooltip_states,
                     app,
                 ),
             )
@@ -3558,7 +3550,6 @@ impl SettingsWidget for NaturalLanguageAutosuggestionsWidget {
                 *ai_settings.natural_language_autosuggestions_enabled_internal,
                 is_toggleable,
                 self.toggle.clone(),
-                &view.local_only_icon_tooltip_states,
                 app,
             ))
             .with_child(render_ai_setting_description(
@@ -3611,7 +3602,6 @@ impl SettingsWidget for SharedBlockTitleGenerationWidget {
                     *ai_settings.shared_block_title_generation_enabled_internal,
                     is_toggleable,
                     self.toggle.clone(),
-                    &view.local_only_icon_tooltip_states,
                     app,
                 ),
             )
@@ -3655,7 +3645,6 @@ impl SettingsWidget for GitOperationsAutogenWidget {
                 *ai_settings.git_operations_autogen_enabled_internal,
                 is_toggleable,
                 self.toggle.clone(),
-                &view.local_only_icon_tooltip_states,
                 app,
             ))
             .with_child(render_ai_setting_description(
@@ -3725,7 +3714,6 @@ impl SettingsWidget for ShowInputHintTextWidget {
             *InputSettings::as_ref(app).show_hint_text,
             is_any_ai_enabled,
             self.toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         )
     }
@@ -3756,7 +3744,6 @@ impl SettingsWidget for AiCommandSearchHashTriggerWidget {
             *InputSettings::as_ref(app).enable_ai_command_search_hash_trigger,
             is_any_ai_enabled,
             self.toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         )
     }
@@ -3791,7 +3778,6 @@ impl SettingsWidget for ShowAgentTipsWidget {
             *InputSettings::as_ref(app).show_agent_tips,
             is_any_ai_enabled,
             self.toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         )
     }
@@ -3823,7 +3809,6 @@ impl SettingsWidget for IncludeAgentCommandsInHistoryWidget {
             *ai_settings.include_agent_commands_in_history,
             is_any_ai_enabled,
             self.toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         )
     }
@@ -3856,7 +3841,6 @@ impl SettingsWidget for AutoApproveBypassesCommandDenylistWidget {
                 *ai_settings.auto_approve_bypasses_command_denylist,
                 is_any_ai_enabled,
                 self.toggle.clone(),
-                &view.local_only_icon_tooltip_states,
                 app,
             ))
             .with_child(render_ai_setting_description(
@@ -3900,12 +3884,7 @@ impl SettingsWidget for PromptSubmissionModeWidget {
                  toggle.",
             ),
             None,
-            LocalOnlyIconState::for_setting(
-                PromptSubmissionMode::storage_key(),
-                PromptSubmissionMode::sync_to_cloud(),
-                &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                app,
-            ),
+            LocalOnlyIconState::Hidden,
             (!is_any_ai_enabled).then(|| appearance.theme().disabled_ui_text_color()),
             &view.default_prompt_submission_mode_dropdown,
         ));
@@ -3923,12 +3902,7 @@ impl SettingsWidget for PromptSubmissionModeWidget {
                          agent when the command finishes.",
                     ),
                     None,
-                    LocalOnlyIconState::for_setting(
-                        LongRunningCommandSubmissionMode::storage_key(),
-                        LongRunningCommandSubmissionMode::sync_to_cloud(),
-                        &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                        app,
-                    ),
+                    LocalOnlyIconState::Hidden,
                     (!is_any_ai_enabled).then(|| appearance.theme().disabled_ui_text_color()),
                     &view.lrc_submission_mode_dropdown,
                 ))
@@ -3992,7 +3966,6 @@ impl NaturalLanguageDetectionWidget {
                     ai_settings.is_nld_in_terminal_enabled(app),
                     is_toggleable,
                     nld_in_terminal_toggle,
-                    &view.local_only_icon_tooltip_states,
                     app,
                 ),
                 render_ai_setting_toggle::<AIAutoDetectionEnabled>(
@@ -4001,7 +3974,6 @@ impl NaturalLanguageDetectionWidget {
                     is_nld_enabled,
                     is_toggleable,
                     autodetection_toggle,
-                    &view.local_only_icon_tooltip_states,
                     app,
                 ),
                 Container::new(
@@ -4051,7 +4023,6 @@ impl NaturalLanguageDetectionWidget {
                     is_nld_enabled,
                     is_toggleable,
                     autodetection_toggle,
-                    &view.local_only_icon_tooltip_states,
                     app,
                 ),
                 Container::new(
@@ -4082,7 +4053,6 @@ impl NaturalLanguageDetectionWidget {
             .with_child(render_ai_setting_label::<AICommandDenylist>(
                 warp_i18n::t!("settings-ai-natural-lang-denylist"),
                 is_toggleable,
-                &view.local_only_icon_tooltip_states,
                 app,
             ))
             .with_child(render_ai_setting_description(
@@ -4120,7 +4090,6 @@ impl VoiceWidget {
             *ai_settings.voice_input_enabled_internal,
             is_toggleable,
             self.voice_input_toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         ));
 
@@ -4159,12 +4128,7 @@ impl VoiceWidget {
                 &warp_i18n::t!("settings-ai-voice-input-key"),
                 Some(warp_i18n::t!("settings-ai-voice-input-key-tip").as_str()),
                 None,
-                LocalOnlyIconState::for_setting(
-                    VoiceInputToggleKey::storage_key(),
-                    VoiceInputToggleKey::sync_to_cloud(),
-                    &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                    app,
-                ),
+                LocalOnlyIconState::Hidden,
                 None,
                 &view.voice_input_toggle_key_dropdown,
             ));
@@ -4173,12 +4137,7 @@ impl VoiceWidget {
                 "Speech Language",
                 Some("Language used when transcribing voice input."),
                 None,
-                LocalOnlyIconState::for_setting(
-                    VoiceInputLanguage::storage_key(),
-                    VoiceInputLanguage::sync_to_cloud(),
-                    &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                    app,
-                ),
+                LocalOnlyIconState::Hidden,
                 None,
                 &view.voice_input_language_dropdown,
             ));
@@ -4331,7 +4290,6 @@ impl SettingsWidget for ShowOzUpdatesInZeroStateWidget {
             *ai_settings.should_show_oz_updates_in_zero_state,
             is_toggleable,
             self.toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         )
     }
@@ -4371,7 +4329,6 @@ impl SettingsWidget for UseAgentFooterWidget {
                 *ai_settings.should_render_use_agent_footer_for_user_commands,
                 is_toggleable,
                 self.toggle.clone(),
-                &view.local_only_icon_tooltip_states,
                 app,
             ))
             .with_child(render_ai_setting_description(
@@ -4435,7 +4392,6 @@ impl SettingsWidget for ShowConversationHistoryWidget {
             *ai_settings.show_conversation_history,
             is_toggleable,
             self.toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         )
     }
@@ -4463,12 +4419,7 @@ impl SettingsWidget for ThinkingDisplayModeWidget {
             &warp_i18n::t!("settings-ai-thinking-display"),
             Some(warp_i18n::t!("settings-ai-thinking-display-desc").as_str()),
             None,
-            LocalOnlyIconState::for_setting(
-                ThinkingDisplayMode::storage_key(),
-                ThinkingDisplayMode::sync_to_cloud(),
-                &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                app,
-            ),
+            LocalOnlyIconState::Hidden,
             (!is_any_ai_enabled).then(|| appearance.theme().disabled_ui_text_color()),
             &view.thinking_display_mode_dropdown,
         )
@@ -4497,12 +4448,7 @@ impl SettingsWidget for OrchestrationMessageDisplayModeWidget {
             "Orchestration message display",
             Some("Controls whether orchestration messages stay expanded."),
             None,
-            LocalOnlyIconState::for_setting(
-                OrchestrationMessageDisplayMode::storage_key(),
-                OrchestrationMessageDisplayMode::sync_to_cloud(),
-                &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                app,
-            ),
+            LocalOnlyIconState::Hidden,
             (!is_any_ai_enabled).then(|| appearance.theme().disabled_ui_text_color()),
             &view.orchestration_message_display_mode_dropdown,
         )
@@ -4538,12 +4484,7 @@ impl SettingsWidget for ConversationLayoutPreferenceWidget {
             &warp_i18n::t!("settings-ai-existing-conv-layout"),
             None,
             None,
-            LocalOnlyIconState::for_setting(
-                OpenConversationLayoutPreference::storage_key(),
-                OpenConversationLayoutPreference::sync_to_cloud(),
-                &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                app,
-            ),
+            LocalOnlyIconState::Hidden,
             (!is_any_ai_enabled).then(|| appearance.theme().disabled_ui_text_color()),
             &view.conversation_layout_dropdown,
         )
@@ -5112,7 +5053,8 @@ impl ApiKeysWidget {
                             );
                             // Pull a fresh model catalog from the new provider.
                             let scope = ResolvedTeamScope::from_scope(
-                                &UserWorkspaces::as_ref(ctx).team_context_for_window(ctx.window_id()),
+                                &UserWorkspaces::as_ref(ctx)
+                                    .team_context_for_window(ctx.window_id()),
                             );
                             LLMPreferences::handle(ctx).update(ctx, |p, inner| {
                                 p.refresh_available_models(&scope, inner);
@@ -5964,7 +5906,6 @@ impl ApiKeysWidget {
             *ai_settings.can_use_warp_credits_for_fallback,
             ai_settings.is_any_ai_enabled(app),
             self.can_use_warp_credits_for_fallback.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         );
 
@@ -6497,7 +6438,6 @@ impl AwsBedrockWidget {
                     are_credentials_enabled,
                     is_toggleable,
                     self.credentials_enabled_toggle.clone(),
-                    &RefCell::new(HashMap::new()),
                     app,
                 ))
                 .with_child(render_ai_setting_description(
@@ -6645,7 +6585,6 @@ impl AwsBedrockWidget {
             auto_login_enabled,
             is_usage_enabled,
             self.auto_login_toggle.clone(),
-            &RefCell::new(HashMap::new()),
             app,
         );
         let description = render_ai_setting_description(
@@ -6810,7 +6749,6 @@ impl GeminiEnterpriseWidget {
                         are_credentials_enabled,
                         is_toggleable,
                         self.credentials_enabled_toggle.clone(),
-                        &RefCell::new(HashMap::new()),
                         app,
                     ),
                 )

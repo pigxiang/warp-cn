@@ -242,11 +242,11 @@ use crate::banner::BannerState;
 use crate::changelog_model::{ChangelogModel, ChangelogRequestType, Event as ChangelogEvent};
 use crate::channel::{Channel, ChannelState};
 use crate::cloud_object::CloudObjectTypeAndId;
+use crate::cloud_object::Owner;
 use crate::cloud_object::export::ExportManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::workflow_model::CloudWorkflow;
 use crate::cloud_object::toast_message::CloudObjectToastMessage;
-use crate::cloud_object::{CloudObject, GenericStringObjectFormat, JsonObjectType, Owner};
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code::editor::{add_color, remove_color};
 #[cfg(feature = "local_fs")]
@@ -264,8 +264,6 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
-use crate::env_vars::CloudEnvVarCollection;
-use crate::env_vars::manager::{EnvVarCollectionManager, EnvVarCollectionSource};
 use crate::experiments::{BlockOnboarding, Experiment};
 use crate::launch_configs::launch_config::WindowTemplate;
 use crate::launch_configs::save_modal::{LaunchConfigModalEvent, LaunchConfigSaveModal};
@@ -316,13 +314,11 @@ use crate::server::network_log_pane_manager::NetworkLogPaneManager;
 use crate::server::server_api::ai::AIClient;
 use crate::server::server_api::{ServerApi, ServerApiProvider, ServerTime};
 use crate::server::telemetry::{
-    AddTabWithShellSource, AnonymousUserSignupEntrypoint, CloseTarget, EnvVarTelemetryMetadata,
-    FileTreeSource, KnowledgePaneEntrypoint, LaunchConfigUiLocation,
-    MCPServerCollectionPaneEntrypoint, NotificationsTurnedOnSource, OpenedWarpAISource,
-    PaletteSource, TabRenameEvent,
+    AddTabWithShellSource, AnonymousUserSignupEntrypoint, CloseTarget, FileTreeSource,
+    KnowledgePaneEntrypoint, LaunchConfigUiLocation, MCPServerCollectionPaneEntrypoint,
+    NotificationsTurnedOnSource, OpenedWarpAISource, PaletteSource, TabRenameEvent,
 };
 use crate::session_management::{SessionNavigationData, SessionSource, TabNavigationData};
-use crate::settings::cloud_preferences::CloudPreferencesSettings;
 use crate::settings::warp_drive_settings::{WarpDriveSettings, WarpDriveSettingsChangedEvent};
 use crate::settings::{
     AISettings, AISettingsChangedEvent, AccessibilitySettings, AliasExpansionSettings,
@@ -678,8 +674,6 @@ const KEYBINDINGS_TO_CACHE: [&str; 4] = [
     SHOW_SETTINGS_KEYBINDING_NAME,
     TOGGLE_COMMAND_PALETTE_KEYBINDING_NAME,
 ];
-
-const WORKFLOW_AND_ENV_VAR_SPLIT_RATIO: f32 = 0.56;
 
 #[cfg(target_family = "wasm")]
 const MOBILE_OVERLAY_PANEL_WIDTH_RATIO: f32 = 0.9;
@@ -8077,77 +8071,6 @@ impl Workspace {
         ctx.notify();
     }
 
-    /// Opens the Warp Drive object identified by `uid` in a new pane
-    /// if it has a pane representation.
-    /// Open a Warp Drive workflow in response to an intent URL.
-    pub fn open_env_var_collection(
-        &mut self,
-        source: &EnvVarCollectionSource,
-        reload: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let env_var_collection_manager = EnvVarCollectionManager::handle(ctx);
-
-        if let Some((window_id, locator)) = env_var_collection_manager.as_ref(ctx).find_pane(source)
-        {
-            if reload {
-                env_var_collection_manager
-                    .update(ctx, |manager, ctx| manager.reload_collection(source, ctx));
-            }
-            if window_id == ctx.window_id() {
-                self.focus_pane(locator, ctx);
-            } else if let Some(root_view) = ctx.root_view_id(window_id) {
-                ctx.dispatch_action_for_view(
-                    window_id,
-                    root_view,
-                    "root_view:handle_pane_navigation_event",
-                    &locator,
-                );
-            }
-        } else {
-            let window_id = ctx.window_id();
-            let pane = env_var_collection_manager.update(ctx, |manager, ctx| {
-                manager.create_pane(source, window_id, ctx)
-            });
-            self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-                let smart_split_direction =
-                    pane_group.smart_split_direction(ctx, WORKFLOW_AND_ENV_VAR_SPLIT_RATIO);
-                pane_group.add_pane_with_direction(
-                    smart_split_direction,
-                    pane,
-                    true, /* focus_new_pane */
-                    ctx,
-                );
-            });
-        }
-    }
-
-    /// Create a pane from a cloud object. Returns `None` if the object cannot be opened in a
-    /// pane. The pane will not be associated with any tab - the caller is responsible for
-    /// inserting it.
-    fn create_cloud_object_pane(
-        &self,
-        cloud_object: CloudObjectTypeAndId,
-        ctx: &mut ViewContext<Self>,
-    ) -> Option<Box<dyn AnyPaneContent>> {
-        let window_id = ctx.window_id();
-        match cloud_object {
-            CloudObjectTypeAndId::Notebook(_) => None,
-            CloudObjectTypeAndId::Folder(_) => None,
-            CloudObjectTypeAndId::Workflow(_) => None,
-            CloudObjectTypeAndId::GenericStringObject {
-                object_type: GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection),
-                id,
-            } => Some(Box::new(EnvVarCollectionManager::handle(ctx).update(
-                ctx,
-                |evc_manager, ctx| {
-                    evc_manager.create_pane(&EnvVarCollectionSource::Existing(id), window_id, ctx)
-                },
-            ))),
-            CloudObjectTypeAndId::GenericStringObject { .. } => None,
-        }
-    }
-
     fn open_settings_pane(
         &mut self,
         page: Option<SettingsSection>,
@@ -14223,15 +14146,6 @@ impl Workspace {
             CommandPaletteEvent::Close {
                 accepted_action_type,
             } => self.close_palette(true, *accepted_action_type, ctx),
-            CommandPaletteEvent::InvokeEnvironmentVariables { id } => {
-                let Some(env_var_collection) = CloudModel::as_ref(ctx).get_env_var_collection(id)
-                else {
-                    log::warn!("Tried to execute EVC for id {id:?} but it does not exist");
-                    return;
-                };
-
-                self.invoke_environment_variables(env_var_collection.clone(), false, ctx);
-            }
             #[allow(unused_variables)]
             CommandPaletteEvent::OpenFile {
                 path,
@@ -15564,14 +15478,6 @@ impl Workspace {
                     });
                 }
             }
-            pane_group::Event::InvokeEnvVarCollection {
-                env_var_collection,
-                in_subshell,
-            } => self.invoke_environment_variables(
-                env_var_collection.as_cloud_env_var_collection().clone(),
-                *in_subshell,
-                ctx,
-            ),
             pane_group::Event::CloseSharedSessionPaneRequested { pane_id } => {
                 if *SessionSettings::as_ref(ctx).should_confirm_close_session {
                     self.show_close_session_confirmation_dialog(
@@ -16753,17 +16659,7 @@ impl Workspace {
                     .unwrap()
             });
 
-        let is_env_var_block = terminal_view_handle.read(ctx, |terminal_view, ctx| {
-            terminal_view.has_active_env_var_block(ctx)
-        });
-
         if self.is_input_box_visible(ctx) {
-            active_pane_group.update(ctx, |pane_group, ctx| pane_group.focus_active_session(ctx));
-            return Some(terminal_view_handle);
-        } else if is_env_var_block {
-            terminal_view_handle.update(ctx, |terminal_view, ctx| {
-                terminal_view.cancel_env_var_block(ctx);
-            });
             active_pane_group.update(ctx, |pane_group, ctx| pane_group.focus_active_session(ctx));
             return Some(terminal_view_handle);
         } else if fallback_behavior != TerminalSessionFallbackBehavior::OpenIfNeeded {
@@ -16908,36 +16804,6 @@ impl Workspace {
         }
     }
 
-    fn invoke_environment_variables(
-        &mut self,
-        env_var_collection: CloudEnvVarCollection,
-        in_subshell: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if self.is_readonly_shared_session_active(ctx) {
-            return;
-        }
-
-        if let Some(terminal_view_handle) = self.focus_terminal_input(
-            Some(env_var_collection.cloud_object_type_and_id()),
-            TerminalSessionFallbackBehavior::default(),
-            ctx,
-        ) {
-            send_telemetry_from_ctx!(
-                TelemetryEvent::EnvVarCollectionInvoked(EnvVarTelemetryMetadata {
-                    object_id: env_var_collection.id.into_server().map(Into::into),
-                    team_uid: env_var_collection.permissions.owner.into(),
-                    space: env_var_collection.space(ctx).into(),
-                }),
-                ctx
-            );
-            terminal_view_handle.update(ctx, |view, ctx| {
-                view.invoke_environment_variables(env_var_collection, in_subshell, ctx);
-                ctx.notify();
-            });
-        }
-    }
-
     fn handle_command_search_event(
         &mut self,
         event: &CommandSearchEvent,
@@ -16982,13 +16848,6 @@ impl Workspace {
                             input.try_execute_command(command.as_str(), ctx);
                             ctx.notify();
                         });
-                    }
-                    AcceptEnvVarCollection(env_var_collection) => {
-                        self.invoke_environment_variables(
-                            (**env_var_collection).clone(),
-                            false,
-                            ctx,
-                        );
                     }
                     _OpenWarpAI => {
                         if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
@@ -17105,8 +16964,6 @@ impl Workspace {
             ) {
                 let workflow: Option<&CloudWorkflow> = object.into();
                 let cloned_workflow = workflow.cloned();
-                let env_var_collection: Option<&CloudEnvVarCollection> = object.into();
-                let cloned_env_var_collection = env_var_collection.cloned();
 
                 let notebook: Option<&CloudNotebook> = object.into();
                 let cloned_notebook = notebook.cloned();
@@ -17165,23 +17022,7 @@ impl Workspace {
                         }
                         OperationSuccessType::Rejection => {
                             let new_toast =
-                                if let Some(env_var_collection) = cloned_env_var_collection {
-                                    DismissibleToast::error(message)
-                                        .with_link(
-                                            ToastLink::new(
-                                                "Check out the latest version and try again."
-                                                    .to_string(),
-                                            )
-                                            .with_onclick_action(
-                                                WorkspaceAction::HandleConflictingEnvVarCollection(
-                                                    env_var_collection.id,
-                                                ),
-                                            ),
-                                        )
-                                        .with_object_id(object_id)
-                                } else {
-                                    return;
-                                };
+                                DismissibleToast::error(message).with_object_id(object_id);
                             view.add_persistent_toast(new_toast, ctx);
                         }
                         OperationSuccessType::FeatureNotAvailable => {
@@ -21626,11 +21467,6 @@ impl Workspace {
             context.set.insert(flags::TELEMETRY_FLAG);
         }
 
-        let cloud_preferences_settings = CloudPreferencesSettings::as_ref(app);
-        if *cloud_preferences_settings.settings_sync_enabled.value() {
-            context.set.insert(flags::SETTINGS_SYNC_FLAG);
-        }
-
         if *block_list_settings
             .show_jump_to_bottom_of_block_button
             .value()
@@ -22991,32 +22827,6 @@ impl TypedActionView for Workspace {
             }) => self.show_command_search(*filter, init_content, ctx),
             TriggerExternalCtrlTFileSearch => self.trigger_external_ctrl_t_file_search(ctx),
             TriggerExternalAltCDirectorySearch => self.trigger_external_alt_c_directory_search(ctx),
-            CreatePersonalEnvVarCollection => {
-                if let Some(personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) {
-                    self.open_env_var_collection(
-                        &EnvVarCollectionSource::New {
-                            title: None,
-                            owner: personal_drive,
-                            initial_folder_id: None,
-                        },
-                        false,
-                        ctx,
-                    );
-                }
-            }
-            CreateTeamEnvVarCollection => {
-                if let Some(team_uid) = self.team_uid(ctx) {
-                    self.open_env_var_collection(
-                        &EnvVarCollectionSource::New {
-                            title: None,
-                            owner: Owner::Team { team_uid },
-                            initial_folder_id: None,
-                        },
-                        false,
-                        ctx,
-                    );
-                }
-            }
             ToggleMouseReporting => self.toggle_mouse_reporting(ctx),
             ToggleScrollReporting => self.toggle_scroll_reporting(ctx),
             ToggleFocusReporting => self.toggle_focus_reporting(ctx),
@@ -23597,16 +23407,6 @@ impl TypedActionView for Workspace {
             }
             SignInAnonymousWebUser => {
                 self.redirect_to_sign_in();
-            }
-            HandleConflictingEnvVarCollection(env_var_collection_id) => {
-                self.toast_stack.update(ctx, |view, ctx| {
-                    view.dismiss_older_toasts(&env_var_collection_id.uid(), ctx);
-                });
-                self.open_env_var_collection(
-                    &EnvVarCollectionSource::Existing(*env_var_collection_id),
-                    true,
-                    ctx,
-                );
             }
             OpenPromptEditor { open_source } => {
                 self.open_prompt_editor(*open_source, ctx);

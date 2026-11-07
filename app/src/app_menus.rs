@@ -567,14 +567,6 @@ fn make_new_blocks_menu(ctx: &AppContext) -> Menu {
 
 fn make_new_drive_menu(ctx: &AppContext) -> Menu {
     let mut items = vec![];
-    items.push(updateable_custom_item_without_checkmark(
-        CustomAction::NewPersonalEnvVars,
-        ctx,
-    ));
-    items.push(updateable_custom_item_without_checkmark(
-        CustomAction::NewTeamEnvVars,
-        ctx,
-    ));
     items.extend([
         MenuItem::Separator,
         updateable_custom_item_without_checkmark(CustomAction::OpenTeamSettings, ctx),

@@ -514,7 +514,6 @@ pub enum CommandSearchResultType {
     Workflow,
     OpenWarpAI,
     TranslateUsingWarpAI,
-    EnvVarCollection,
     ViewInWarpDrive,
     AIQuery,
     Project,
@@ -525,7 +524,6 @@ impl From<&CommandSearchItemAction> for CommandSearchResultType {
         use crate::search::command_search::searcher::CommandSearchItemAction::*;
         match action {
             AcceptHistory(_) | ExecuteHistory(_) => Self::History,
-            AcceptEnvVarCollection(_) => Self::EnvVarCollection,
             _OpenWarpAI => Self::OpenWarpAI,
             _TranslateUsingWarpAI => Self::TranslateUsingWarpAI,
             AcceptAIQuery(_) | RunAIQuery(_) => Self::AIQuery,

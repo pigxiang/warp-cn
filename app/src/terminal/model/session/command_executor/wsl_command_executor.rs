@@ -8,7 +8,9 @@ use command::r#async::Command;
 use itertools::Itertools as _;
 
 use super::{CommandExecutor, CommandOutput, ExecuteCommandOptions};
-use crate::env_vars::{EnvVarValue, serialize_variables_for_shell};
+use cloud_object_models::EnvVarValue;
+
+use super::shared::serialize_variables_for_shell;
 use crate::safe_warn;
 use crate::terminal::shell::{Shell, ShellType};
 

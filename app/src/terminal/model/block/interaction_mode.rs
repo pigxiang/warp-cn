@@ -42,7 +42,6 @@ impl Block {
         if !self.is_active_and_long_running()
             || self.is_in_band_command_block()
             || !self.bootstrap_stage.is_bootstrapped()
-            || self.env_var_metadata().is_some()
         {
             return false;
         }

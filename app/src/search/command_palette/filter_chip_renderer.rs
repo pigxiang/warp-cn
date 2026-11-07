@@ -136,9 +136,6 @@ impl FilterChipRenderer for QueryFilter {
                     is_ai_document: true,
                 },
             ),
-            QueryFilter::EnvironmentVariables => {
-                warp_drive_icon_color(appearance, DriveObjectType::EnvVarCollection)
-            }
             QueryFilter::AgentModeWorkflows => {
                 warp_drive_icon_color(appearance, DriveObjectType::AgentModeWorkflow)
             }

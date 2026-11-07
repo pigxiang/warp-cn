@@ -5,8 +5,7 @@
 //! pickers and the context-window control, plus the AI credit usage summary.
 
 use std::borrow::Cow;
-use std::cell::RefCell;
-use std::collections::HashMap;
+
 use std::path::{Path, PathBuf};
 
 use ::ai::api_keys::ApiKeyManager;
@@ -95,7 +94,6 @@ const CONTEXT_WINDOW_INPUT_BOX_WIDTH: f32 = 120.;
 pub struct AgentProfilesPageView {
     page: PageType<Self>,
     self_handle: WeakViewHandle<Self>,
-    local_only_icon_tooltip_states: RefCell<HashMap<String, MouseStateHandle>>,
 
     autonomy_dropdown_menu: ViewHandle<Dropdown<AgentProfilesPageAction>>,
     code_read_autonomy_dropdown_menu: ViewHandle<Dropdown<AgentProfilesPageAction>>,
@@ -889,7 +887,6 @@ impl AgentProfilesPageView {
         Self {
             page: Self::build_page(ctx),
             self_handle,
-            local_only_icon_tooltip_states: Default::default(),
             command_execution_allowlist_editor,
             command_execution_denylist_editor,
             command_execution_allowlist_mouse_state_handles,
@@ -1885,7 +1882,6 @@ fn render_ai_list(
     let setting_header = render_ai_setting_label::<AgentModeCommandExecutionDenylist>(
         header.to_string(),
         ai_settings.is_any_ai_enabled(app),
-        &view.local_only_icon_tooltip_states,
         app,
     );
 
@@ -2984,7 +2980,6 @@ impl AgentsWidget {
             *code_settings.codebase_context_enabled,
             ai_settings.is_any_ai_enabled(app),
             codebase_context_toggle,
-            &view.local_only_icon_tooltip_states,
             app,
         );
 

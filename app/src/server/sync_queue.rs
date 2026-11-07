@@ -40,10 +40,8 @@ use crate::cloud_object::{
     ObjectType, Owner, Revision, RevisionAndLastEditor, ServerCloudObject, ServerCreationInfo,
     UpdateCloudObjectResult,
 };
-use crate::env_vars::CloudEnvVarCollectionModel;
 use crate::notebooks::CloudNotebookModel;
 use crate::server::cloud_objects::update_manager::InitiatedBy;
-use crate::settings::cloud_preferences::CloudPreferenceModel;
 use cloud_object_models::CloudFolderModel;
 
 lazy_static! {
@@ -168,16 +166,6 @@ pub enum QueueItem {
     UpdateFolder {
         id: SyncId,
         model: Arc<CloudFolderModel>,
-    },
-    UpdateCloudPreferences {
-        model: Arc<CloudPreferenceModel>,
-        id: SyncId,
-        revision: Option<Revision>,
-    },
-    UpdateEnvVarCollection {
-        model: Arc<CloudEnvVarCollectionModel>,
-        id: SyncId,
-        revision: Option<Revision>,
     },
     UpdateWorkflowEnum {
         model: Arc<CloudWorkflowEnumModel>,
@@ -456,8 +444,6 @@ impl SyncQueue {
             // Update requests will depend on any existing create/updates to the same object
             QueueItem::UpdateNotebook { id, .. }
             | QueueItem::UpdateFolder { id, .. }
-            | QueueItem::UpdateCloudPreferences { id, .. }
-            | QueueItem::UpdateEnvVarCollection { id, .. }
             | QueueItem::UpdateWorkflowEnum { id, .. }
             | QueueItem::UpdateAIFact { id, .. }
             | QueueItem::UpdateMCPServer { id, .. }
@@ -571,11 +557,9 @@ impl SyncQueue {
                         )
                     })
                 }
-                QueueItem::UpdateCloudPreferences { id, .. }
-                | QueueItem::UpdateNotebook { id, .. }
+                QueueItem::UpdateNotebook { id, .. }
                 | QueueItem::UpdateWorkflow { id, .. }
                 | QueueItem::UpdateFolder { id, .. }
-                | QueueItem::UpdateEnvVarCollection { id, .. }
                 | QueueItem::UpdateWorkflowEnum { id, .. }
                 | QueueItem::UpdateAIFact { id, .. }
                 | QueueItem::UpdateMCPServer { id, .. }
@@ -682,8 +666,6 @@ impl SyncQueue {
             match item {
                 QueueItem::UpdateNotebook { id, revision, .. }
                 | QueueItem::UpdateWorkflow { id, revision, .. }
-                | QueueItem::UpdateCloudPreferences { id, revision, .. }
-                | QueueItem::UpdateEnvVarCollection { id, revision, .. }
                 | QueueItem::UpdateWorkflowEnum { id, revision, .. }
                 | QueueItem::UpdateAIFact { id, revision, .. }
                 | QueueItem::UpdateMCPServer { id, revision, .. }
@@ -777,34 +759,6 @@ impl SyncQueue {
                         model.clone(),
                         id,
                         None,
-                        object_client,
-                        dequeued_item_id,
-                        ctx,
-                    );
-                }
-                QueueItem::UpdateCloudPreferences {
-                    model,
-                    id,
-                    revision,
-                } => {
-                    self.update_object(
-                        model.clone(),
-                        id,
-                        revision,
-                        object_client,
-                        dequeued_item_id,
-                        ctx,
-                    );
-                }
-                QueueItem::UpdateEnvVarCollection {
-                    model,
-                    id,
-                    revision,
-                } => {
-                    self.update_object(
-                        model.clone(),
-                        id,
-                        revision,
                         object_client,
                         dequeued_item_id,
                         ctx,
@@ -1265,19 +1219,11 @@ impl SyncQueue {
                         ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
                             json_object_type,
                         )) => match json_object_type {
-                            JsonObjectType::Preference => {
-                                CloudPreferenceModel::send_create_request(
-                                    object_client_clone,
-                                    create_request,
-                                )
-                                .await
-                            }
-                            JsonObjectType::EnvVarCollection => {
-                                CloudEnvVarCollectionModel::send_create_request(
-                                    object_client_clone,
-                                    create_request,
-                                )
-                                .await
+                            // Settings and environment-variable objects are not queued in this fork.
+                            JsonObjectType::Preference | JsonObjectType::EnvVarCollection => {
+                                Err(anyhow::anyhow!(
+                                    "{json_object_type:?} creation not supported in this fork"
+                                ))
                             }
                             JsonObjectType::WorkflowEnum => {
                                 CloudWorkflowEnumModel::send_create_request(
@@ -1804,7 +1750,7 @@ impl SyncQueue {
         object_type: ObjectType,
     ) {
         if let ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
-            JsonObjectType::WorkflowEnum | JsonObjectType::EnvVarCollection,
+            JsonObjectType::WorkflowEnum,
         )) = object_type
         {
             let server_id: GenericStringObjectId = server_id.into();
@@ -1917,12 +1863,6 @@ impl SyncQueue {
                     self.handle_update_failure_response(id, item_id, ctx);
                 }
                 QueueItem::UpdateFolder { id, .. } => {
-                    self.handle_update_failure_response(id, item_id, ctx);
-                }
-                QueueItem::UpdateCloudPreferences { id, .. } => {
-                    self.handle_update_failure_response(id, item_id, ctx);
-                }
-                QueueItem::UpdateEnvVarCollection { id, .. } => {
                     self.handle_update_failure_response(id, item_id, ctx);
                 }
                 QueueItem::UpdateWorkflowEnum { id, .. } => {

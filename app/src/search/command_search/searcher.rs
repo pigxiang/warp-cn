@@ -1,4 +1,3 @@
-use crate::env_vars::CloudEnvVarCollection;
 use crate::search::mixer::SearchMixer;
 pub type CommandSearchMixer = SearchMixer<CommandSearchItemAction>;
 
@@ -18,9 +17,6 @@ pub enum CommandSearchItemAction {
     /// The user requested the re-execution of a history search item. The
     /// contained string is the command they accepted.
     ExecuteHistory(String),
-
-    /// The user accepted an EVC search item.
-    AcceptEnvVarCollection(Box<CloudEnvVarCollection>),
 
     /// The user accepted the AI query search item with this query text.
     AcceptAIQuery(String),
