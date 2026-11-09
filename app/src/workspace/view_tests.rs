@@ -64,7 +64,7 @@ use crate::server::server_api::team::{MockTeamClient, TeamClient};
 use crate::server::server_api::workspace::MockWorkspaceClient;
 use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
-use crate::settings::PrivacySettings;
+use crate::settings::{PrivacySettings, WarpDrivePrivacySettings};
 use crate::settings_view::DisplayCount;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::suggestions::ignored_suggestions_model::IgnoredSuggestionsModel;
@@ -106,6 +106,15 @@ pub(crate) fn initialize_app_with_team_client(app: &mut App, team_client: Arc<dy
     app.add_singleton_model(|_ctx| PtySpawner::new_for_test());
     app.add_singleton_model(|_| Prompt::mock());
     app.add_singleton_model(|ctx| AutoupdateState::new(ServerApiProvider::as_ref(ctx).get()));
+    // warp-cn fork: MainSettingsPageView observes this singleton at
+    // construction, so any test that builds a real window needs it registered.
+    app.add_singleton_model(|_ctx| crate::github_update::GithubUpdateState::new());
+    app.update(|ctx| crate::language_settings::LanguageSettings::register(ctx));
+    // warp-cn fork: WarpAgentPageView reads the BYO-key config at construction.
+    app.add_singleton_model(::ai::direct_backend::DirectBackendConfig::new);
+    // Schedules its startup check via a timer that never fires inside
+    // `App::test`; only the subscription wiring matters for these tests.
+    app.update(|ctx| crate::github_update::register_auto_check(ctx));
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(|_| crate::tab::TabShortcutModifierState::new());
@@ -131,6 +140,10 @@ pub(crate) fn initialize_app_with_team_client(app: &mut App, team_client: Arc<dy
     app.add_singleton_model(AppearanceManager::new);
     app.add_singleton_model(|_| DisplayCount::mock());
     app.add_singleton_model(PrivacySettings::mock);
+    // warp-cn lite: the privacy page's cloud-services toggles are backed by
+    // WarpDrivePrivacySettings, which stays as their source of truth after the
+    // Warp Drive removal, so tests that build the settings views need it.
+    WarpDrivePrivacySettings::register(app);
     app.add_singleton_model(|_| KeybindingChangedNotifier::new());
     app.add_singleton_model(|_ctx| RelaunchModel::new());
     app.add_singleton_model(|ctx| ChangelogModel::new(ServerApiProvider::as_ref(ctx).get()));

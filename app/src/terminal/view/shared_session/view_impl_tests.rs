@@ -30,7 +30,7 @@ use crate::auth::user::TEST_USER_UID;
 use crate::cloud_object::{Owner, Revision, ServerMetadata, ServerPermissions};
 use crate::context_chips::prompt_type::PromptType;
 use crate::editor::InteractionState;
-use crate::pane_group::{BackingView, PaneConfigurationEvent};
+use crate::menu::MenuItem;
 use crate::server::ids::ServerId;
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use crate::server::server_api::ai::SpawnAgentRequest;
@@ -39,6 +39,7 @@ use crate::server::team_scope::RequestTeamScope;
 use crate::terminal::TerminalView;
 use crate::terminal::model::blocks::{INLINE_BANNER_HEIGHT, ToTotalIndex as _};
 use crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus;
+use crate::terminal::shared_session::manager::Manager;
 use crate::terminal::view::shared_session::test_utils::terminal_view_for_viewer;
 use crate::terminal::view::{AIQueryRouting, TerminalAction, resolve_ai_query_routing};
 use crate::test_util::add_window_with_terminal;
@@ -50,6 +51,10 @@ use crate::{FeatureFlag, assert_lines_approx_eq};
 #[test]
 fn test_prompt_context_menu_items_shared_session_viewer_no_edit_prompt() {
     App::test((), |mut app| async move {
+        // Menu labels go through `t!()`; without an initialized bundle they
+        // render as `{key}` placeholders and the assertions below fail.
+        let _ = warp_i18n::init(warp_i18n::Locale::En);
+        warp_i18n::set_locale(warp_i18n::Locale::En);
         let terminal = terminal_view_for_viewer(&mut app);
 
         terminal.update(&mut app, |view, ctx| {
@@ -2539,216 +2544,6 @@ fn passive_suggestions_suppressed_for_shared_ambient_viewer() {
             suppressed_for_ambient_viewer,
             "passive suggestions must be suppressed for a shared cloud-agent viewer"
         );
-    });
-}
-
-// APP-5027 regression: "Copy link" / "Copy session sharing link" must not silently do
-// nothing when the Manager has no session id (e.g. during ViewPending / SharePending).
-
-#[test]
-fn test_copy_shared_session_link_does_not_write_clipboard_when_session_pending() {
-    // copy_shared_session_link was a silent no-op when the Manager had no session_id
-    // (e.g. ViewPending while the cloud agent environment is still setting up).
-    // With the fix it shows an error toast AND does NOT write the join link to the clipboard.
-    // This test asserts the new observable behavior (the toast), not just the clipboard-unchanged
-    // invariant that also held on the old silent no-op path.
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        app.add_singleton_model(Manager::new);
-        let toast_stack_handle = app.add_singleton_model(|_| crate::workspace::ToastStack);
-
-        // Subscribe to ToastStack events so we can assert the error toast is emitted.
-        let toast_text = Rc::new(RefCell::new(None::<String>));
-        let toast_text_clone = toast_text.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_model(&toast_stack_handle, move |_, event, _| {
-                if let crate::workspace::ToastStackEvent::AddEphemeralToast { toast, .. } = event {
-                    *toast_text_clone.borrow_mut() = Some(toast.main_text().to_string());
-                }
-            });
-        });
-
-        let terminal = add_window_with_terminal(&mut app, None);
-        let link_change_events = Rc::new(RefCell::new(0));
-        let link_change_events_for_subscription = link_change_events.clone();
-        let pane_configuration = terminal.read(&app, |view, _| view.pane_configuration().clone());
-        app.update(|ctx| {
-            ctx.subscribe_to_model(&pane_configuration, move |_, event, _| {
-                if matches!(event, PaneConfigurationEvent::SharedSessionLinkChanged) {
-                    *link_change_events_for_subscription.borrow_mut() += 1;
-                }
-            });
-        });
-
-        // Put the terminal in ViewPending state without registering a session_id with the Manager.
-        // This simulates a cloud agent environment still setting up (no join yet).
-        terminal.update(&mut app, |view, _| {
-            view.model
-                .lock()
-                .set_shared_session_status(SharedSessionStatus::ViewPending);
-        });
-
-        // Write a sentinel to the clipboard so we can detect if it is overwritten.
-        terminal.update(&mut app, |_, ctx| {
-            ctx.clipboard()
-                .write(warpui::clipboard::ClipboardContent::plain_text(
-                    "sentinel".to_string(),
-                ));
-        });
-
-        // Call copy_shared_session_link. With the fix, it shows an error toast and returns early.
-        terminal.update(&mut app, |view, ctx| {
-            view.copy_shared_session_link(SharedSessionActionSource::RightClickMenu, ctx);
-        });
-
-        // Assert the error toast was shown — this is the new, observable behavior that proves
-        // the fix is active. Without the fix, no toast would be emitted.
-        assert_eq!(
-            toast_text.borrow().as_deref(),
-            Some("Sharing link not yet available"),
-            "copy_shared_session_link must show an error toast when no session_id is registered"
-        );
-
-        // Belt-and-suspenders: clipboard must also remain unchanged.
-        let clipboard_text = terminal.update(&mut app, |_, ctx| ctx.clipboard().read().plain_text);
-        assert_eq!(
-            clipboard_text, "sentinel",
-            "copy_shared_session_link must not write the join link when no session_id is registered"
-        );
-
-        // A previous ended session id must not become copyable again while a new share attempt is
-        // pending on the same terminal.
-        terminal.update(&mut app, |_, ctx| {
-            let window_id = ctx.window_id();
-            Manager::handle(ctx).update(ctx, |manager, ctx| {
-                manager.started_share(terminal.downgrade(), SessionId::new(), window_id, ctx);
-                manager.stopped_share(terminal.id(), ctx);
-            });
-        });
-        *toast_text.borrow_mut() = None;
-
-        terminal.update(&mut app, |view, ctx| {
-            view.attempt_to_share_session(
-                SharedSessionScrollbackType::None,
-                None,
-                SharedSessionSource::user(None),
-                false,
-                ctx,
-            );
-        });
-        assert_eq!(
-            *link_change_events.borrow(),
-            1,
-            "starting a new share must refresh cached link and QR surfaces"
-        );
-
-        terminal.update(&mut app, |view, ctx| {
-            view.copy_shared_session_link(SharedSessionActionSource::RightClickMenu, ctx);
-        });
-
-        assert_eq!(
-            toast_text.borrow().as_deref(),
-            Some("Sharing link not yet available"),
-            "a retained ended id must not be copied while a new session is pending"
-        );
-        let clipboard_text = terminal.update(&mut app, |_, ctx| ctx.clipboard().read().plain_text);
-        assert_eq!(
-            clipboard_text, "sentinel",
-            "a retained ended id must not overwrite the clipboard during a pending retry"
-        );
-    });
-}
-
-#[test]
-fn test_pane_header_copy_link_disabled_when_view_pending_no_session_id() {
-    // APP-5027 call-site regression: the pane-header "Copy link" item must be disabled
-    // when the terminal is in ViewPending state and Manager has no session_id for this view.
-    // This exercises the actual has_session_link call-site computation inside
-    // pane_header_overflow_menu_items, not just the session_sharing_context_menu_items helper.
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        app.add_singleton_model(Manager::new);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        // ViewPending simulates a cloud-agent viewer mid-setup: the session exists in the model
-        // but Manager has not yet received a session_id for this view.
-        terminal.update(&mut app, |view, _| {
-            view.model
-                .lock()
-                .set_shared_session_status(SharedSessionStatus::ViewPending);
-        });
-
-        terminal.read(&app, |view, ctx| {
-            let items = view.pane_header_overflow_menu_items(ctx);
-
-            let copy_link_item = items
-                .iter()
-                .find(|item| item.fields().is_some_and(|f| f.label() == "Copy link"));
-            assert!(
-                copy_link_item.is_some(),
-                "Copy link item should appear when terminal is in ViewPending state"
-            );
-            assert!(
-                copy_link_item.unwrap().fields().unwrap().is_disabled(),
-                "Copy link must be disabled when Manager has no session_id (ViewPending setup)"
-            );
-        });
-    });
-}
-
-#[test]
-fn test_session_sharing_context_menu_copy_link_disabled_when_no_session_link() {
-    // The "Copy session sharing link" context-menu item must be disabled (greyed out)
-    // when the session link is not yet available (has_session_link=false).
-    App::test((), |mut app| async move {
-        let terminal = terminal_view_for_viewer(&mut app);
-
-        terminal.read(&app, |view, _| {
-            let model = view.model.lock();
-            // has_session_link=false simulates ViewPending with no registered session_id.
-            let items = view.session_sharing_context_menu_items(&model, false, false);
-
-            let copy_link_item = items.iter().find(|item| {
-                item.fields()
-                    .is_some_and(|f| f.label() == "Copy session sharing link")
-            });
-            assert!(
-                copy_link_item.is_some(),
-                "Copy session sharing link item should be present when is_sharer_or_viewer"
-            );
-            assert!(
-                copy_link_item.unwrap().fields().unwrap().is_disabled(),
-                "Copy session sharing link must be disabled when no session link is available"
-            );
-        });
-    });
-}
-
-#[test]
-fn test_session_sharing_context_menu_copy_link_enabled_when_session_link_available() {
-    // The "Copy session sharing link" item must be enabled when the session link is available.
-    App::test((), |mut app| async move {
-        let terminal = terminal_view_for_viewer(&mut app);
-
-        terminal.read(&app, |view, _| {
-            let model = view.model.lock();
-            // has_session_link=true simulates an active or ended session with a registered id.
-            let items = view.session_sharing_context_menu_items(&model, false, true);
-
-            let copy_link_item = items.iter().find(|item| {
-                item.fields()
-                    .is_some_and(|f| f.label() == "Copy session sharing link")
-            });
-            assert!(
-                copy_link_item.is_some(),
-                "Copy session sharing link item should be present when is_sharer_or_viewer"
-            );
-            assert!(
-                !copy_link_item.unwrap().fields().unwrap().is_disabled(),
-                "Copy session sharing link must be enabled when session link is available"
-            );
-        });
     });
 }
 

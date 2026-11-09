@@ -1,3 +1,4 @@
+use warp_graphql::queries::execution_config::ExecutionRepositoryRef;
 
 use super::*;
 use crate::workspaces::user_workspaces::TeamScope;
@@ -81,8 +82,6 @@ fn execution_deferred_repositories_reject_unknown_forges() {
         .is_err()
     );
 }
-
-
 
 #[test]
 fn execution_factory_skill_directories_are_relative_and_unambiguous() {

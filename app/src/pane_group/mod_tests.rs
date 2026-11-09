@@ -66,6 +66,7 @@ use crate::ai::outline::RepoOutlines;
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai::restored_conversations::RestoredAgentConversations;
 use crate::ai::skills::SkillManager;
+use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::AuthManager;
 use crate::auth::user::TEST_USER_UID;
 use crate::changelog_model::ChangelogModel;
@@ -2968,8 +2969,6 @@ fn test_active_session_id_reset_on_last_pane_close() {
     });
 }
 
-
-
 #[test]
 fn test_add_pane_aborts_cleanly_when_pre_attach_returns_false() {
     App::test((), |mut app| async move {
@@ -3444,8 +3443,6 @@ fn test_number_of_shared_panes() {
         });
     });
 }
-
-
 
 /// TODO: look into moving this test somewhere more suitable.
 /// Currently, the pane group is responsible for creating and owning
