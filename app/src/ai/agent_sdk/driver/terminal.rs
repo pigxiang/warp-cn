@@ -10,10 +10,9 @@ use std::time::Duration;
 use anyhow::Context as _;
 use futures::channel::oneshot;
 use instant::Instant;
-use session_sharing_protocol::common::{Role, SessionId};
+use session_sharing_protocol::common::SessionId;
 use session_sharing_protocol::sharer::SessionRetentionReason;
 use uuid::Uuid;
-use warp_cli::share::{ShareAccessLevel, ShareRequest, ShareSubject};
 use warp_completer::completer::CommandOutput;
 use warp_core::command::ExitCode;
 use warp_core::features::FeatureFlag;
@@ -21,7 +20,7 @@ use warp_errors::report_if_error;
 use warp_terminal::model::grid::Dimensions;
 use warp_util::path::ShellFamily;
 use warpui::r#async::FutureExt;
-use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity as _, ViewHandle};
+use warpui::{AppContext, Entity, ModelContext, ModelHandle, ViewHandle};
 
 use super::AgentDriverError;
 use crate::ai::agent::redaction::redact_secrets;
@@ -40,7 +39,7 @@ use crate::terminal::shared_session::{self, IsSharedSessionCreator, SharedSessio
 use crate::terminal::shell::ShellType;
 use crate::terminal::view::{ConversationRestorationInNewPaneType, Event};
 use crate::terminal::{ShellLaunchData, TerminalView};
-use crate::workspaces::user_workspaces::{HeadlessTeamScope, TeamScope, UserWorkspaces};
+use crate::workspaces::user_workspaces::{HeadlessTeamScope, TeamScope};
 
 /// Describes why a terminal session bootstrap failed.
 #[derive(Debug)]
@@ -155,7 +154,6 @@ pub(crate) struct TerminalDriver {
     /// and `wait_for_session_shared` has not yet been called.
     session_share_rx: Option<oneshot::Receiver<Result<(), ShareSessionError>>>,
     session_share_failure_rx: Option<oneshot::Receiver<ShareSessionError>>,
-    pending_share_requests: Vec<ShareRequest>,
     /// Resolves the in-flight command's exit status. Sent `Ok` when the
     /// command's block completes, or
     /// `Err(AgentDriverError::SetupCommandExitedShell)` if the shell process
@@ -342,7 +340,6 @@ impl TerminalDriver {
             shared_session_id: None,
             session_share_rx,
             session_share_failure_rx: Some(session_share_failure_rx),
-            pending_share_requests: Vec::new(),
             waiting_command: None,
             pending_command_start: None,
             shell_exited: false,
@@ -364,73 +361,7 @@ impl TerminalDriver {
         self.terminal_view.update(ctx, f);
     }
 
-    /// Request that the terminal session be shared with the given participants.
-    ///
-    /// This has no effect if the session is not being shared.
-    pub fn add_share_requests(
-        &mut self,
-        share_requests: impl IntoIterator<Item = ShareRequest>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.pending_share_requests.extend(share_requests);
-        if self.shared_session_id.is_some() {
-            self.apply_share_requests(ctx);
-        }
-    }
 
-    /// Apply pending session-sharing guest requests.
-    fn apply_share_requests(&mut self, ctx: &mut ModelContext<Self>) {
-        if self.pending_share_requests.is_empty() {
-            return;
-        }
-
-        let share_requests = std::mem::take(&mut self.pending_share_requests);
-        self.terminal_view.update(ctx, |terminal_view, ctx| {
-            let mut viewer_emails = Vec::new();
-            let mut editor_emails = Vec::new();
-
-            for request in share_requests {
-                let role = match request.access_level {
-                    ShareAccessLevel::View => Role::Reader,
-                    ShareAccessLevel::Edit => Role::Executor,
-                };
-
-                match request.subject {
-                    ShareSubject::Team => {
-                        if let Some(team_uid) = UserWorkspaces::as_ref(ctx)
-                            .team_for_view(ctx)
-                            .map(|team| team.uid)
-                        {
-                            terminal_view.update_session_team_permissions(
-                                Some(role),
-                                team_uid.to_string(),
-                                ctx,
-                            );
-                        }
-                    }
-                    ShareSubject::Public => {
-                        // Apply an anyone-with-link ACL at the requested role.
-                        // This uses the same path as the share modal's
-                        // "anyone with link" toggle. The workspace-level
-                        // anyone-with-link setting on the server still gates
-                        // whether the ACL write succeeds.
-                        terminal_view.update_session_link_permissions(Some(role), ctx);
-                    }
-                    ShareSubject::User { email } => match request.access_level {
-                        ShareAccessLevel::View => viewer_emails.push(email),
-                        ShareAccessLevel::Edit => editor_emails.push(email),
-                    },
-                }
-            }
-
-            if !viewer_emails.is_empty() {
-                terminal_view.add_guests(viewer_emails, Role::Reader, ctx);
-            }
-            if !editor_emails.is_empty() {
-                terminal_view.add_guests(editor_emails, Role::Executor, ctx);
-            }
-        });
-    }
 
     /// Submit `text` to the active CLI agent on the terminal PTY using the
     /// agent-specific submission strategy.
@@ -939,9 +870,6 @@ impl TerminalDriver {
                 if let Some(tx) = session_share_tx.take() {
                     let _ = tx.send(Ok(()));
                 }
-
-                // Apply any pending share requests now that the session is established.
-                self.apply_share_requests(ctx);
 
                 ctx.emit(TerminalDriverEvent::EstablishedSharedSession {
                     session_id: *session_id,

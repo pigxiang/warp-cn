@@ -5,11 +5,9 @@ use cloud_object_models::CodeForge as RuntimeForge;
 use serde_json::{Map, Value};
 use warp_cli::agent::{Harness, RepositoryHeadRef};
 use warp_cli::mcp::MCPSpec;
-use warp_cli::share::{ShareAccessLevel, ShareRequest, ShareSubject};
 use warp_graphql::ai::AgentHarness;
 use warp_graphql::queries::execution_config::{
     CloudProviderClientConfigs, CodeForge, ExecutionRepository, ExecutionRepositoryRefType,
-    SessionSharingAccessLevel, SessionSharingAclSpec, SessionSharingSubjectType,
     SourceRepo as ConfigSourceRepo,
 };
 
@@ -103,39 +101,6 @@ pub(super) fn deferred_repositories(
     repositories.into_iter().map(source_repo).collect()
 }
 
-pub(super) fn sharing_acls(acls: Vec<SessionSharingAclSpec>) -> anyhow::Result<Vec<ShareRequest>> {
-    acls.into_iter()
-        .map(|acl| {
-            let subject = match acl.subject_type {
-                SessionSharingSubjectType::Team if acl.email.is_none() => ShareSubject::Team,
-                SessionSharingSubjectType::Public if acl.email.is_none() => ShareSubject::Public,
-                SessionSharingSubjectType::UserEmail => {
-                    let email = acl.email.filter(|email| !email.trim().is_empty());
-                    ShareSubject::User {
-                        email: email.context("User sharing ACL has no email")?,
-                    }
-                }
-                SessionSharingSubjectType::Unknown => {
-                    bail!("Unsupported execution sharing subject")
-                }
-                SessionSharingSubjectType::Team | SessionSharingSubjectType::Public => {
-                    bail!("Invalid execution sharing ACL")
-                }
-            };
-            let access_level = match acl.access {
-                SessionSharingAccessLevel::View => ShareAccessLevel::View,
-                SessionSharingAccessLevel::Edit => ShareAccessLevel::Edit,
-                SessionSharingAccessLevel::Unknown => {
-                    bail!("Unsupported execution sharing access")
-                }
-            };
-            Ok(ShareRequest {
-                subject,
-                access_level,
-            })
-        })
-        .collect()
-}
 
 pub(super) fn providers(config: Option<CloudProviderClientConfigs>) -> ProvidersConfig {
     let Some(config) = config else {

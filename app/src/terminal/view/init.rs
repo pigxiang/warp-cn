@@ -1,4 +1,3 @@
-use warp_core::context_flag::ContextFlag;
 use warpui::AppContext;
 use warpui::keymap::{
     BindingDescription, ContextPredicate, EditableBinding, FixedBinding, PerPlatformKeystroke,
@@ -562,15 +561,6 @@ pub fn init(app: &mut AppContext) {
             id!("Terminal") & id!("TerminalView_NonEmptyBlockList") & !id!("AltScreen"),
         ),
         EditableBinding::new(
-            "terminal:open_share_block_modal",
-            BindingDescription::fluent("binding-terminal-view-share-selected-block"),
-            TerminalAction::OpenShareModal,
-        )
-        .with_custom_action(CustomAction::CreateBlockPermalink)
-        .with_context_predicate(
-            id!("Terminal") & eq!("TerminalView_BlockSelectionCardinality", "One"),
-        ),
-        EditableBinding::new(
             "terminal:bookmark_selected_block",
             BindingDescription::fluent("binding-terminal-view-bookmark-selected-block"),
             TerminalAction::BookmarkSelectedBlock,
@@ -933,21 +923,6 @@ pub fn init(app: &mut AppContext) {
     .with_context_predicate(id!("Terminal") & id!(flags::HAS_SETTINGS_TO_IMPORT_FLAG))]);
 
     app.register_editable_bindings([
-        EditableBinding::new(
-            "terminal:share_current_session",
-            BindingDescription::fluent("binding-terminal-view-share-current-session"),
-            TerminalAction::OpenShareSessionModal {
-                source: SharedSessionActionSource::CommandPalette,
-            },
-        )
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
-        )
-        .with_custom_action(CustomAction::ShareCurrentSession)
-        .with_enabled(|| {
-            FeatureFlag::CreatingSharedSessions.is_enabled()
-                && ContextFlag::CreateSharedSession.is_enabled()
-        }),
         EditableBinding::new(
             "terminal:stop_sharing_current_session",
             BindingDescription::fluent("binding-terminal-view-stop-sharing-current-session"),

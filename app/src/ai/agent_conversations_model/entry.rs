@@ -164,8 +164,6 @@ pub struct AgentConversationBackingData {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentConversationCapabilities {
     pub can_open: bool,
-    pub can_copy_link: bool,
-    pub can_share: bool,
     pub can_delete: bool,
     pub can_fork_locally: bool,
     pub can_cancel: bool,
@@ -513,10 +511,6 @@ pub(super) fn entry_for_task(
         || has_attachable_live_session
         || local_conversation_id.is_some()
         || server_conversation_token.is_some();
-    let can_copy_link = task.has_active_execution()
-        && task.active_run_execution().session_link.is_some()
-        || server_conversation_token.is_some();
-
     AgentConversationEntry {
         id: AgentConversationEntryId::AmbientRun(task.task_id),
         identity: AgentConversationIdentity {
@@ -574,10 +568,6 @@ pub(super) fn entry_for_task(
         },
         capabilities: AgentConversationCapabilities {
             can_open,
-            can_copy_link,
-            can_share: task.conversation_id().is_some()
-                || local_conversation_id
-                    .is_some_and(|id| history_model.can_conversation_be_shared(&id)),
             can_delete: false,
             can_fork_locally: local_conversation_id.is_some(),
             can_cancel: status.is_cancellable(),
@@ -684,13 +674,6 @@ fn entry_for_conversation_parts(
         },
         capabilities: AgentConversationCapabilities {
             can_open: has_local_persisted_data || has_cloud_data,
-            can_copy_link: server_conversation_token_for_conversation(
-                conversation_id,
-                Some(&metadata.nav_data),
-                history_model,
-            )
-            .is_some(),
-            can_share: history_model.can_conversation_be_shared(&conversation_id),
             can_delete: has_local_persisted_data,
             can_fork_locally: has_local_persisted_data,
             can_cancel: status.is_cancellable(),

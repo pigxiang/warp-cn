@@ -455,9 +455,7 @@ impl AuthViewBody {
         let on_click_action = if is_anonymous
             && matches!(
                 self.variant,
-                AuthViewVariant::RequireLoginCloseable
-                    | AuthViewVariant::HitDriveObjectLimitCloseable
-                    | AuthViewVariant::ShareRequirementCloseable
+                AuthViewVariant::RequireLoginCloseable | AuthViewVariant::HitDriveObjectLimitCloseable
             ) {
             AuthViewBodyAction::SignupAnonymousUser
         } else {
@@ -608,9 +606,6 @@ impl AuthViewBody {
             AuthViewVariant::HitDriveObjectLimitCloseable => {
                 t!("dialog-auth-force-login-drive")
             }
-            AuthViewVariant::ShareRequirementCloseable => {
-                t!("dialog-auth-force-login-share")
-            }
             _ => String::new(),
         };
 
@@ -636,9 +631,9 @@ impl AuthViewBody {
 
         let text = match self.variant {
             AuthViewVariant::Initial => t!("dialog-auth-welcome"),
-            AuthViewVariant::RequireLoginCloseable
-            | AuthViewVariant::HitDriveObjectLimitCloseable
-            | AuthViewVariant::ShareRequirementCloseable => t!("dialog-auth-sign-up-for-warp"),
+            AuthViewVariant::RequireLoginCloseable | AuthViewVariant::HitDriveObjectLimitCloseable => {
+                t!("dialog-auth-sign-up-for-warp")
+            }
         };
 
         ui_builder
@@ -657,9 +652,7 @@ impl AuthViewBody {
 
         if matches!(
             self.variant,
-            AuthViewVariant::RequireLoginCloseable
-                | AuthViewVariant::HitDriveObjectLimitCloseable
-                | AuthViewVariant::ShareRequirementCloseable
+            AuthViewVariant::RequireLoginCloseable | AuthViewVariant::HitDriveObjectLimitCloseable
         ) {
             let close_button = ui_builder
                 .close_button(
@@ -727,9 +720,7 @@ impl AuthViewBody {
                     vec![]
                 }
             }
-            AuthViewVariant::RequireLoginCloseable
-            | AuthViewVariant::HitDriveObjectLimitCloseable
-            | AuthViewVariant::ShareRequirementCloseable => {
+            AuthViewVariant::RequireLoginCloseable | AuthViewVariant::HitDriveObjectLimitCloseable => {
                 vec![logo, header, force_login_disclaimer, sign_up_button]
             }
         }
@@ -911,8 +902,7 @@ impl TypedActionView for AuthViewBody {
             }
             AuthViewBodyAction::SignupAnonymousUser => {
                 let entrypoint = match self.variant {
-                    AuthViewVariant::RequireLoginCloseable
-                    | AuthViewVariant::ShareRequirementCloseable => {
+                    AuthViewVariant::RequireLoginCloseable => {
                         AnonymousUserSignupEntrypoint::LoginGatedFeature
                     }
                     AuthViewVariant::HitDriveObjectLimitCloseable => {

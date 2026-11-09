@@ -258,7 +258,7 @@ fn test_from_task_includes_linked_directory_when_run_id_matches() {
 
         let task = create_test_task(task_id);
         app.update(|ctx| {
-            let data = ConversationDetailsData::from_task(&task, None, None, ctx);
+            let data = ConversationDetailsData::from_task(&task, None, ctx);
             assert!(matches!(
                 data.mode,
                 PanelMode::Task {
@@ -270,36 +270,7 @@ fn test_from_task_includes_linked_directory_when_run_id_matches() {
     });
 }
 
-#[test]
-fn test_from_conversation_metadata_passes_harness_through() {
-    for harness in [
-        None,
-        Some(Harness::Oz),
-        Some(Harness::Claude),
-        Some(Harness::Gemini),
-        Some(Harness::Unknown),
-    ] {
-        let data = ConversationDetailsData::from_conversation_metadata(
-            AIConversationId::new(),
-            "Title".to_string(),
-            None,
-            Utc::now().with_timezone(&Local),
-            None,
-            None,
-            None,
-            vec![],
-            None,
-            None,
-            None,
-            None,
-            harness,
-        );
-        assert_eq!(
-            data.harness, harness,
-            "harness {harness:?} should pass through"
-        );
-    }
-}
+
 
 #[test]
 fn test_from_task_resolves_harness() {
@@ -312,13 +283,13 @@ fn test_from_task_resolves_harness() {
 
         app.update(|ctx| {
             // No snapshot → harness unknown.
-            let data = ConversationDetailsData::from_task(&base_task, None, None, ctx);
+            let data = ConversationDetailsData::from_task(&base_task, None, ctx);
             assert_eq!(data.harness, None);
 
             // Snapshot without an explicit harness → default to Warp Agent.
             let mut task = base_task.clone();
             task.agent_config_snapshot = Some(AgentConfigSnapshot::default());
-            let data = ConversationDetailsData::from_task(&task, None, None, ctx);
+            let data = ConversationDetailsData::from_task(&task, None, ctx);
             assert_eq!(data.harness, Some(Harness::Oz));
 
             // Snapshot with explicit harness_type.
@@ -333,7 +304,7 @@ fn test_from_task_resolves_harness() {
                     harness: Some(HarnessConfig::from_harness_type(harness)),
                     ..Default::default()
                 });
-                let data = ConversationDetailsData::from_task(&task, None, None, ctx);
+                let data = ConversationDetailsData::from_task(&task, None, ctx);
                 assert_eq!(data.harness, Some(harness), "harness {harness:?}");
             }
         });
@@ -353,7 +324,7 @@ fn test_from_task_populates_executor() {
         });
 
         app.update(|ctx| {
-            let data = ConversationDetailsData::from_task(&task, None, None, ctx);
+            let data = ConversationDetailsData::from_task(&task, None, ctx);
             assert_eq!(
                 data.executor
                     .as_ref()
@@ -490,7 +461,7 @@ fn test_from_task_uses_server_reported_dollar_cost() {
         });
 
         app.update(|ctx| {
-            let data = ConversationDetailsData::from_task(&task, None, None, ctx);
+            let data = ConversationDetailsData::from_task(&task, None, ctx);
 
             assert_eq!(data.cost_in_cents, Some(27.0));
         });
@@ -498,7 +469,7 @@ fn test_from_task_uses_server_reported_dollar_cost() {
 }
 
 #[test]
-fn test_oz_run_url_present_for_task_and_absent_for_conversation() {
+fn test_oz_run_url_present_for_task() {
     // The Status chip is only clickable (navigating to the Oz run view) when
     // `oz_run_url` yields a URL, which happens for task-backed runs but not for
     // plain local conversations.
@@ -510,7 +481,7 @@ fn test_oz_run_url_present_for_task_and_absent_for_conversation() {
 
         app.update(|ctx| {
             // Task mode → the chip should link to the Oz run view.
-            let task_data = ConversationDetailsData::from_task(&task, None, None, ctx);
+            let task_data = ConversationDetailsData::from_task(&task, None, ctx);
             let url = ConversationDetailsPanel::oz_run_url(&task_data)
                 .expect("a task with a task_id should produce an Oz run URL");
             assert!(
@@ -519,23 +490,6 @@ fn test_oz_run_url_present_for_task_and_absent_for_conversation() {
             );
         });
 
-        // Conversation mode → there is no run view to navigate to.
-        let conversation_data = ConversationDetailsData::from_conversation_metadata(
-            AIConversationId::new(),
-            "Title".to_string(),
-            None,
-            Utc::now().with_timezone(&Local),
-            None,
-            None,
-            None,
-            vec![],
-            None,
-            None,
-            None,
-            None,
-            Some(Harness::Oz),
-        );
-        assert!(ConversationDetailsPanel::oz_run_url(&conversation_data).is_none());
     });
 }
 
@@ -581,7 +535,7 @@ fn test_from_task_includes_linked_directory_when_server_token_matches() {
         task.conversation_id = Some(server_token.to_string());
 
         app.update(|ctx| {
-            let data = ConversationDetailsData::from_task(&task, None, None, ctx);
+            let data = ConversationDetailsData::from_task(&task, None, ctx);
             assert!(matches!(
                 data.mode,
                 PanelMode::Task {
@@ -606,7 +560,7 @@ fn test_from_task_carries_the_runner_the_run_named() {
         });
 
         app.update(|ctx| {
-            let data = ConversationDetailsData::from_task(&task, None, None, ctx);
+            let data = ConversationDetailsData::from_task(&task, None, ctx);
             assert!(matches!(
                 data.mode,
                 PanelMode::Task {
@@ -630,7 +584,7 @@ fn test_from_task_leaves_the_runner_absent_when_the_run_names_none() {
         });
 
         app.update(|ctx| {
-            let data = ConversationDetailsData::from_task(&task, None, None, ctx);
+            let data = ConversationDetailsData::from_task(&task, None, ctx);
             assert!(matches!(
                 data.mode,
                 PanelMode::Task {

@@ -944,7 +944,7 @@ impl TerminalView {
 
             let data = task
                 .as_ref()
-                .map(|task| ConversationDetailsData::from_task(task, None, None, ctx))
+                .map(|task| ConversationDetailsData::from_task(task, None, ctx))
                 .unwrap_or_else(|| {
                     let fetch_error = conversations_handle
                         .as_ref(ctx)

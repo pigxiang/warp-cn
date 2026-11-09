@@ -1,6 +1,3 @@
-use warp_graphql::queries::execution_config::{
-    ExecutionRepositoryRef, SessionSharingAccessLevel, SessionSharingSubjectType,
-};
 
 use super::*;
 use crate::workspaces::user_workspaces::TeamScope;
@@ -85,25 +82,7 @@ fn execution_deferred_repositories_reject_unknown_forges() {
     );
 }
 
-#[test]
-fn execution_acls_reject_missing_email_and_unknown_access() {
-    assert!(
-        sharing_acls(vec![SessionSharingAclSpec {
-            subject_type: SessionSharingSubjectType::UserEmail,
-            email: None,
-            access: SessionSharingAccessLevel::Edit,
-        }])
-        .is_err()
-    );
-    assert!(
-        sharing_acls(vec![SessionSharingAclSpec {
-            subject_type: SessionSharingSubjectType::Public,
-            email: None,
-            access: SessionSharingAccessLevel::Unknown,
-        }])
-        .is_err()
-    );
-}
+
 
 #[test]
 fn execution_factory_skill_directories_are_relative_and_unambiguous() {

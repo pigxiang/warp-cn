@@ -423,8 +423,6 @@ fn entry_icon_uses_harness_and_execution_location() {
         },
         capabilities: AgentConversationCapabilities {
             can_open: true,
-            can_copy_link: false,
-            can_share: false,
             can_delete: false,
             can_fork_locally: false,
             can_cancel: false,

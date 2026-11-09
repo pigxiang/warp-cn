@@ -94,15 +94,7 @@ pub enum AgentManagementTelemetryEvent {
         viewed_from: OpenedFrom,
     },
     /// User copied a conversation link
-    ConversationLinkCopied {
-        conversation_id: String,
-        copied_from: OpenedFrom,
-    },
     /// User copied a session link
-    SessionLinkCopied {
-        task_id: String,
-        copied_from: OpenedFrom,
-    },
     /// User clicked an artifact in the tombstone view
     TombstoneArtifactClicked { artifact_type: ArtifactType },
     /// User clicked "Continue locally" in the tombstone
@@ -176,20 +168,6 @@ impl TelemetryEvent for AgentManagementTelemetryEvent {
                 "item_id": item_id,
                 "viewed_from": viewed_from,
             })),
-            AgentManagementTelemetryEvent::ConversationLinkCopied {
-                conversation_id,
-                copied_from,
-            } => Some(json!({
-                "conversation_id": conversation_id,
-                "copied_from": copied_from,
-            })),
-            AgentManagementTelemetryEvent::SessionLinkCopied {
-                task_id,
-                copied_from,
-            } => Some(json!({
-                "task_id": task_id,
-                "copied_from": copied_from,
-            })),
             AgentManagementTelemetryEvent::TombstoneArtifactClicked { artifact_type } => {
                 Some(json!({ "artifact_type": artifact_type }))
             }
@@ -247,8 +225,6 @@ impl TelemetryEventDesc for AgentManagementTelemetryEventDiscriminants {
             Self::ArtifactClicked => "AgentManagement.ArtifactClicked",
             Self::FilterChanged => "AgentManagement.FilterChanged",
             Self::DetailsViewed => "AgentManagement.DetailsViewed",
-            Self::ConversationLinkCopied => "AgentManagement.ConversationLinkCopied",
-            Self::SessionLinkCopied => "AgentManagement.SessionLinkCopied",
             Self::TombstoneArtifactClicked => "AgentManagement.TombstoneArtifactClicked",
             #[cfg(not(target_family = "wasm"))]
             Self::TombstoneContinueLocally => "AgentManagement.TombstoneContinueLocally",
@@ -282,8 +258,6 @@ impl TelemetryEventDesc for AgentManagementTelemetryEventDiscriminants {
             Self::ArtifactClicked => "User clicked an artifact button",
             Self::FilterChanged => "User changed a filter in the management view",
             Self::DetailsViewed => "User clicked View details",
-            Self::ConversationLinkCopied => "User copied a conversation link",
-            Self::SessionLinkCopied => "User copied a session link",
             Self::TombstoneArtifactClicked => "User clicked an artifact in the tombstone view",
             #[cfg(not(target_family = "wasm"))]
             Self::TombstoneContinueLocally => "User clicked Continue locally in the tombstone",

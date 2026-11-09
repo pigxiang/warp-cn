@@ -16,8 +16,7 @@ use session_sharing_protocol::common::{
     LongRunningCommandAgentInteractionState, SelectedConversation, UniversalDeveloperInputContext,
 };
 use session_sharing_protocol::sharer::{
-    AddGuestsResponse, FailedToInitializeSessionReason, Lifetime, LinkAccessLevelUpdateResponse,
-    QuotaType, RemoveGuestResponse, SessionEndedReason, SessionSourceType,
+    AddGuestsResponse, Lifetime, LinkAccessLevelUpdateResponse, RemoveGuestResponse, SessionEndedReason, SessionSourceType,
     TeamAccessLevelUpdateResponse, UpdatePendingUserRoleResponse,
 };
 use warp_core::execution_mode::AppExecutionMode;
@@ -1125,19 +1124,8 @@ impl TerminalManager<TerminalView> {
                 });
 
                 terminal_view.update(ctx, |view, ctx| {
-                    view.notify_shared_session_link_changed(ctx);
                     let reason_string = failed_to_initialize_session_user_error(reason);
-
-                    if matches!(
-                        reason,
-                        FailedToInitializeSessionReason::NoUserQuotaRemaining {
-                            quota_type: QuotaType::SessionsCreated
-                        }
-                    ) {
-                        view.open_share_session_denied_modal(ctx);
-                    } else {
-                        view.show_persistent_toast(reason_string.clone(), ToastFlavor::Error, ctx);
-                    }
+                    view.show_persistent_toast(reason_string.clone(), ToastFlavor::Error, ctx);
 
                     ctx.emit(TerminalViewEvent::FailedToShareSession {
                         reason: reason_string,
@@ -2013,27 +2001,6 @@ impl TerminalManager<TerminalView> {
                     });
                 }
             }
-            TerminalViewEvent::AddGuests { emails, role } => {
-                if let Some(network) = session_sharer.borrow().as_ref() {
-                    network.update(ctx, |network, _| {
-                        network.send_add_guests(emails.clone(), *role);
-                    });
-                }
-            }
-            TerminalViewEvent::RemoveGuest { user_uid } => {
-                if let Some(network) = session_sharer.borrow().as_ref() {
-                    network.update(ctx, |network, _| {
-                        network.send_remove_guest(*user_uid);
-                    });
-                }
-            }
-            TerminalViewEvent::RemovePendingGuest { email } => {
-                if let Some(network) = session_sharer.borrow().as_ref() {
-                    network.update(ctx, |network, _| {
-                        network.send_remove_pending_guest(email.clone());
-                    });
-                }
-            }
             TerminalViewEvent::MakeAllParticipantsReaders { reason } => {
                 if let Some(network) = session_sharer.borrow().as_ref() {
                     network.update(ctx, |network, _| {
@@ -2077,20 +2044,6 @@ impl TerminalManager<TerminalView> {
                 if let Some(network) = session_sharer.borrow().as_ref() {
                     network.update(ctx, |network, _| {
                         network.send_input_update(block_id, filtered.into_iter());
-                    });
-                }
-            }
-            TerminalViewEvent::UpdateSessionLinkPermissions { role } => {
-                if let Some(network) = session_sharer.borrow().as_ref() {
-                    network.update(ctx, |network, _| {
-                        network.send_link_permission_update(*role);
-                    });
-                }
-            }
-            TerminalViewEvent::UpdateSessionTeamPermissions { role, team_uid } => {
-                if let Some(network) = session_sharer.borrow().as_ref() {
-                    network.update(ctx, |network, _| {
-                        network.send_team_permission_update(*role, team_uid.clone());
                     });
                 }
             }

@@ -697,22 +697,8 @@ impl Network {
         self.send_message_to_server(message);
     }
 
-    pub fn send_add_guests(&mut self, emails: Vec<String>, role: Role) {
-        let message = UpstreamMessage::AddGuests { emails, role };
-        self.send_message_to_server(message);
-    }
 
-    pub fn send_remove_guest(&mut self, user_uid: UserUid) {
-        let message = UpstreamMessage::RemoveGuest {
-            user_uid: user_uid.as_string(),
-        };
-        self.send_message_to_server(message);
-    }
 
-    pub fn send_remove_pending_guest(&mut self, email: String) {
-        let message = UpstreamMessage::RemovePendingGuest { email };
-        self.send_message_to_server(message);
-    }
 
     pub fn send_make_all_participants_readers(&mut self, reason: RoleUpdateReason) {
         let message = UpstreamMessage::UpdateAllRolesToReader { reason };
@@ -840,15 +826,7 @@ impl Network {
         self.send_message_to_server(message);
     }
 
-    pub fn send_link_permission_update(&mut self, role: Option<Role>) {
-        let message = UpstreamMessage::UpdateLinkAccessLevel { role };
-        self.send_message_to_server(message);
-    }
 
-    pub fn send_team_permission_update(&mut self, role: Option<Role>, team_uid: String) {
-        let message = UpstreamMessage::UpdateTeamAccessLevel { team_uid, role };
-        self.send_message_to_server(message);
-    }
 
     pub fn send_universal_developer_input_context_update(
         &mut self,

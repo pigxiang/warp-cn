@@ -1070,17 +1070,7 @@ impl AgentManagementView {
             })
             .map(|entry| {
                 let item_id = entry.id;
-                let copy_link_url = entry
-                    .capabilities
-                    .can_copy_link
-                    .then(|| {
-                        AgentConversationsModel::resolve_copy_link(
-                            AgentConversationNavigationSubject::Entry(entry.id),
-                            ctx,
-                        )
-                    })
-                    .flatten();
-                let mut config = Self::action_buttons_config_for_entry(&entry, None, copy_link_url);
+                let mut config = Self::action_buttons_config_for_entry(&entry, None);
                 if FeatureFlag::AgentManagementDetailsView.is_enabled() {
                     config.view_details_item_id = Some(item_id);
                 }
@@ -1138,11 +1128,8 @@ impl AgentManagementView {
                     } else {
                         None
                     };
-                    let action_buttons_view = self.create_action_buttons_view(
-                        card.item_id,
-                        card.action_buttons_config,
-                        ctx,
-                    );
+                    let action_buttons_view = self
+                        .create_action_buttons_view(card.action_buttons_config, ctx);
 
                     new_items.push(CardState {
                         hover_state: MouseStateHandle::default(),
@@ -1175,13 +1162,12 @@ impl AgentManagementView {
 
     fn create_action_buttons_view(
         &self,
-        item_id: ManagementCardItemId,
         config: ActionButtonsConfig,
         ctx: &mut ViewContext<Self>,
     ) -> ViewHandle<ConversationActionButtonsRow> {
         let view = ctx.add_typed_action_view(ConversationActionButtonsRow::new);
-        ctx.subscribe_to_view(&view, move |me, _, event, ctx| {
-            me.handle_action_buttons_event(&item_id, event, ctx);
+        ctx.subscribe_to_view(&view, |me, _, event, ctx| {
+            me.handle_action_buttons_event(event, ctx);
         });
         view.update(ctx, |row, ctx| row.set_config(config, ctx));
         view
@@ -1190,21 +1176,14 @@ impl AgentManagementView {
     fn action_buttons_config_for_entry(
         entry: &AgentConversationEntry,
         open_action: Option<WorkspaceAction>,
-        copy_link_url: Option<String>,
     ) -> ActionButtonsConfig {
         if let Some(task_id) = entry.identity.ambient_agent_task_id {
-            ActionButtonsConfig::for_task(
-                task_id,
-                &entry.display.status,
-                open_action,
-                copy_link_url,
-            )
+            ActionButtonsConfig::for_task(task_id, &entry.display.status, open_action)
         } else if let Some(conversation_id) = entry.identity.local_conversation_id {
-            ActionButtonsConfig::for_conversation(conversation_id, open_action, copy_link_url)
+            ActionButtonsConfig::for_conversation(conversation_id, open_action)
         } else {
             ActionButtonsConfig {
                 open_action,
-                copy_link_url,
                 ..Default::default()
             }
         }
@@ -1212,7 +1191,6 @@ impl AgentManagementView {
 
     fn handle_action_buttons_event(
         &mut self,
-        item_id: &ManagementCardItemId,
         event: &AgentDetailsButtonEvent,
         ctx: &mut ViewContext<Self>,
     ) {
@@ -1261,31 +1239,6 @@ impl AgentManagementView {
                 self.update_details_panel_for_item(item_id, ctx);
                 self.selected_item_id = Some(*item_id);
                 ctx.notify();
-            }
-            AgentDetailsButtonEvent::CopyLink { link } => {
-                match item_id {
-                    ManagementCardItemId::Conversation(conversation_id) => {
-                        send_telemetry_from_ctx!(
-                            AgentManagementTelemetryEvent::ConversationLinkCopied {
-                                conversation_id: conversation_id.to_string(),
-                                copied_from: OpenedFrom::ManagementView,
-                            },
-                            ctx
-                        );
-                    }
-                    ManagementCardItemId::AmbientRun(task_id) => {
-                        send_telemetry_from_ctx!(
-                            AgentManagementTelemetryEvent::SessionLinkCopied {
-                                task_id: task_id.to_string(),
-                                copied_from: OpenedFrom::ManagementView,
-                            },
-                            ctx
-                        );
-                    }
-                }
-
-                ctx.clipboard()
-                    .write(ClipboardContent::plain_text(link.clone()));
             }
         }
     }
@@ -1443,10 +1396,6 @@ impl AgentManagementView {
             Some(RestoreConversationLayout::NewTab),
             ctx,
         );
-        let copy_link_url = AgentConversationsModel::resolve_copy_link(
-            AgentConversationNavigationSubject::Entry(*item_id),
-            ctx,
-        );
         let task = entry
             .identity
             .ambient_agent_task_id
@@ -1455,7 +1404,6 @@ impl AgentManagementView {
             &entry,
             task.as_ref(),
             open_action,
-            copy_link_url,
         );
 
         self.details_panel.update(ctx, |p, ctx| {

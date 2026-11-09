@@ -33,7 +33,6 @@ use warp_cli::provider::ProviderCommand;
 use warp_cli::runner::RunnerCommand;
 use warp_cli::schedule::ScheduleSubcommand;
 use warp_cli::secret::SecretCommand;
-use warp_cli::share::ShareRequest;
 use warp_cli::skill::SkillSpec;
 use warp_cli::task::{MessageCommand, TaskCommand};
 use warp_cli::{CliCommand, GlobalOptions, OZ_HARNESS_ENV};
@@ -928,11 +927,6 @@ impl AgentDriverRunner {
                 .await?;
 
             // Pull relevant variables out of args before moving it into the closure.
-            let share_requests = match execution_config {
-                Some(config) => Some(execution_config::sharing_acls(config.session_sharing_acls.clone())
-                    .map_err(AgentDriverError::ConfigBuildFailed)?),
-                None => args.share.share.clone(),
-            };
             let bedrock_inference_role = match execution_config {
                 Some(config) => config.inference_providers.as_ref()
                     .and_then(|providers| providers.aws_bedrock.as_ref())
@@ -1064,7 +1058,6 @@ impl AgentDriverRunner {
                         ctx,
                         driver_options,
                         output_format,
-                        share_requests,
                         task,
                     );
                 })
@@ -2087,7 +2080,6 @@ impl AgentDriverRunner {
         ctx: &mut AppContext,
         driver_options: driver::AgentDriverOptions,
         output_format: OutputFormat,
-        share_requests: Option<Vec<ShareRequest>>,
         task: driver::Task,
     ) {
         maybe_warn_team_api_key(ctx);
@@ -2100,9 +2092,6 @@ impl AgentDriverRunner {
 
         driver.update(ctx, |driver, ctx| {
             driver.set_output_format(output_format);
-            if let Some(share_requests) = share_requests {
-                driver.add_share_requests(share_requests, ctx);
-            }
             let span =
                 tracing::info_span!("AgentDriver::run", tags.cloud_agent = true, ?task.model, ?task.harness);
             let agent_future = span

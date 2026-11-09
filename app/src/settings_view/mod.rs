@@ -23,7 +23,6 @@ use settings_page::{
     HEADER_PADDING, MatchData, SettingsPage, SettingsPageEvent, SettingsPageMeta,
     SettingsPageViewHandle,
 };
-use show_blocks_view::{ShowBlocksEvent, ShowBlocksView};
 use teams_page::{TeamsPageAction, TeamsPageView, TeamsPageViewEvent};
 use warp_agent_page::{WarpAgentPageAction, WarpAgentPageEvent, WarpAgentPageView};
 use warp_core::channel::ChannelState;
@@ -110,7 +109,6 @@ mod scripting_page;
 mod set_default_model_modal;
 mod settings_file_footer;
 pub(crate) mod settings_page;
-mod show_blocks_view;
 mod tab_menu;
 mod teams_page;
 mod telemetry;
@@ -331,7 +329,6 @@ pub enum SettingsSection {
     Privacy,
     Referrals,
     Scripting,
-    SharedBlocks,
     Teams,
     Warpify,
     // ── Agents umbrella subpages ──
@@ -372,9 +369,6 @@ impl Display for SettingsSection {
             }
             SettingsSection::Referrals => {
                 write!(f, "{}", warp_i18n::t!("settings-section-referrals"))
-            }
-            SettingsSection::SharedBlocks => {
-                write!(f, "{}", warp_i18n::t!("settings-section-shared-blocks"))
             }
             SettingsSection::Privacy => write!(f, "{}", warp_i18n::t!("settings-section-privacy")),
             SettingsSection::About => write!(f, "{}", warp_i18n::t!("settings-section-about")),
@@ -441,7 +435,6 @@ impl SettingsSection {
             Self::Privacy => "Privacy",
             Self::Referrals => "Referrals",
             Self::Scripting => "Scripting",
-            Self::SharedBlocks => "Shared blocks",
             Self::Teams => "Teams",
             Self::Warpify => "Warpify",
             Self::WarpAgent => "Warp Agent",
@@ -475,7 +468,6 @@ impl SettingsSection {
             "Privacy" => Self::Privacy,
             "Referrals" => Self::Referrals,
             "Scripting" => Self::Scripting,
-            "Shared blocks" => Self::SharedBlocks,
             "Teams" => Self::Teams,
             "Warpify" => Self::Warpify,
             // "Oz" and "AI" are older names for what is now the Warp Agent page.
@@ -1190,7 +1182,6 @@ macro_rules! update_page {
             SettingsPageViewHandle::Main(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Appearance(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Features(handle) => $ctx.update_view(handle, $update),
-            SettingsPageViewHandle::SharedBlocks(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Keybindings(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Teams(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Warpify(handle) => $ctx.update_view(handle, $update),
@@ -1266,20 +1257,6 @@ impl SettingsView {
 
         ctx.subscribe_to_view(&features_page_handle, |me, _, event, ctx| {
             me.handle_features_page_event(event, ctx);
-        });
-
-        // Shared blocks page
-        let block_client = ServerApiProvider::as_ref(ctx).get_block_client();
-        let show_blocks_view_handle =
-            ctx.add_typed_action_view(|ctx| ShowBlocksView::new(block_client, ctx));
-
-        ctx.subscribe_to_view(&show_blocks_view_handle, |_, _, event, ctx| match event {
-            ShowBlocksEvent::ShowToast { message, flavor } => {
-                ctx.emit(SettingsViewEvent::ShowToast {
-                    message: message.clone(),
-                    flavor: *flavor,
-                })
-            }
         });
 
         // About page
@@ -1417,7 +1394,6 @@ impl SettingsView {
             SettingsPage::new(platform_page_handle),
             SettingsPage::new(warpify_page_handle),
             SettingsPage::new(referrals_page_handle),
-            SettingsPage::new(show_blocks_view_handle),
         ];
 
         if let Some(scripting_page_handle) = scripting_page_handle {
@@ -1465,22 +1441,16 @@ impl SettingsView {
             SettingsNavItem::Page(SettingsSection::Keybindings),
             SettingsNavItem::Page(SettingsSection::Warpify),
             SettingsNavItem::Page(SettingsSection::Referrals),
-            SettingsNavItem::Page(SettingsSection::SharedBlocks),
             SettingsNavItem::Page(SettingsSection::Privacy),
             SettingsNavItem::Page(SettingsSection::About),
         ];
 
         if FeatureFlag::WarpControlCli.is_enabled() {
-            let shared_blocks_index = nav_items
+            let scripting_index = nav_items
                 .iter()
-                .position(|item| {
-                    matches!(item, SettingsNavItem::Page(SettingsSection::SharedBlocks))
-                })
+                .position(|item| matches!(item, SettingsNavItem::Page(SettingsSection::Privacy)))
                 .unwrap_or(nav_items.len());
-            nav_items.insert(
-                shared_blocks_index,
-                SettingsNavItem::Page(SettingsSection::Scripting),
-            );
+            nav_items.insert(scripting_index, SettingsNavItem::Page(SettingsSection::Scripting));
         }
 
         let initial_page = match page {
@@ -2127,7 +2097,6 @@ impl SettingsView {
         match &settings_page.view_handle {
             SettingsPageViewHandle::Main(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Teams(v) => v.as_ref(app).should_render(app),
-            SettingsPageViewHandle::SharedBlocks(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Keybindings(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Features(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Appearance(v) => v.as_ref(app).should_render(app),

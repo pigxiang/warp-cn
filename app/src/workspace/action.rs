@@ -421,18 +421,11 @@ pub enum WorkspaceAction {
     #[cfg(target_family = "wasm")]
     OpenLinkOnDesktop(url::Url),
     ReopenClosedSession,
-    OpenShareSessionModal(usize),
     StopSharingSessionFromTabMenu {
         terminal_view_id: EntityId,
     },
     StopSharingAllSessionsInTab {
         pane_group: WeakViewHandle<PaneGroup>,
-    },
-    CopySharedSessionLinkFromTab {
-        tab_index: usize,
-    },
-    OpenSharedSessionQrCode {
-        session_id: SessionId,
     },
     AddWindow,
     AddWindowWithShell {
@@ -840,18 +833,14 @@ pub enum WorkspaceAction {
 
 impl From<&WorkspaceAction> for LoginGatedFeature {
     fn from(val: &WorkspaceAction) -> LoginGatedFeature {
-        use WorkspaceAction::*;
-        match val {
-            OpenShareSessionModal(_) => "Sharing a session",
-            _ => "Unknown reason",
-        }
+        let _ = val;
+        "Unknown reason"
     }
 }
 
 impl WorkspaceAction {
     pub fn blocked_for_anonymous_user(&self) -> bool {
-        use WorkspaceAction::*;
-        matches!(self, OpenShareSessionModal(_))
+        false
     }
 
     /// Matches what actions require the app state to be saved, and which don't. We match all
@@ -1050,11 +1039,8 @@ impl WorkspaceAction {
             | SignupAnonymousUser
             | LogOut
             | OpenLink(_)
-            | OpenShareSessionModal(_)
             | StopSharingSessionFromTabMenu { .. }
             | StopSharingAllSessionsInTab { .. }
-            | CopySharedSessionLinkFromTab { .. }
-            | OpenSharedSessionQrCode { .. }
             | ReopenClosedSession
             | FocusLeftPanel
             | FocusRightPanel

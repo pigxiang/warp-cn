@@ -546,10 +546,6 @@ impl TerminalManager {
         self.model
             .lock()
             .set_shared_session_status(SharedSessionStatus::ViewPending);
-        self.view.update(ctx, |view, ctx| {
-            view.notify_shared_session_link_changed(ctx);
-        });
-
         let network = ctx.add_model(|ctx| {
             Network::new(
                 session_id,
@@ -1713,31 +1709,6 @@ impl TerminalManager {
                     ctx,
                 );
             }
-            TerminalViewEvent::UpdateSessionLinkPermissions { role } => {
-                Self::update_current_network(&current_network, ctx, |network, _| {
-                    network.send_link_permission_update(*role);
-                });
-            }
-            TerminalViewEvent::UpdateSessionTeamPermissions { role, team_uid } => {
-                Self::update_current_network(&current_network, ctx, |network, _| {
-                    network.send_team_permission_update(*role, team_uid.clone());
-                });
-            }
-            TerminalViewEvent::AddGuests { emails, role } => {
-                Self::update_current_network(&current_network, ctx, |network, _| {
-                    network.send_add_guests(emails.clone(), *role);
-                });
-            }
-            TerminalViewEvent::RemoveGuest { user_uid } => {
-                Self::update_current_network(&current_network, ctx, |network, _| {
-                    network.send_remove_guest(*user_uid);
-                });
-            }
-            TerminalViewEvent::RemovePendingGuest { email } => {
-                Self::update_current_network(&current_network, ctx, |network, _| {
-                    network.send_remove_pending_guest(email.clone());
-                });
-            }
             TerminalViewEvent::UpdateUserRole { user_uid, role } => {
                 Self::update_current_network(&current_network, ctx, |network, _| {
                     network.send_user_role_update(*user_uid, *role);
@@ -1947,9 +1918,6 @@ impl TerminalManager {
                 terminal_view.on_ambient_agent_execution_ended(ctx);
             });
         }
-        terminal_view.update(ctx, |terminal_view, ctx| {
-            terminal_view.notify_shared_session_link_changed(ctx);
-        });
         if Self::current_network(current_network)
             .is_some_and(|network| network.as_ref(ctx).session_id() == ended_session_id)
         {

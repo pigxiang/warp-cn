@@ -181,7 +181,7 @@ impl Workspace {
                     conversations_model.get_or_async_fetch_task_data(&task_id, ctx)
                 });
                 if let Some(task) = task {
-                    let details = ConversationDetailsData::from_task(&task, None, None, ctx);
+                    let details = ConversationDetailsData::from_task(&task, None, ctx);
                     panel.set_conversation_details(details, ctx);
                     ctx.notify();
                     return;

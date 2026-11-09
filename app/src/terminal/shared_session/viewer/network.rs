@@ -970,27 +970,10 @@ impl Network {
         self.send_message_to_server(UpstreamMessage::SendControlAction(action));
     }
 
-    pub fn send_link_permission_update(&mut self, role: Option<Role>) {
-        self.send_message_to_server(UpstreamMessage::UpdateLinkAccessLevel { role });
-    }
 
-    pub fn send_team_permission_update(&mut self, role: Option<Role>, team_uid: String) {
-        self.send_message_to_server(UpstreamMessage::UpdateTeamAccessLevel { team_uid, role });
-    }
 
-    pub fn send_add_guests(&mut self, emails: Vec<String>, role: Role) {
-        self.send_message_to_server(UpstreamMessage::AddGuests { emails, role });
-    }
 
-    pub fn send_remove_guest(&mut self, user_uid: UserUid) {
-        self.send_message_to_server(UpstreamMessage::RemoveGuest {
-            user_uid: user_uid.as_string(),
-        });
-    }
 
-    pub fn send_remove_pending_guest(&mut self, email: String) {
-        self.send_message_to_server(UpstreamMessage::RemovePendingGuest { email });
-    }
 
     pub fn send_user_role_update(&mut self, user_uid: UserUid, role: Role) {
         self.send_message_to_server(UpstreamMessage::UpdateUserRole {

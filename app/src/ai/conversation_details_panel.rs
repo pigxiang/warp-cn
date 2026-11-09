@@ -255,8 +255,6 @@ pub struct ConversationDetailsData {
     open_action: Option<WorkspaceAction>,
     /// Source prompt that initiated this conversation/task.
     source_prompt: Option<String>,
-    /// Copy link URL (session link if sandbox running, otherwise conversation link).
-    copy_link_url: Option<String>,
     /// Parsed skill spec referenced by the task configuration.
     skill_spec: Option<SkillSpec>,
     /// Execution harness for this conversation/task.
@@ -344,10 +342,6 @@ impl ConversationDetailsData {
             directory = first_exchange.working_directory.clone();
         }
 
-        let copy_link_url = conversation_id
-            .as_ref()
-            .map(|id| ServerConversationToken::new(id.clone()).conversation_link());
-
         let harness = conversation
             .server_metadata()
             .map(|m| Harness::from(m.harness))
@@ -372,7 +366,6 @@ impl ConversationDetailsData {
             artifacts: conversation.artifacts().to_vec(),
             open_action: None,
             source_prompt: conversation.initial_query(),
-            copy_link_url,
             skill_spec: None,
             harness,
             fetch_error: None,
@@ -382,7 +375,6 @@ impl ConversationDetailsData {
     pub fn from_task(
         task: &AmbientAgentTask,
         open_action: Option<WorkspaceAction>,
-        copy_link_url: Option<String>,
         app: &AppContext,
     ) -> Self {
         let error_message = if task.state.is_failure_like() {
@@ -443,7 +435,6 @@ impl ConversationDetailsData {
                 .map(PrincipalInfo::from),
             executor: task.executor.as_ref().map(PrincipalInfo::from),
             source_prompt: Some(task.prompt.clone()),
-            copy_link_url,
             skill_spec,
             harness,
             fetch_error: None,
@@ -454,7 +445,6 @@ impl ConversationDetailsData {
         entry: &AgentConversationEntry,
         task: Option<&AmbientAgentTask>,
         open_action: Option<WorkspaceAction>,
-        copy_link_url: Option<String>,
     ) -> Self {
         let creator = entry
             .display
@@ -522,7 +512,6 @@ impl ConversationDetailsData {
                 artifacts: entry.display.artifacts.clone(),
                 open_action,
                 source_prompt,
-                copy_link_url,
                 skill_spec,
                 harness,
                 fetch_error: None,
@@ -550,7 +539,6 @@ impl ConversationDetailsData {
             artifacts: entry.display.artifacts.clone(),
             open_action,
             source_prompt,
-            copy_link_url,
             skill_spec: None,
             harness,
             fetch_error: None,
@@ -583,55 +571,12 @@ impl ConversationDetailsData {
             artifacts: vec![],
             open_action: None,
             source_prompt: None,
-            copy_link_url: None,
             skill_spec: None,
             harness: None,
             fetch_error,
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    #[allow(dead_code)]
-    /// Used to populate the details panel from the management view, where we don't always have access
-    /// to the full `AIConversation`.
-    pub fn from_conversation_metadata(
-        ai_conversation_id: AIConversationId,
-        title: String,
-        creator_name: Option<String>,
-        created_at: DateTime<Local>,
-        directory: Option<String>,
-        credits_used: Option<f32>,
-        conversation_id: Option<String>,
-        artifacts: Vec<Artifact>,
-        open_action: Option<WorkspaceAction>,
-        status: Option<ConversationStatus>,
-        initial_query: Option<String>,
-        copy_link_url: Option<String>,
-        harness: Option<Harness>,
-    ) -> Self {
-        ConversationDetailsData {
-            mode: PanelMode::Conversation {
-                directory,
-                server_conversation_id: conversation_id,
-                ai_conversation_id: Some(ai_conversation_id),
-                status,
-            },
-            title,
-            creator: creator_name.map(|name| PrincipalInfo::new(name, None)),
-            executor: None,
-            created_at: Some(created_at),
-            credits: credits_used,
-            cost_in_cents: None,
-            run_time: None,
-            open_action,
-            artifacts,
-            source_prompt: initial_query,
-            copy_link_url,
-            skill_spec: None,
-            harness,
-            fetch_error: None,
-        }
-    }
 }
 
 /// Events emitted by the ConversationDetailsPanel.
@@ -997,7 +942,6 @@ impl ConversationDetailsPanel {
                     task_id,
                     display_status,
                     open_action,
-                    data.copy_link_url.clone(),
                 ))
             }
             PanelMode::Conversation {
@@ -1007,7 +951,6 @@ impl ConversationDetailsPanel {
                 Some(ActionButtonsConfig::for_conversation(
                     conversation_id,
                     open_action,
-                    data.copy_link_url.clone(),
                 ))
             }
         }
@@ -1093,38 +1036,6 @@ impl ConversationDetailsPanel {
             AgentDetailsButtonEvent::ViewDetails { .. } => {
                 // ViewDetails not shown in the details panel because we're already viewing it,
                 // only in management view cards
-            }
-            AgentDetailsButtonEvent::CopyLink { link } => {
-                match &self.data.mode {
-                    PanelMode::Conversation {
-                        ai_conversation_id: Some(conversation_id),
-                        ..
-                    } => {
-                        send_telemetry_from_ctx!(
-                            AgentManagementTelemetryEvent::ConversationLinkCopied {
-                                conversation_id: conversation_id.to_string(),
-                                copied_from: OpenedFrom::DetailsPanel,
-                            },
-                            ctx
-                        );
-                    }
-                    PanelMode::Task {
-                        task_id: Some(task_id),
-                        ..
-                    } => {
-                        send_telemetry_from_ctx!(
-                            AgentManagementTelemetryEvent::SessionLinkCopied {
-                                task_id: task_id.to_string(),
-                                copied_from: OpenedFrom::DetailsPanel,
-                            },
-                            ctx
-                        );
-                    }
-                    _ => {}
-                }
-
-                ctx.clipboard()
-                    .write(ClipboardContent::plain_text(link.clone()));
             }
         }
     }

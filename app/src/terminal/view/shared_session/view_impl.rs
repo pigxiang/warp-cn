@@ -13,9 +13,7 @@ use warp_core::features::FeatureFlag;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_core::ui::appearance::Appearance;
 use warp_errors::report_error;
-use warp_i18n::t;
 use warpui::r#async::Timer;
-use warpui::clipboard::ClipboardContent;
 use warpui::elements::MouseStateHandle;
 use warpui::platform::Cursor;
 use warpui::ui_components::button::ButtonVariant;
@@ -36,11 +34,9 @@ use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::auth::UserUid;
-use crate::cloud_object::sharing::ShareableObject;
 use crate::context_chips::ContextChipKind;
 use crate::editor::{InteractionState, ReplicaId};
-use crate::menu::{Event as MenuEvent, MenuItem, MenuItemFields};
-use crate::server::telemetry::SharingDialogSource;
+use crate::menu::Event as MenuEvent;
 use crate::settings::InputModeSettings;
 use crate::terminal::TerminalModel;
 use crate::terminal::block_list_viewport::ScrollPositionUpdate;
@@ -48,7 +44,6 @@ use crate::terminal::model::blocks::BlockListPoint;
 use crate::terminal::model::index::Point;
 use crate::terminal::model::terminal_model::WithinBlock;
 use crate::terminal::session_settings::SessionSettings;
-use crate::terminal::shared_session::manager::Manager;
 use crate::terminal::shared_session::participant_avatar_view::{
     ParticipantAvatarEvent, ParticipantAvatarView,
 };
@@ -60,15 +55,17 @@ use crate::terminal::shared_session::role_change_modal::{
 };
 use crate::terminal::shared_session::settings::SharedSessionSettings;
 use crate::terminal::shared_session::{
-    COPY_LINK_TEXT, SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionSource,
-    SharedSessionStatus, join_link,
+    SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionSource,
+    SharedSessionStatus,
 };
+#[cfg(target_family = "wasm")]
+use crate::terminal::shared_session::join_link;
 use crate::terminal::view::{
-    ContextMenuAction, Event, InlineBannerItem, InlineBannerType, PendingUserQueryKind,
+ Event, InlineBannerItem, InlineBannerType, PendingUserQueryKind,
     RichContentInsertionPosition, SharedSessionBanners, SizeUpdateBuilder, TerminalAction,
     TerminalView,
 };
-use crate::view_components::{DismissibleToast, ToastFlavor};
+use crate::view_components::ToastFlavor;
 use crate::{TelemetryEvent, send_telemetry_from_ctx};
 
 impl TerminalView {
@@ -286,7 +283,6 @@ impl TerminalView {
             viewer.close_role_change_menu();
             ctx.notify();
         }
-        self.update_shared_session_pane_header(ctx);
     }
 
     fn handle_participant_avatar_event(
@@ -359,25 +355,9 @@ impl TerminalView {
             _ => {}
         }
 
-        self.update_shared_session_pane_header(ctx);
     }
 
-    pub fn update_session_link_permissions(
-        &mut self,
-        role: Option<Role>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        ctx.emit(Event::UpdateSessionLinkPermissions { role });
-    }
 
-    pub fn update_session_team_permissions(
-        &mut self,
-        role: Option<Role>,
-        team_uid: String,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        ctx.emit(Event::UpdateSessionTeamPermissions { role, team_uid });
-    }
 
     pub fn update_role(
         &mut self,
@@ -421,17 +401,8 @@ impl TerminalView {
         ctx.emit(Event::UpdatePendingUserRole { email, role });
     }
 
-    pub fn add_guests(&mut self, emails: Vec<String>, role: Role, ctx: &mut ViewContext<Self>) {
-        ctx.emit(Event::AddGuests { emails, role })
-    }
 
-    pub fn remove_guest(&mut self, user_uid: UserUid, ctx: &mut ViewContext<Self>) {
-        ctx.emit(Event::RemoveGuest { user_uid })
-    }
 
-    pub fn remove_pending_guest(&mut self, email: String, ctx: &mut ViewContext<Self>) {
-        ctx.emit(Event::RemovePendingGuest { email })
-    }
 
     fn refresh_input_data_for_participants(&mut self, ctx: &mut ViewContext<Self>) {
         let Some(shared_session) = &self.shared_session else {
@@ -457,23 +428,6 @@ impl TerminalView {
         ctx.notify();
     }
 
-    fn update_shared_session_pane_header(&mut self, ctx: &mut ViewContext<Self>) {
-        let self_handle = ctx.handle();
-        let Some(shared_session) = &self.shared_session else {
-            return;
-        };
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.set_shareable_object(
-                Some(ShareableObject::Session {
-                    handle: self_handle,
-                    session_id: *shared_session.session_id(),
-                    started_at: *shared_session.started_at(),
-                }),
-                ctx,
-            );
-            ctx.notify();
-        });
-    }
 
     pub fn on_role_requested(
         &mut self,
@@ -527,28 +481,7 @@ impl TerminalView {
         ctx.emit(Event::RoleRequestCancelled(role_request_id.clone()));
     }
 
-    pub fn open_share_session_modal(
-        &mut self,
-        open_source: SharedSessionActionSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !matches!(
-            open_source,
-            SharedSessionActionSource::BlocklistContextMenu { .. }
-        ) {
-            let show_accent_border = self
-                .focus_handle()
-                .map(|fh| fh.is_in_split_pane(ctx))
-                .unwrap_or(false);
-            self.set_show_pane_accent_border(show_accent_border, ctx);
-        };
 
-        ctx.emit(Event::OpenShareSessionModal { open_source });
-    }
-
-    pub fn open_share_session_denied_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.emit(Event::OpenShareSessionDeniedModal);
-    }
 
     /// Focuses the view by telling the parent view to focus this session.
     /// For example, in the common case, the parent pane group would consume
@@ -621,7 +554,6 @@ impl TerminalView {
         self.model
             .lock()
             .set_shared_session_status(SharedSessionStatus::SharePending);
-        self.notify_shared_session_link_changed(ctx);
         log::info!("Emitting request to start sharing current session");
 
         ctx.emit(Event::StartSharingCurrentSession {
@@ -642,11 +574,6 @@ impl TerminalView {
         }
     }
 
-    pub(crate) fn notify_shared_session_link_changed(&mut self, ctx: &mut ViewContext<Self>) {
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.notify_shared_session_link_changed(ctx);
-        });
-    }
 
     /// Sets the PresenceManager and decorates the view accordingly when a shared session has been started.
     #[allow(clippy::too_many_arguments)]
@@ -660,12 +587,10 @@ impl TerminalView {
         ctx: &mut ViewContext<Self>,
     ) {
         let started_at = Local::now();
-        let self_handle = ctx.handle();
         let adapter = Adapter::new_for_sharer(
             sharer_id,
             firebase_uid,
             session_id,
-            started_at,
             source_type,
             ctx,
         );
@@ -684,22 +609,8 @@ impl TerminalView {
             started_at,
             ctx,
         );
-        let skip_sharing_dialog =
-            matches!(share_source, Some(SharedSessionActionSource::FooterChip));
-
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.refresh_pane_header_overflow_menu_items(ctx);
-            pane_config.set_shareable_object(
-                Some(ShareableObject::Session {
-                    handle: self_handle,
-                    session_id,
-                    started_at,
-                }),
-                ctx,
-            );
-            if !skip_sharing_dialog {
-                pane_config.toggle_sharing_dialog(SharingDialogSource::StartedSessionShare, ctx);
-            }
             pane_config.notify_header_content_changed(ctx);
         });
 
@@ -753,13 +664,11 @@ impl TerminalView {
         ctx: &mut ViewContext<Self>,
     ) {
         let started_at = Local::now();
-        let self_handle = ctx.handle();
         let adapter = Adapter::new_for_viewer(
             viewer_id.clone(),
             firebase_uid,
             participant_list,
             session_id,
-            started_at,
             source_type.clone(),
             ctx,
         );
@@ -805,14 +714,6 @@ impl TerminalView {
 
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.refresh_pane_header_overflow_menu_items(ctx);
-            pane_config.set_shareable_object(
-                Some(ShareableObject::Session {
-                    handle: self_handle,
-                    session_id,
-                    started_at,
-                }),
-                ctx,
-            );
             pane_config.notify_header_content_changed(ctx);
         });
 
@@ -831,7 +732,6 @@ impl TerminalView {
         // if there's an active conversation, or fall back to the terminal_title (pwd).
         self.update_pane_configuration(ctx);
 
-        self.update_shared_session_pane_header(ctx);
         // Shared ambient agent sessions should auto-open the details panel once, except for
         // local-to-cloud handoff panes where the user stays in the moved conversation by default.
         let is_local_to_cloud_handoff = self
@@ -893,20 +793,6 @@ impl TerminalView {
             self.restore_pty_to_sharer_size(ctx);
         }
 
-        // For ambient agent tasks, preserve the shareable object so the share dialog remains visible
-        let is_ambient_agent = self.is_ambient_agent_session(ctx);
-        let shareable_object_to_keep = if is_ambient_agent {
-            self.shared_session
-                .as_ref()
-                .map(|session| ShareableObject::Session {
-                    handle: ctx.handle(),
-                    session_id: *session.session_id(),
-                    started_at: *session.started_at(),
-                })
-        } else {
-            None
-        };
-
         self.shared_session = None;
         self.insert_shared_session_ended_banner(ctx);
         self.on_shared_session_reconnection_status_changed(false, ctx);
@@ -937,7 +823,6 @@ impl TerminalView {
 
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.refresh_pane_header_overflow_menu_items(ctx);
-            pane_config.set_shareable_object(shareable_object_to_keep, ctx);
             pane_config.notify_header_content_changed(ctx);
             ctx.notify();
         });
@@ -1300,7 +1185,6 @@ impl TerminalView {
             }
         }
 
-        self.update_shared_session_pane_header(ctx);
 
         // Notify the pane header that its content has changed and needs to re-render.
         self.pane_configuration.update(ctx, |config, ctx| {
@@ -1393,7 +1277,6 @@ impl TerminalView {
             viewer.open_role_change_menu(role, ctx);
         }
 
-        self.update_shared_session_pane_header(ctx);
     }
 
     pub fn make_all_shared_session_participants_readers(
@@ -1420,7 +1303,6 @@ impl TerminalView {
             }
         }
 
-        self.update_shared_session_pane_header(ctx);
         ctx.emit(Event::MakeAllParticipantsReaders { reason });
     }
 
@@ -1585,49 +1467,10 @@ impl TerminalView {
             self.on_self_role_updated(new_role, ctx);
         }
 
-        self.update_shared_session_pane_header(ctx);
         self.close_shared_session_role_change_modal(RoleChangeCloseSource::ViewerRequest, ctx);
     }
 
-    // TODO: consider refactoring this so that we don't have to repeat this
-    // logic in TerminalView and Workspace (when starting a share).
-    pub fn copy_shared_session_link(
-        &mut self,
-        source: SharedSessionActionSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let view_id = ctx.view_id();
-        let shared_session_status = self.model.lock().shared_session_status().clone();
-        let session_id_opt = {
-            let manager = Manager::as_ref(ctx);
-            manager.session_id_for_link(&view_id, &shared_session_status)
-        };
-        let Some(session_id) = session_id_opt else {
-            let window_id = ctx.window_id();
-            crate::workspace::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                let toast = DismissibleToast::error("Sharing link not yet available".to_string());
-                toast_stack.add_ephemeral_toast(toast, window_id, ctx);
-            });
-            return;
-        };
 
-        ctx.clipboard()
-            .write(ClipboardContent::plain_text(join_link(&session_id)));
-
-        let window_id = ctx.window_id();
-        crate::workspace::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::default(COPY_LINK_TEXT.to_string());
-            toast_stack.add_ephemeral_toast(toast, window_id, ctx);
-        });
-
-        send_telemetry_from_ctx!(TelemetryEvent::CopiedSharedSessionLink { source }, ctx);
-    }
-
-    pub fn open_shared_session_qr_code(&mut self, ctx: &mut ViewContext<Self>) {
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.open_sharing_qr_code(SharingDialogSource::StartedSessionShare, ctx);
-        });
-    }
 
     fn insert_shared_session_started_banner(
         &mut self,
@@ -1757,7 +1600,6 @@ impl TerminalView {
                 );
             }
         }
-        self.update_shared_session_pane_header(ctx);
     }
 
     pub fn on_self_role_maybe_changed(
@@ -1944,50 +1786,9 @@ impl TerminalView {
         }
 
         self.refresh_input_data_for_participants(ctx);
-        self.update_shared_session_pane_header(ctx);
         ctx.notify();
     }
 
-    pub fn session_sharing_context_menu_items(
-        &self,
-        model: &TerminalModel,
-        is_share_session_disabled: bool,
-        has_session_link: bool,
-    ) -> Vec<MenuItem<TerminalAction>> {
-        let mut items = Vec::new();
-
-        if !model.shared_session_status().is_sharer_or_viewer() {
-            items.push(
-                MenuItemFields::new(t!("terminal-share-session"))
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::OpenShareSessionModal,
-                    ))
-                    .with_disabled(is_share_session_disabled)
-                    .into_item(),
-            );
-        } else if model.shared_session_status().is_active_sharer() {
-            items.push(
-                MenuItemFields::new(t!("terminal-stop-sharing"))
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::StopSharing,
-                    ))
-                    .into_item(),
-            );
-        }
-
-        if model.shared_session_status().is_sharer_or_viewer() {
-            items.push(
-                MenuItemFields::new(t!("terminal-copy-session-sharing-link"))
-                    .with_on_select_action(TerminalAction::CopySharedSessionLink {
-                        source: SharedSessionActionSource::RightClickMenu,
-                    })
-                    .with_disabled(!has_session_link)
-                    .into_item(),
-            );
-        }
-
-        items
-    }
 
     /// Resizes the terminal from when the sharer updates size.
     pub fn resize_from_sharer_update(
