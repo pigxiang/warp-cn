@@ -325,20 +325,28 @@ impl ShellCommandExecutor {
     ) -> bool {
         let Some(current) = self.active_session.as_ref(ctx).session_id(ctx) else {
             // Nothing to compare until the terminal has a bootstrapped active session.
+            log::info!(
+                "agent drift guard: no active session yet for conversation {conversation_id}; \
+                 skipping check"
+            );
             return true;
         };
         match self.conversation_session_anchors.get(&conversation_id).copied() {
             None => {
                 self.conversation_session_anchors
                     .insert(conversation_id, current);
+                log::info!(
+                    "agent drift guard: conversation {conversation_id} anchored to session \
+                     {current:?}"
+                );
                 true
             }
             Some(anchored) if anchored == current => true,
-            Some(_) => {
+            Some(anchored) => {
                 self.conversation_session_anchors.remove(&conversation_id);
                 log::error!(
-                    "Agent session anchor lost for conversation {conversation_id}: the terminal \
-                     switched sessions; blocking commands from being re-targeted."
+                    "agent drift guard: anchor lost for conversation {conversation_id}: \
+                     anchored {anchored:?}, now {current:?}; blocking re-targeting"
                 );
                 ctx.emit(ShellCommandExecutorEvent::AgentSessionLost { conversation_id });
                 false

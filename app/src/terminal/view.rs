@@ -7954,6 +7954,9 @@ impl TerminalView {
                 }
             }
             ShellCommandExecutorEvent::AgentSessionLost { conversation_id } => {
+                log::info!(
+                    "agent drift guard: failing conversation {conversation_id} and showing toast"
+                );
                 self.show_error_toast(
                     warp_i18n::t!("error-agent-terminal-session-lost").to_owned(),
                     ctx,
