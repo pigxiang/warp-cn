@@ -1614,8 +1614,8 @@ pub(super) fn render_rich_text_output_text_section(
     } else {
         theme.text_selection_color().into_solid()
     })
-    // Lower line height ratio than default (1.4) and smaller header font size multipliers for AI blocks.
-    .with_line_height_ratio(1.2)
+    .with_line_height_ratio(appearance.ai_line_height_ratio())
+    // Smaller header font size multipliers for AI blocks.
     .with_heading_to_font_size_multipliers(HeadingFontSizeMultipliers {
         h1: 1.55,
         h2: 1.4,
@@ -1700,6 +1700,7 @@ fn render_text_section_with_options(
     )
     .with_style(Properties::default().weight(appearance.monospace_font_weight()))
     .with_color(props.text_color)
+    .with_line_height_ratio(appearance.ai_line_height_ratio())
     .with_selection_color(if props.is_ai_input_enabled {
         theme.text_selection_as_context_color().into_solid()
     } else {
@@ -2242,6 +2243,7 @@ fn render_visual_markdown_fallback(
     )
     .with_style(Properties::default().weight(appearance.monospace_font_weight()))
     .with_color(text_color)
+    .with_line_height_ratio(appearance.ai_line_height_ratio())
     .finish()
 }
 
@@ -2667,7 +2669,7 @@ fn render_table_cell(props: TableCellProps, app: &AppContext) -> Box<dyn Element
         TableAlignment::Right => TextAlignment::Right,
     })
     .with_weight(props.font_weight)
-    .with_line_height_ratio(1.2)
+    .with_line_height_ratio(appearance.ai_line_height_ratio())
     .with_selection_color(props.selection_color)
     .with_inline_code_properties(
         Some(props.inline_code_text_color),

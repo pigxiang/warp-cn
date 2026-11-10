@@ -3664,6 +3664,9 @@ impl TerminalView {
                 | AppearanceEvent::UiFontFamilyChanged { .. } => {
                     me.refresh_size(ctx);
                 }
+                // Agent text isn't laid out in the terminal grid, so its line height doesn't
+                // affect the cell size.
+                AppearanceEvent::AILineHeightRatioChanged { .. } => {}
             },
         );
 

@@ -21,6 +21,7 @@ pub struct Appearance {
     monospace_font_size: f32,
     monospace_font_weight: Weight,
     line_height_ratio: f32,
+    ai_line_height_ratio: f32,
     ui_builder: UiBuilder,
 
     // We cache the family id for the ui font - note that this
@@ -65,6 +66,10 @@ pub enum AppearanceEvent {
         previous_line_height_ratio: f32,
         current_line_height_ratio: f32,
     },
+    AILineHeightRatioChanged {
+        previous_line_height_ratio: f32,
+        current_line_height_ratio: f32,
+    },
 }
 
 impl Appearance {
@@ -76,6 +81,7 @@ impl Appearance {
         monospace_font_weight: Weight,
         ui_font_family: FamilyId,
         line_height_ratio: f32,
+        ai_line_height_ratio: f32,
         ai_font_family: FamilyId,
         password_font_family: FamilyId,
     ) -> Self {
@@ -86,6 +92,7 @@ impl Appearance {
             monospace_font_weight,
             ui_font_family,
             line_height_ratio,
+            ai_line_height_ratio,
             ui_builder: UiBuilder::new(
                 theme,
                 ui_font_family,
@@ -123,6 +130,7 @@ impl Appearance {
             monospace_font_size: 13.,
             monospace_font_weight: Weight::Normal,
             line_height_ratio,
+            ai_line_height_ratio: line_height_ratio,
             ui_builder: UiBuilder::new(
                 mock_theme,
                 ui_font_family,
@@ -269,6 +277,23 @@ impl Appearance {
         });
     }
 
+    pub fn set_ai_line_height_ratio(
+        &mut self,
+        new_ai_line_height_ratio: f32,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let previous_line_height_ratio = self.ai_line_height_ratio;
+        self.ai_line_height_ratio = new_ai_line_height_ratio;
+
+        // Request a redraw of all windows.
+        ctx.invalidate_all_views();
+
+        ctx.emit(AppearanceEvent::AILineHeightRatioChanged {
+            current_line_height_ratio: self.ai_line_height_ratio,
+            previous_line_height_ratio,
+        });
+    }
+
     pub fn ui_builder(&self) -> &UiBuilder {
         &self.ui_builder
     }
@@ -323,6 +348,10 @@ impl Appearance {
 
     pub fn line_height_ratio(&self) -> f32 {
         self.line_height_ratio
+    }
+
+    pub fn ai_line_height_ratio(&self) -> f32 {
+        self.ai_line_height_ratio
     }
 
     pub fn password_font_family(&self) -> FamilyId {

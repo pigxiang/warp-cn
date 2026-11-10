@@ -171,6 +171,7 @@ fn build_appearance(
         Weight::Normal,
         ui_font_family,
         1.4,
+        1.4,
         ai_font_family,
         password_font_family,
     );

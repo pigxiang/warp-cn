@@ -446,12 +446,14 @@ impl FontType {
 #[derive(Clone, Debug, PartialEq)]
 pub enum AppearancePageAction {
     LineHeightEditorResetRatio,
+    AILineHeightEditorResetRatio,
     SetNewWindowsCustomColumns,
     SetNewWindowsCustomRows,
     SetFontSize,
     SetFontWeight(Weight),
     SetNotebookFontSize,
     SetLineHeight,
+    SetAILineHeight,
     SetOpacity(f32),
     SetBlur(f32),
     OpacitySliderDragged(f32),
@@ -517,6 +519,7 @@ pub struct AppearanceSettingsPageView {
     window_id: WindowId,
     font_size_editor: ViewHandle<EditorView>,
     line_height_editor: ViewHandle<EditorView>,
+    ai_line_height_editor: ViewHandle<EditorView>,
     notebook_font_size_editor: ViewHandle<EditorView>,
     ai_font_family_dropdown: ViewHandle<FilterableDropdown<AppearancePageAction>>,
     new_window_columns_editor: ViewHandle<EditorView>,
@@ -567,6 +570,7 @@ impl TypedActionView for AppearanceSettingsPageView {
 
         match action {
             LineHeightEditorResetRatio => self.reset_line_height_ratio(ctx),
+            AILineHeightEditorResetRatio => self.reset_ai_line_height_ratio(ctx),
             SetNewWindowsCustomColumns => self.update_new_windows_num_columns(true, ctx),
             SetNewWindowsCustomRows => self.update_new_windows_num_rows(true, ctx),
             SetFontSize => self.set_font_size(ctx),
@@ -583,6 +587,7 @@ impl TypedActionView for AppearanceSettingsPageView {
             ToggleMatchAIToTerminalFontFamily => self.toggle_match_ai_font_to_terminal_font(ctx),
             SetNotebookFontSize => self.set_notebook_font_size(ctx),
             SetLineHeight => self.set_line_height_ratio(ctx),
+            SetAILineHeight => self.set_ai_line_height_ratio(ctx),
             SetOpacity(value) => self.set_opacity(*value, true, ctx),
             SetBlur(value) => self.set_blur(*value, true, ctx),
             SetFontFamily(name) => self.set_font_family(name, ctx),
@@ -830,6 +835,7 @@ impl AppearanceSettingsPageView {
             ui_font_size,
             monospace_font_size,
             line_height_ratio,
+            ai_line_height_ratio,
             monospace_font_weight,
             notebook_font_size,
             match_notebook_to_monospace_font_size,
@@ -840,6 +846,7 @@ impl AppearanceSettingsPageView {
                 appearance.ui_font_size(),
                 appearance.monospace_font_size(),
                 appearance.line_height_ratio(),
+                appearance.ai_line_height_ratio(),
                 appearance.monospace_font_weight(),
                 *font_settings.notebook_font_size,
                 *font_settings.match_notebook_to_monospace_font_size,
@@ -1056,6 +1063,13 @@ impl AppearanceSettingsPageView {
         let line_height_editor = Self::editor(
             |me, event, ctx| me.handle_line_editor_event(event, ctx),
             &format!("{line_height_ratio}"),
+            ui_font_size,
+            ctx,
+        );
+
+        let ai_line_height_editor = Self::editor(
+            |me, event, ctx| me.handle_ai_line_editor_event(event, ctx),
+            &format!("{ai_line_height_ratio}"),
             ui_font_size,
             ctx,
         );
@@ -1331,6 +1345,7 @@ impl AppearanceSettingsPageView {
             notebook_font_size_editor,
             font_size_editor,
             line_height_editor,
+            ai_line_height_editor,
             new_window_columns_editor,
             valid_new_window_columns: true,
             new_window_rows_editor,
@@ -1611,6 +1626,12 @@ impl AppearanceSettingsPageView {
                     editor.set_buffer_text(&format!("{line_height_ratio}"), ctx);
                 });
             }
+            AppearanceEvent::AILineHeightRatioChanged { .. } => {
+                let ai_line_height_ratio = handle.as_ref(ctx).ai_line_height_ratio();
+                self.ai_line_height_editor.update(ctx, move |editor, ctx| {
+                    editor.set_buffer_text(&format!("{ai_line_height_ratio}"), ctx);
+                });
+            }
             AppearanceEvent::ThemeChanged => {
                 // Context-chip colors are theme-derived, so rebuild the Input
                 // preview chips when the theme changes to keep them in sync.
@@ -1812,6 +1833,18 @@ impl AppearanceSettingsPageView {
         }
     }
 
+    pub fn handle_ai_line_editor_event(
+        &mut self,
+        event: &EditorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            EditorEvent::Blurred | EditorEvent::Enter => self.set_ai_line_height_ratio(ctx),
+            EditorEvent::Escape => ctx.emit(SettingsPageEvent::FocusModal),
+            _ => {}
+        }
+    }
+
     /// Updates the prompt that is shown when PS1 is selected, in the 'Prompt' section.
     pub(super) fn set_ps1_info(
         &mut self,
@@ -2007,6 +2040,55 @@ impl AppearanceSettingsPageView {
                     report_if_error!(
                         font_settings
                             .line_height_ratio
+                            .set_value(new_line_height, ctx)
+                    );
+                });
+            }
+        }
+    }
+
+    fn reset_ai_line_height_ratio(&mut self, ctx: &mut ViewContext<Self>) {
+        self.ai_line_height_editor.update(ctx, |editor, ctx| {
+            editor.set_buffer_text(&format!("{DEFAULT_UI_LINE_HEIGHT_RATIO}"), ctx);
+        });
+
+        send_telemetry_from_ctx!(
+            TelemetryEvent::SetAILineHeight {
+                new_value: DEFAULT_UI_LINE_HEIGHT_RATIO
+            },
+            ctx
+        );
+
+        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+            report_if_error!(
+                font_settings
+                    .ai_line_height_ratio
+                    .set_value(DEFAULT_UI_LINE_HEIGHT_RATIO, ctx)
+            );
+        });
+    }
+
+    fn set_ai_line_height_ratio(&mut self, ctx: &mut ViewContext<Self>) {
+        let user_input = self.ai_line_height_editor.as_ref(ctx).buffer_text(ctx);
+        let Ok(new_line_height) = user_input.parse::<f32>() else {
+            return;
+        };
+
+        let current_line_height = Appearance::as_ref(ctx).ai_line_height_ratio();
+
+        if (current_line_height - new_line_height).abs() > f32::EPSILON {
+            send_telemetry_from_ctx!(
+                TelemetryEvent::SetAILineHeight {
+                    new_value: new_line_height
+                },
+                ctx
+            );
+
+            if (MIN_LINE_SPACING..=MAX_LINE_SPACING).contains(&new_line_height) {
+                FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+                    report_if_error!(
+                        font_settings
+                            .ai_line_height_ratio
                             .set_value(new_line_height, ctx)
                     );
                 });
@@ -4138,13 +4220,14 @@ impl SettingsWidget for ShowBlockDividersWidget {
 #[derive(Default)]
 struct AIFontWidget {
     checkbox_state: MouseStateHandle,
+    line_height_button_state: MouseStateHandle,
 }
 
 impl SettingsWidget for AIFontWidget {
     type View = AppearanceSettingsPageView;
 
     fn search_terms(&self) -> &str {
-        "text agent ai font family font size monospace"
+        "text agent ai font family font size line height monospace"
     }
 
     fn render(
@@ -4195,6 +4278,18 @@ impl SettingsWidget for AIFontWidget {
                 .finish(),
         );
 
+        render_line_height_editor(
+            LineHeightEditorProps {
+                editor: &view.ai_line_height_editor,
+                set_action: AppearancePageAction::SetAILineHeight,
+                reset_action: AppearancePageAction::AILineHeightEditorResetRatio,
+                reset_button_state: &self.line_height_button_state,
+                is_custom_value: appearance.ai_line_height_ratio() != DEFAULT_UI_LINE_HEIGHT_RATIO,
+            },
+            appearance,
+            &mut ai_font_row,
+        );
+
         ai_font_row.finish()
     }
 }
@@ -4205,95 +4300,110 @@ struct TerminalFontWidget {
     fonts_checkbox_state: MouseStateHandle,
 }
 
-impl TerminalFontWidget {
-    fn render_line_height_editor(
-        &self,
-        view: &AppearanceSettingsPageView,
-        appearance: &Appearance,
-        row: &mut Flex,
-    ) {
-        let mut line_height = Flex::column();
-        line_height.add_child(
-            appearance
-                .ui_builder()
-                .label(warp_i18n::t!("settings-appearance-line-height"))
-                .with_style(UiComponentStyles {
-                    margin: Some(Coords {
-                        left: 12.,
-                        ..Default::default()
-                    }),
-                    font_size: Some(CONTENT_FONT_SIZE),
-                    ..Default::default()
-                })
-                .build()
-                .finish(),
-        );
-        line_height.add_child(
-            Container::new(
-                Dismiss::new(
-                    appearance
-                        .ui_builder()
-                        .text_input(view.line_height_editor.clone())
-                        .with_style(UiComponentStyles {
-                            width: Some(LINE_HEIGHT_INPUT_BOX_WIDTH),
-                            padding: Some(Coords {
-                                top: 7.,
-                                bottom: 7.,
-                                left: 12.,
-                                right: 12.,
-                            }),
-                            margin: Some(Coords {
-                                top: 2.,
-                                left: 12.,
-                                ..Default::default()
-                            }),
-                            background: Some(appearance.theme().surface_2().into()),
-                            ..Default::default()
-                        })
-                        .build()
-                        .finish(),
-                )
-                .on_dismiss(|ctx, _app| {
-                    ctx.dispatch_typed_action(AppearancePageAction::SetLineHeight)
-                })
-                .finish(),
-            )
-            .with_padding_top(4.)
-            .finish(),
-        );
-        line_height.add_child({
-            let button = appearance
-                .ui_builder()
-                .reset_button(
-                    ButtonVariant::Text,
-                    self.line_height_button_state.clone(),
-                    appearance.line_height_ratio() != DEFAULT_UI_LINE_HEIGHT_RATIO,
-                    appearance
-                        .theme()
-                        .disabled_text_color(appearance.theme().surface_2())
-                        .into(),
-                )
-                .with_style(UiComponentStyles {
-                    padding: Some(Coords::default().bottom(HEADER_PADDING).top(4.)),
-                    margin: Some(Coords {
-                        top: 2.,
-                        left: 8.,
-                        ..Default::default()
-                    }),
-                    font_size: Some(appearance.ui_font_size() * 0.8),
-                    ..Default::default()
-                })
-                .with_text_label("Reset to default".to_string());
+struct LineHeightEditorProps<'a> {
+    editor: &'a ViewHandle<EditorView>,
+    set_action: AppearancePageAction,
+    reset_action: AppearancePageAction,
+    reset_button_state: &'a MouseStateHandle,
+    is_custom_value: bool,
+}
 
-            button
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(AppearancePageAction::LineHeightEditorResetRatio);
-                })
-                .finish()
-        });
-        row.add_child(line_height.finish());
-    }
+/// Renders the numeric line-height editor (input box plus reset button) shared by the
+/// terminal and agent font rows.
+fn render_line_height_editor(
+    props: LineHeightEditorProps,
+    appearance: &Appearance,
+    row: &mut Flex,
+) {
+    let LineHeightEditorProps {
+        editor,
+        set_action,
+        reset_action,
+        reset_button_state,
+        is_custom_value,
+    } = props;
+    let editor = editor.clone();
+    let reset_button_state = reset_button_state.clone();
+
+    let mut line_height = Flex::column();
+    line_height.add_child(
+        appearance
+            .ui_builder()
+            .label(warp_i18n::t!("settings-appearance-line-height"))
+            .with_style(UiComponentStyles {
+                margin: Some(Coords {
+                    left: 12.,
+                    ..Default::default()
+                }),
+                font_size: Some(CONTENT_FONT_SIZE),
+                ..Default::default()
+            })
+            .build()
+            .finish(),
+    );
+    line_height.add_child(
+        Container::new(
+            Dismiss::new(
+                appearance
+                    .ui_builder()
+                    .text_input(editor)
+                    .with_style(UiComponentStyles {
+                        width: Some(LINE_HEIGHT_INPUT_BOX_WIDTH),
+                        padding: Some(Coords {
+                            top: 7.,
+                            bottom: 7.,
+                            left: 12.,
+                            right: 12.,
+                        }),
+                        margin: Some(Coords {
+                            top: 2.,
+                            left: 12.,
+                            ..Default::default()
+                        }),
+                        background: Some(appearance.theme().surface_2().into()),
+                        ..Default::default()
+                    })
+                    .build()
+                    .finish(),
+            )
+            .on_dismiss(move |ctx, _app| ctx.dispatch_typed_action(set_action.clone()))
+            .finish(),
+        )
+        .with_padding_top(4.)
+        .finish(),
+    );
+    line_height.add_child({
+        let button = appearance
+            .ui_builder()
+            .reset_button(
+                ButtonVariant::Text,
+                reset_button_state,
+                is_custom_value,
+                appearance
+                    .theme()
+                    .disabled_text_color(appearance.theme().surface_2())
+                    .into(),
+            )
+            .with_style(UiComponentStyles {
+                padding: Some(Coords::default().bottom(HEADER_PADDING).top(4.)),
+                margin: Some(Coords {
+                    top: 2.,
+                    left: 8.,
+                    ..Default::default()
+                }),
+                font_size: Some(appearance.ui_font_size() * 0.8),
+                ..Default::default()
+            })
+            .with_text_label("Reset to default".to_string());
+
+        button
+            .build()
+            .on_click(move |ctx, _, _| {
+                ctx.dispatch_typed_action(reset_action.clone());
+            })
+            .finish()
+    });
+    row.add_child(line_height.finish());
 }
 
 impl SettingsWidget for TerminalFontWidget {
@@ -4447,7 +4557,17 @@ impl SettingsWidget for TerminalFontWidget {
                 .finish(),
         );
 
-        self.render_line_height_editor(view, appearance, &mut terminal_font_row);
+        render_line_height_editor(
+            LineHeightEditorProps {
+                editor: &view.line_height_editor,
+                set_action: AppearancePageAction::SetLineHeight,
+                reset_action: AppearancePageAction::LineHeightEditorResetRatio,
+                reset_button_state: &self.line_height_button_state,
+                is_custom_value: appearance.line_height_ratio() != DEFAULT_UI_LINE_HEIGHT_RATIO,
+            },
+            appearance,
+            &mut terminal_font_row,
+        );
         terminal_font_row.finish()
     }
 }

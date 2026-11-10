@@ -1507,6 +1507,9 @@ pub enum TelemetryEvent {
     SetLineHeight {
         new_value: f32,
     },
+    SetAILineHeight {
+        new_value: f32,
+    },
     ResourceCenterOpened,
     ResourceCenterTipsCompleted,
     ResourceCenterTipsSkipped,
@@ -3152,6 +3155,9 @@ impl TelemetryEvent {
             TelemetryEvent::SaveLaunchConfig { state } => Some(json!({ "state": state })),
             TelemetryEvent::SaveAsWorkflowModal { source } => Some(json!({ "source": source })),
             TelemetryEvent::SetLineHeight { new_value } => Some(json!({ "new_value": new_value })),
+            TelemetryEvent::SetAILineHeight { new_value } => {
+                Some(json!({ "new_value": new_value }))
+            }
             TelemetryEvent::CommandSearchOpened { has_initial_query } => {
                 Some(json!({ "has_initial_query": has_initial_query }))
             }
@@ -4848,6 +4854,7 @@ impl TelemetryEvent {
             | TelemetryEvent::ChangedInviteViewOption(_)
             | TelemetryEvent::SendEmailInvites
             | TelemetryEvent::SetLineHeight { .. }
+            | TelemetryEvent::SetAILineHeight { .. }
             | TelemetryEvent::ResourceCenterOpened
             | TelemetryEvent::ResourceCenterTipsCompleted
             | TelemetryEvent::ResourceCenterTipsSkipped
@@ -5382,6 +5389,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ChangedInviteViewOption => EnablementState::Always,
             Self::SendEmailInvites => EnablementState::Always,
             Self::SetLineHeight => EnablementState::Always,
+            Self::SetAILineHeight => EnablementState::Always,
             Self::ResourceCenterOpened => EnablementState::Always,
             Self::ResourceCenterTipsCompleted => EnablementState::Always,
             Self::ResourceCenterTipsSkipped => EnablementState::Always,
@@ -5858,6 +5866,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::LogOut => "Log Out",
             Self::SelectNavigationPaletteItem => "Select Navigation Palette Item",
             Self::SetLineHeight => "Set Line Height",
+            Self::SetAILineHeight => "Set Agent Line Height",
             Self::ResourceCenterOpened => "Resource Center Opened",
             Self::ResourceCenterTipsCompleted => "Resource Center Tips Completed",
             Self::ResourceCenterTipsSkipped => "Resource Center Tips Skipped",
@@ -6457,6 +6466,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ChangedInviteViewOption => "Toggled between link and invite for invite",
             Self::SendEmailInvites => "Sent email invites for Warp Drive team",
             Self::SetLineHeight => "Set line height through Settings -> Appearance",
+            Self::SetAILineHeight => "Set agent line height through Settings -> Appearance",
             Self::ResourceCenterOpened => "Opened Resource Center pane",
             Self::ResourceCenterTipsCompleted => "Completed resource center tips",
             Self::ResourceCenterTipsSkipped => "Skipped welcome tips for new users",

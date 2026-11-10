@@ -120,6 +120,14 @@ impl AppearanceManager {
                         }
                     }
                 }
+                FontSettingsChangedEvent::AILineHeightRatio { .. } => {
+                    let new_ai_line_height_ratio =
+                        *FontSettings::as_ref(ctx).ai_line_height_ratio.value();
+
+                    Appearance::handle(ctx).update(ctx, |appearance, ctx| {
+                        appearance.set_ai_line_height_ratio(new_ai_line_height_ratio, ctx);
+                    });
+                }
                 _ => {}
             },
         );
@@ -418,6 +426,8 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
 
     let line_height_ratio = *FontSettings::as_ref(ctx).line_height_ratio.value();
 
+    let ai_line_height_ratio = *FontSettings::as_ref(ctx).ai_line_height_ratio.value();
+
     let theme_kind = active_theme_kind(ThemeSettings::as_ref(ctx), ctx);
     let theme = Settings::theme_for_theme_kind(&theme_kind, ctx);
     #[cfg(target_family = "wasm")]
@@ -430,6 +440,7 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
         monospace_font_weight,
         ui_font_family,
         line_height_ratio,
+        ai_line_height_ratio,
         am_font_family_from_settings.unwrap_or(default_monospace_font_family),
         password_font_family,
     )
