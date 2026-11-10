@@ -7,14 +7,12 @@ use warpui::text_layout::ClipConfig;
 use warpui::{AppContext, Element, Entity, SingletonEntity as _, WindowId};
 
 use crate::appearance::Appearance;
-use crate::cloud_object::CloudObject;
-use crate::cloud_object::CloudWorkflow;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::search::FuzzyMatchWorkflowResult;
+use crate::cloud_object::{CloudObject, CloudWorkflow};
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::result_renderer::ItemHighlightState;
-use crate::search::{SearchItem, SyncDataSource};
+use crate::search::{FuzzyMatchWorkflowResult, SearchItem, SyncDataSource};
 use crate::server::ids::SyncId;
 use crate::terminal::input::inline_menu::{
     InlineMenuAction, InlineMenuMessageArgs, InlineMenuType, default_navigation_message_items,

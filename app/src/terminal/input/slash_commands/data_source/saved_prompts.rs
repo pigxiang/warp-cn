@@ -6,9 +6,8 @@ use warp_core::ui::appearance::Appearance;
 use warpui::fonts::FamilyId;
 use warpui::{AppContext, SingletonEntity};
 
-use crate::cloud_object::CloudObject;
-use crate::cloud_object::CloudWorkflowModel;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::{CloudObject, CloudWorkflowModel};
 use crate::search::FuzzyMatchWorkflowResult;
 use crate::search::async_snapshot_data_source::AsyncSnapshotDataSource;
 use crate::search::data_source::{Query, QueryResult};

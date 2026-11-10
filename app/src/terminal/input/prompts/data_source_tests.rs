@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use cloud_object_client::MockObjectClient;
+use cloud_object_models::Workflow;
 use itertools::Itertools;
 use settings::manager::SettingsManager;
 use warpui::{App, ModelHandle, SingletonEntity};
@@ -9,9 +10,9 @@ use warpui::{App, ModelHandle, SingletonEntity};
 use super::*;
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::view::CloudViewModel;
-use crate::cloud_object::{CloudWorkflowModel, WorkflowId};
 use crate::cloud_object::{
-    Owner, Revision, ServerMetadata, ServerPermissions, ServerWorkflow, Space,
+    CloudWorkflowModel, Owner, Revision, ServerMetadata, ServerPermissions, ServerWorkflow, Space,
+    WorkflowId,
 };
 use crate::network::NetworkStatus;
 use crate::search::data_source::Query;
@@ -27,7 +28,6 @@ use crate::workspaces::team::{Team, TeamVisibility};
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::workspace::Workspace;
-use cloud_object_models::Workflow;
 
 const IN_WINDOW_TEAM_PROMPT_ID: i64 = 1;
 const OTHER_TEAM_PROMPT_ID: i64 = 2;

@@ -273,6 +273,22 @@ impl Block {
         self.interaction_mode.take_over_for_user(reason)
     }
 
+    /// Establishes formal agent control for an agent-requested command that became
+    /// long-running without a CLI subagent task (e.g. direct-backend harnesses).
+    /// Without this the takeover/handoff state machine never engages: `Cmd+I`
+    /// takeover, the message-bar affordance, and input locking all key off
+    /// `is_agent_in_control`.
+    pub fn establish_agent_long_running_control(&mut self) {
+        if let InteractionMode::Agent(metadata) = &mut self.interaction_mode {
+            metadata.long_running_control_state.get_or_insert(
+                LongRunningCommandControlState::Agent {
+                    is_blocked: false,
+                    should_hide_responses: false,
+                },
+            );
+        }
+    }
+
     pub fn handoff_control_to_agent(&mut self) -> Result<(), UpdateInteractionModeError> {
         self.interaction_mode.handoff_to_agent()
     }

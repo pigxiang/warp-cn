@@ -7940,6 +7940,22 @@ impl TerminalView {
                             .block_with_id(&block_id)
                             .is_some_and(|block| block.is_active_and_long_running())
                         {
+                            // Direct-backend agent commands never spawn a CLI subagent, so no one
+                            // otherwise sets the formal long-running control state; establish it
+                            // here so Cmd+I takeover, the message-bar affordance, and input locking
+                            // engage the same way as upstream's subagent flow.
+                            if let Some(block) = me
+                                .model
+                                .lock()
+                                .block_list_mut()
+                                .mut_block_from_id(&block_id)
+                            {
+                                block.establish_agent_long_running_control();
+                            }
+                            log::info!(
+                                "agent LRC: established formal agent control for long-running \
+                 agent command {block_id:?}"
+                            );
                             me.input.update(ctx, |input, ctx| {
                                 input.set_input_mode_agent(false, ctx);
                             });
@@ -27633,10 +27649,15 @@ impl TypedActionView for TerminalView {
                     "input mode: SetInputModeTerminal dispatched (agent_in_control=\
                      {in_control}, agent_driving={driving_command})"
                 );
-                if in_control {
-                    self.cli_subagent_controller.update(ctx, |controller, ctx| {
-                        controller.switch_control_to_user(UserTakeOverReason::Manual, ctx);
-                    });
+                // Agent-driven commands (including direct-backend requests that never
+                // established formal long-running control) otherwise lock the command
+                // line away; one press releases the agent's hold and opens it.
+                if in_control || driving_command {
+                    if in_control {
+                        self.cli_subagent_controller.update(ctx, |controller, ctx| {
+                            controller.switch_control_to_user(UserTakeOverReason::Manual, ctx);
+                        });
+                    }
                     // One press must land the user in a typeable command line: taking
                     // over control without switching the input mode leaves AI input up.
                     self.input.update(ctx, |input, ctx| {
