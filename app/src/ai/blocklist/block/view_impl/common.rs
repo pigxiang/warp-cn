@@ -3102,8 +3102,10 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
         return Empty::new().finish();
     };
 
+    let is_error_red = matches!(presentation, FailedOutputPresentation::RedMessage(_));
     let error_text = match presentation {
         FailedOutputPresentation::Message(message) => message,
+        FailedOutputPresentation::RedMessage(message) => message,
         FailedOutputPresentation::OutOfCredits { message, .. } => {
             return render_out_of_credits_error(
                 &message,
@@ -3190,10 +3192,14 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
                     appearance.monospace_font_family(),
                     appearance.monospace_font_size(),
                 )
-                .with_color(blended_colors::text_sub(
-                    appearance.theme(),
-                    appearance.theme().surface_1(),
-                ))
+                .with_color(if is_error_red {
+                    error_color(appearance.theme())
+                } else {
+                    blended_colors::text_sub(
+                        appearance.theme(),
+                        appearance.theme().surface_1(),
+                    )
+                })
                 .with_selection_color(if props.is_ai_input_enabled {
                     appearance
                         .theme()

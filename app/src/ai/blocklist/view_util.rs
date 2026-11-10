@@ -71,6 +71,9 @@ pub fn error_color(theme: &WarpTheme) -> ColorU {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FailedOutputPresentation {
     Message(String),
+    /// A message rendered in error-red body text (rather than sub-text), for
+    /// stops the user must be able to see after transient toasts expire.
+    RedMessage(String),
     OutOfCredits {
         message: String,
         can_use_own_api_keys: bool,
@@ -183,10 +186,14 @@ pub fn failed_output_presentation(
         | RenderableAIError::Other { error_message, .. } => {
             FailedOutputPresentation::Message(format!("{ERROR_APOLOGY_TEXT}\n\n{error_message}"))
         }
-        RenderableAIError::AgentExitedShell { .. }
-        | RenderableAIError::TerminalSessionLost => {
+        RenderableAIError::AgentExitedShell { .. } => {
             FailedOutputPresentation::Message(format!("{ERROR_APOLOGY_TEXT}\n\n{error}"))
         }
+        // The session-drift stop is actionable environment info, not an internal
+        // fault: print it in error red with the localized message, no apology prefix.
+        RenderableAIError::TerminalSessionLost => FailedOutputPresentation::RedMessage(
+            warp_i18n::t!("error-agent-terminal-session-lost").to_owned(),
+        ),
         // Cloud startup failures surface the raw server message directly, matching the
         // dedicated GUI error card which shows the message without an apology prefix.
         RenderableAIError::CloudStartupFailed(msg) => {

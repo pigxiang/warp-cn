@@ -1291,6 +1291,43 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
         }
     }
 
+    // A terminal failure can also be stamped directly on the conversation status
+    // with no in-flight stream to attach it to (e.g. the agent session-drift
+    // guard fires while the model awaits a tool result). Surface it inline so
+    // the stopped state outlives transient toasts; skip when the latest exchange
+    // already renders the same failure.
+    if !request_type.is_active()
+        && !matches!(&status, AIBlockOutputStatus::Failed { .. })
+        && let Some(conversation) = props.model.conversation(app)
+        && conversation.status().is_error()
+        && let Some(error) = conversation.status_error()
+    {
+        let conversation_uses_warp_credits_instead_of_chatgpt =
+            conversation.use_warp_credits_instead_of_chatgpt();
+        output_items.add_child(
+            render_failed_output(
+                FailedOutputProps {
+                    error,
+                    is_ai_input_enabled: props.is_ai_input_enabled,
+                    invalid_api_key_button_handle: &props
+                        .state_handles
+                        .invalid_api_key_button_handle,
+                    subscribe_button_handle: &props.state_handles.subscribe_button_handle,
+                    aws_bedrock_credentials_error_view: props
+                        .aws_bedrock_credentials_error_view,
+                    gemini_enterprise_credentials_error_view: props
+                        .gemini_enterprise_credentials_error_view,
+                    chatgpt_subscription_actions: None,
+                    conversation_uses_warp_credits_instead_of_chatgpt,
+                    icon_right_margin: 16.,
+                },
+                app,
+            )
+            .with_content_item_spacing()
+            .finish(),
+        );
+    }
+
     if should_render_stopped_output(props, app) {
         output_items.add_child(render_stopped_output(props, app))
     }
