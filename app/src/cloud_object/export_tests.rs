@@ -149,7 +149,12 @@ fn test_export_notebook_duplicate() {
         initialize_app(&mut app);
 
         let notebook_id = SyncId::ServerId(NotebookId::from(456).into());
-        add_notebook(notebook_id, "Test notebook", "This is a test notebook", &mut app);
+        add_notebook(
+            notebook_id,
+            "Test notebook",
+            "This is a test notebook",
+            &mut app,
+        );
 
         let exporter = ExportTest::new("test_export_notebook_duplicate", &mut app);
 
@@ -193,7 +198,12 @@ fn test_export_notebook_failure() {
         initialize_app(&mut app);
 
         let notebook_id = SyncId::ServerId(NotebookId::from(456).into());
-        add_notebook(notebook_id, "Test notebook", "This is a test notebook", &mut app);
+        add_notebook(
+            notebook_id,
+            "Test notebook",
+            "This is a test notebook",
+            &mut app,
+        );
 
         let exporter = ExportTest::new("test_export_notebook_failure", &mut app);
         // Ensure that the export will fail.
@@ -372,13 +382,28 @@ fn test_export_multiple_objects() {
         // Create three notebooks (workflows were removed in the lite fork; the
         // bulk-export path is exercised with the remaining exportable type).
         let notebook_id1 = SyncId::ServerId(NotebookId::from(789).into());
-        add_notebook(notebook_id1, "Test notebook 1", "This is notebook one", &mut app);
+        add_notebook(
+            notebook_id1,
+            "Test notebook 1",
+            "This is notebook one",
+            &mut app,
+        );
 
         let notebook_id2 = SyncId::ServerId(NotebookId::from(790).into());
-        add_notebook(notebook_id2, "Test notebook 2", "This is notebook two", &mut app);
+        add_notebook(
+            notebook_id2,
+            "Test notebook 2",
+            "This is notebook two",
+            &mut app,
+        );
 
         let notebook_id3 = SyncId::ServerId(NotebookId::from(791).into());
-        add_notebook(notebook_id3, "Test notebook 3", "This is notebook three", &mut app);
+        add_notebook(
+            notebook_id3,
+            "Test notebook 3",
+            "This is notebook three",
+            &mut app,
+        );
 
         let exporter = ExportTest::new("test_export_multiple_objects", &mut app);
 

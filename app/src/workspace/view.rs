@@ -4403,7 +4403,6 @@ impl Workspace {
         );
     }
 
-
     fn stop_sharing_all_panes_in_tab(
         &mut self,
         pane_group: &WeakViewHandle<PaneGroup>,
@@ -4432,7 +4431,6 @@ impl Workspace {
             });
         }
     }
-
 
     fn subscribe_to_shared_session_manager(ctx: &mut ViewContext<Self>) {
         use terminal::shared_session::manager::{Manager, ManagerEvent};
