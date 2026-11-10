@@ -1,4 +1,3 @@
-use crate::{appearance::Appearance, terminal::view::TerminalAction};
 use warp_i18n::t;
 use warpui::Element;
 use warpui::elements::MouseStateHandle;
@@ -8,6 +7,8 @@ use super::{
     InlineBannerStyle, InlineBannerTextButton, InlineBannerTextButtonVariant,
     render_inline_block_list_banner,
 };
+use crate::appearance::Appearance;
+use crate::terminal::view::TerminalAction;
 
 const AWS_CLI_INSTALL_DOCS_URL: &str =
     "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html";

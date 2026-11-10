@@ -136,13 +136,7 @@ impl Adapter {
             PresenceManager::new_for_viewer(viewer_id, firebase_uid, *participant_list, ctx)
         });
         let viewer = Kind::Viewer(Viewer::new(ctx));
-        Self::new(
-            viewer,
-            presence_manager,
-            session_id,
-            source_type,
-            ctx,
-        )
+        Self::new(viewer, presence_manager, session_id, source_type, ctx)
     }
 
     pub fn new_for_sharer(
@@ -169,15 +163,8 @@ impl Adapter {
         }
 
         let sharer = Kind::Sharer(Sharer::new(activity_tx, ctx));
-        Self::new(
-            sharer,
-            presence_manager,
-            session_id,
-            source_type,
-            ctx,
-        )
+        Self::new(sharer, presence_manager, session_id, source_type, ctx)
     }
-
 
     pub fn presence_manager(&self) -> &ModelHandle<PresenceManager> {
         &self.presence_manager

@@ -27621,15 +27621,26 @@ impl TypedActionView for TerminalView {
                 {
                     return;
                 }
-                if self
-                    .model
-                    .lock()
-                    .block_list()
-                    .active_block()
-                    .is_agent_in_control()
-                {
+                let (in_control, driving_command) = {
+                    let model = self.model.lock();
+                    let block = model.block_list().active_block();
+                    (
+                        block.is_agent_in_control(),
+                        block.is_agent_driving_command(),
+                    )
+                };
+                log::info!(
+                    "input mode: SetInputModeTerminal dispatched (agent_in_control=\
+                     {in_control}, agent_driving={driving_command})"
+                );
+                if in_control {
                     self.cli_subagent_controller.update(ctx, |controller, ctx| {
                         controller.switch_control_to_user(UserTakeOverReason::Manual, ctx);
+                    });
+                    // One press must land the user in a typeable command line: taking
+                    // over control without switching the input mode leaves AI input up.
+                    self.input.update(ctx, |input, ctx| {
+                        input.set_input_mode_terminal(true, ctx);
                     });
                 } else if self
                     .model

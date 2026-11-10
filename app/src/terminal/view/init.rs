@@ -1,3 +1,4 @@
+use warp_i18n::t;
 use warpui::AppContext;
 use warpui::keymap::{
     BindingDescription, ContextPredicate, EditableBinding, FixedBinding, PerPlatformKeystroke,
@@ -33,7 +34,6 @@ use crate::util::bindings;
 use crate::util::bindings::{
     BindingDescriptionFluentExt, CustomAction, cmd_or_ctrl_shift, is_binding_pty_compliant,
 };
-use warp_i18n::t;
 
 pub const TOGGLE_BLOCK_FILTER_KEYBINDING: &str =
     "terminal:toggle_block_filter_on_selected_or_last_block";
@@ -922,18 +922,16 @@ pub fn init(app: &mut AppContext) {
     )
     .with_context_predicate(id!("Terminal") & id!(flags::HAS_SETTINGS_TO_IMPORT_FLAG))]);
 
-    app.register_editable_bindings([
-        EditableBinding::new(
-            "terminal:stop_sharing_current_session",
-            BindingDescription::fluent("binding-terminal-view-stop-sharing-current-session"),
-            TerminalAction::StopSharingCurrentSession {
-                source: SharedSessionActionSource::CommandPalette,
-            },
-        )
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::ActiveSharer.as_keymap_context()),
-        ),
-    ]);
+    app.register_editable_bindings([EditableBinding::new(
+        "terminal:stop_sharing_current_session",
+        BindingDescription::fluent("binding-terminal-view-stop-sharing-current-session"),
+        TerminalAction::StopSharingCurrentSession {
+            source: SharedSessionActionSource::CommandPalette,
+        },
+    )
+    .with_context_predicate(
+        id!("Terminal") & id!(SharedSessionStatus::ActiveSharer.as_keymap_context()),
+    )]);
 
     app.register_editable_bindings([EditableBinding::new(
         TOGGLE_BLOCK_FILTER_KEYBINDING,
@@ -1133,8 +1131,12 @@ fn register_input_mode_bindings(app: &mut AppContext) {
     // - AgentView feature is disabled, OR
     // - In an active agent view, OR
     // - Input is unlocked (autodetected) (implying the input is autodetected as AI in terminal mode)
+    // An active agent view also matches while its input is autodetected as Shell (empty
+    // buffer), so Cmd+I works there to reach a running command's stdin.
     let terminal_mode_predicate = base_context.clone()
-        & id!(flags::AGENT_MODE_INPUT)
+        & (id!(flags::AGENT_MODE_INPUT)
+            | id!(flags::ACTIVE_AGENT_VIEW)
+            | id!(flags::ACTIVE_INLINE_AGENT_VIEW))
         & (!id!(flags::AGENT_VIEW_ENABLED)
             | id!(flags::ACTIVE_AGENT_VIEW)
             | id!(flags::ACTIVE_INLINE_AGENT_VIEW)

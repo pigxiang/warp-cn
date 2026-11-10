@@ -44,6 +44,8 @@ use crate::terminal::model::blocks::BlockListPoint;
 use crate::terminal::model::index::Point;
 use crate::terminal::model::terminal_model::WithinBlock;
 use crate::terminal::session_settings::SessionSettings;
+#[cfg(target_family = "wasm")]
+use crate::terminal::shared_session::join_link;
 use crate::terminal::shared_session::participant_avatar_view::{
     ParticipantAvatarEvent, ParticipantAvatarView,
 };
@@ -58,12 +60,9 @@ use crate::terminal::shared_session::{
     SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionSource,
     SharedSessionStatus,
 };
-#[cfg(target_family = "wasm")]
-use crate::terminal::shared_session::join_link;
 use crate::terminal::view::{
- Event, InlineBannerItem, InlineBannerType, PendingUserQueryKind,
-    RichContentInsertionPosition, SharedSessionBanners, SizeUpdateBuilder, TerminalAction,
-    TerminalView,
+    Event, InlineBannerItem, InlineBannerType, PendingUserQueryKind, RichContentInsertionPosition,
+    SharedSessionBanners, SizeUpdateBuilder, TerminalAction, TerminalView,
 };
 use crate::view_components::ToastFlavor;
 use crate::{TelemetryEvent, send_telemetry_from_ctx};
@@ -354,10 +353,7 @@ impl TerminalView {
             // since it only needs to trigger a pane header re-render which is called for every event.
             _ => {}
         }
-
     }
-
-
 
     pub fn update_role(
         &mut self,
@@ -401,9 +397,6 @@ impl TerminalView {
         ctx.emit(Event::UpdatePendingUserRole { email, role });
     }
 
-
-
-
     fn refresh_input_data_for_participants(&mut self, ctx: &mut ViewContext<Self>) {
         let Some(shared_session) = &self.shared_session else {
             return;
@@ -427,7 +420,6 @@ impl TerminalView {
         }
         ctx.notify();
     }
-
 
     pub fn on_role_requested(
         &mut self,
@@ -480,8 +472,6 @@ impl TerminalView {
 
         ctx.emit(Event::RoleRequestCancelled(role_request_id.clone()));
     }
-
-
 
     /// Focuses the view by telling the parent view to focus this session.
     /// For example, in the common case, the parent pane group would consume
@@ -574,7 +564,6 @@ impl TerminalView {
         }
     }
 
-
     /// Sets the PresenceManager and decorates the view accordingly when a shared session has been started.
     #[allow(clippy::too_many_arguments)]
     pub fn on_session_share_started(
@@ -587,13 +576,8 @@ impl TerminalView {
         ctx: &mut ViewContext<Self>,
     ) {
         let started_at = Local::now();
-        let adapter = Adapter::new_for_sharer(
-            sharer_id,
-            firebase_uid,
-            session_id,
-            source_type,
-            ctx,
-        );
+        let adapter =
+            Adapter::new_for_sharer(sharer_id, firebase_uid, session_id, source_type, ctx);
         let presence_manager = adapter.presence_manager().clone();
 
         self.shared_session = Some(adapter);
@@ -1185,7 +1169,6 @@ impl TerminalView {
             }
         }
 
-
         // Notify the pane header that its content has changed and needs to re-render.
         self.pane_configuration.update(ctx, |config, ctx| {
             config.notify_header_content_changed(ctx);
@@ -1276,7 +1259,6 @@ impl TerminalView {
         if let Some(viewer) = self.shared_session_viewer_mut() {
             viewer.open_role_change_menu(role, ctx);
         }
-
     }
 
     pub fn make_all_shared_session_participants_readers(
@@ -1469,8 +1451,6 @@ impl TerminalView {
 
         self.close_shared_session_role_change_modal(RoleChangeCloseSource::ViewerRequest, ctx);
     }
-
-
 
     fn insert_shared_session_started_banner(
         &mut self,
@@ -1788,7 +1768,6 @@ impl TerminalView {
         self.refresh_input_data_for_participants(ctx);
         ctx.notify();
     }
-
 
     /// Resizes the terminal from when the sharer updates size.
     pub fn resize_from_sharer_update(

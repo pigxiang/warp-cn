@@ -745,10 +745,10 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
 
         // The agent holds input control of running commands; if one is waiting
         // for stdin the user cannot otherwise reach, surface the takeover path.
+        // `is_agent_driving_command` also covers agent-requested commands whose
+        // formal long-running control state has not been established yet.
         let active_block = terminal_model.block_list().active_block();
-        if active_block.is_active_and_long_running()
-            && active_block.is_agent_in_control_or_tagged_in()
-        {
+        if active_block.is_active_and_long_running() && active_block.is_agent_driving_command() {
             let take_over_keystroke = if OperatingSystem::get().is_mac() {
                 Keystroke::parse("cmd-i").expect("keystroke should parse")
             } else {
