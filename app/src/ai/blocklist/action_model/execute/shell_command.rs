@@ -10,10 +10,10 @@ use futures::{FutureExt, select};
 use futures_lite::pin;
 use itertools::Itertools;
 use parking_lot::{FairMutex, Mutex};
+use warp_core::SessionId;
 use warp_core::command::ExitCode;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
-use warp_core::SessionId;
 use warp_terminal::event::ObservedExitStatus;
 use warp_util::path::ShellFamily;
 use warpui::r#async::{Spawnable, Timer};
@@ -331,7 +331,11 @@ impl ShellCommandExecutor {
             );
             return true;
         };
-        match self.conversation_session_anchors.get(&conversation_id).copied() {
+        match self
+            .conversation_session_anchors
+            .get(&conversation_id)
+            .copied()
+        {
             None => {
                 self.conversation_session_anchors
                     .insert(conversation_id, current);
@@ -534,6 +538,37 @@ impl ShellCommandExecutor {
                                 exit_code,
                                 start_ts,
                                 completed_ts,
+                            },
+                        ),
+                    );
+                }
+                // Credentials must never round-trip through the model: refuse writes
+                // while the command sits at a password prompt and point the agent at
+                // user takeover instead.
+                let mut tail = if block.state() == BlockState::BeforeExecution {
+                    formatted_terminal_contents_for_input(
+                        block.prompt_and_command_grid().grid_handler(),
+                        Some(300),
+                        CURSOR_MARKER,
+                    )
+                } else {
+                    formatted_terminal_contents_for_input(
+                        block.output_grid().grid_handler(),
+                        Some(300),
+                        CURSOR_MARKER,
+                    )
+                };
+                if detect_input_prompt(&tail) == Some(InputPromptKind::Password) {
+                    tail.push_str(input_prompt_guidance(InputPromptKind::Password, true));
+                    return ActionExecution::Sync(
+                        AIAgentActionResultType::WriteToLongRunningShellCommand(
+                            WriteToLongRunningShellCommandResult::Snapshot {
+                                block_id: block_id.clone(),
+                                grid_contents: tail,
+                                cursor: CURSOR_MARKER.to_owned(),
+                                is_alt_screen_active: model.is_alt_screen_active(),
+                                is_preempted: true,
+                                activity: None,
                             },
                         ),
                     );
@@ -952,7 +987,7 @@ impl ShellCommandExecutor {
                             completed_ts: block.completed_ts().cloned(),
                         }
                     } else {
-                        let grid_contents = if model.is_alt_screen_active() {
+                        let mut grid_contents = if model.is_alt_screen_active() {
                             formatted_terminal_contents_for_input(
                                 model.alt_screen().grid_handler(),
                                 None,
@@ -978,6 +1013,9 @@ impl ShellCommandExecutor {
                                 CURSOR_MARKER,
                             )
                         };
+                        if let Some(kind) = detect_input_prompt(&grid_contents) {
+                            grid_contents.push_str(input_prompt_guidance(kind, false));
+                        }
                         ActionResult::LongRunningCommandSnapshot {
                             block_id: block.id().clone(),
                             grid_contents,
@@ -1125,6 +1163,52 @@ fn action_result_for_requested_command(
 }
 
 /// Returns the result from writing to a long-running shell command.
+/// What the tail of a terminal snapshot suggests the running command is waiting for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum InputPromptKind {
+    /// Password/passphrase prompt: input must never pass through the model.
+    Password,
+    /// Any other interactive prompt (y/n, continuation, ...).
+    Generic,
+}
+
+fn detect_input_prompt(grid_contents: &str) -> Option<InputPromptKind> {
+    let tail = grid_contents
+        .lines()
+        .rev()
+        .map(|line| line.replace(CURSOR_MARKER, ""))
+        .map(|line| line.trim_end().to_owned())
+        .find(|line| !line.trim().is_empty())?;
+    let lower = tail.trim().to_lowercase();
+    if lower.contains("password") || lower.contains("passphrase") {
+        return Some(InputPromptKind::Password);
+    }
+    if lower.ends_with(':')
+        || lower.contains("(y/n)")
+        || lower.contains("[y/n]")
+        || (lower.ends_with('?') && lower.len() < 120)
+    {
+        Some(InputPromptKind::Generic)
+    } else {
+        None
+    }
+}
+
+/// Model-facing guidance appended to snapshots and refused writes.
+fn input_prompt_guidance(kind: InputPromptKind, refused: bool) -> &'static str {
+    match (kind, refused) {
+        (InputPromptKind::Password, false) => {
+            "\n\n[agent guard] The command appears to be waiting for a PASSWORD. Do NOT type credentials with write_to_long_running_shell_command: they would leak into the conversation context and logs. Tell the user to press Cmd+I to take over terminal input and answer the prompt themselves, then poll read_shell_command_output."
+        }
+        (InputPromptKind::Password, true) => {
+            "\n\n[agent guard] WRITE REFUSED: the command is sitting at a password prompt and credentials must not pass through the model. Ask the user to press Cmd+I to take over input and type it themselves."
+        }
+        (InputPromptKind::Generic, _) => {
+            "\n\n[agent hint] The command appears to be waiting for interactive input. Answer with write_to_long_running_shell_command only if the correct input is known and safe; otherwise ask the user (they can press Cmd+I to take over input)."
+        }
+    }
+}
+
 fn action_result_for_write_to_long_running_shell_command(
     result: ActionResult,
 ) -> AIAgentActionResultType {
@@ -1318,7 +1402,9 @@ pub enum ShellCommandExecutorEvent {
     /// to its outer local shell). All further PTY actions for the conversation
     /// have been blocked; the view must fail the conversation and surface the
     /// error to the user.
-    AgentSessionLost { conversation_id: AIConversationId },
+    AgentSessionLost {
+        conversation_id: AIConversationId,
+    },
     TransferControlToUser {
         action_id: AIAgentActionId,
         reason: String,

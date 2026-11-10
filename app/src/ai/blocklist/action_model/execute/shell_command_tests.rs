@@ -11,8 +11,8 @@ use warp_terminal::event::ObservedExitStatus;
 use warpui::{App, EntityId, ModelHandle};
 
 use super::{
-    ActionResult, AnyActionExecution, BlockSelector, ExecuteActionInput, ShellCommandExecutor,
-    ShellCommandExecutorEvent, ShellRecoveryResult,
+    ActionResult, AnyActionExecution, BlockSelector, ExecuteActionInput, InputPromptKind,
+    ShellCommandExecutor, ShellCommandExecutorEvent, ShellRecoveryResult, detect_input_prompt,
 };
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::task::TaskId;
@@ -568,4 +568,30 @@ fn shell_recovery_waits_through_bootstrap_before_resolving_follow_up_read() {
         assert_eq!(result.block_id, block_id);
         assert_eq!(result.status, ObservedExitStatus::Code(7));
     });
+}
+
+#[test]
+fn detect_input_prompt_classifies_tails() {
+    assert_eq!(
+        detect_input_prompt("Reading package lists...\n[sudo] password for user: "),
+        Some(InputPromptKind::Password)
+    );
+    assert_eq!(
+        detect_input_prompt("Enter passphrase for key '~/.ssh/id_ed25519':"),
+        Some(InputPromptKind::Password)
+    );
+    assert_eq!(
+        detect_input_prompt("Overwrite existing file? (y/n)"),
+        Some(InputPromptKind::Generic)
+    );
+    assert_eq!(
+        detect_input_prompt("xiang@debian:~$ "),
+        None,
+        "an idle shell prompt is not an input prompt"
+    );
+    assert_eq!(
+        detect_input_prompt(&format!("some output\nxiang@debian:~$ {CURSOR_MARKER}")),
+        None,
+        "the cursor marker alone must not trigger detection"
+    );
 }

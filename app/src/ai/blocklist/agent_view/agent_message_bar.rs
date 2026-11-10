@@ -65,6 +65,9 @@ const FIGMA_ICON_SIZE: f32 = 14.;
 pub struct AgentMessageBarMouseStates {
     pub resume_conversation: MouseStateHandle,
     pub fork_from_last_known_good_state: MouseStateHandle,
+    /// Mouse state handle for the "take over input" button shown while the agent
+    /// controls a running command.
+    pub take_over_input: MouseStateHandle,
     pub toggle_shortcuts: MouseStateHandle,
     pub toggle_slash_commands: MouseStateHandle,
     pub toggle_plan: MouseStateHandle,
@@ -737,6 +740,29 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
                     );
                 },
                 mouse_states.fork_from_last_known_good_state.clone(),
+            ));
+        }
+
+        // The agent holds input control of running commands; if one is waiting
+        // for stdin the user cannot otherwise reach, surface the takeover path.
+        let active_block = terminal_model.block_list().active_block();
+        if active_block.is_active_and_long_running()
+            && active_block.is_agent_in_control_or_tagged_in()
+        {
+            let take_over_keystroke = if OperatingSystem::get().is_mac() {
+                Keystroke::parse("cmd-i").expect("keystroke should parse")
+            } else {
+                Keystroke::parse("ctrl-i").expect("keystroke should parse")
+            };
+            items.push(MessageItem::clickable(
+                vec![
+                    MessageItem::keystroke(take_over_keystroke),
+                    MessageItem::text("to take over input"),
+                ],
+                |ctx| {
+                    ctx.dispatch_typed_action(TerminalAction::SetInputModeTerminal);
+                },
+                mouse_states.take_over_input.clone(),
             ));
         }
 
