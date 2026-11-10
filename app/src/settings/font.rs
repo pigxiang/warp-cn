@@ -87,7 +87,7 @@ define_settings_group!(FontSettings,
             surface: settings::SettingSurfaces::GUI,
             private: false,
             toml_path: "appearance.text.ai_line_height_ratio",
-            description: "The line height ratio for agent-generated text.",
+            description: "Agent prose line height; code blocks follow the terminal line height.",
         },
         notebook_font_size: NotebookFontSize {
             type: f32,

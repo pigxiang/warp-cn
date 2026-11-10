@@ -130,6 +130,7 @@ pub fn render_code_block_plain(
         appearance.monospace_font_size(),
     )
     .with_color(blended_colors::text_main(theme, theme.surface_1()))
+    .with_line_height_ratio(appearance.line_height_ratio())
     .with_highlights(find_highlight_ranges)
     .with_selectable(selectable)
     .finish();
