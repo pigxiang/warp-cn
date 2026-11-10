@@ -616,6 +616,10 @@ const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;
 
 /// Width of the bookmark indicator
 const BOOKMARK_INDICATOR_WIDTH: f32 = 15.;
+
+/// Alpha (0-255) of the yellow tint on an agent pane whose conversation was
+/// voided by the session-drift guard (~18%).
+const AGENT_VOIDED_TINT_ALPHA: u8 = 46;
 /// Offset from the right for the bookmark preview
 const BOOKMARK_PREVIEW_OFFSET: f32 = 20.;
 /// Minimum gap between two bookmark indicators
@@ -25293,6 +25297,20 @@ impl TerminalView {
 
     // In the case of waterfall mode with no gap, we need to handle left and right (for the context menu) clicks
     // in the empty area beneath the input that are typically handled by the block list element.
+    /// True when Agent View is active and the active conversation was voided by
+    /// the agent session-drift guard (its command session exited).
+    fn is_agent_conversation_voided(&self, app: &AppContext) -> bool {
+        FeatureFlag::AgentView.is_enabled()
+            && self.agent_view_controller.as_ref(app).is_active()
+            && {
+                let history = BlocklistAIHistoryModel::as_ref(app);
+                history
+                    .active_conversation_id(self.id())
+                    .and_then(|conversation_id| history.conversation(&conversation_id))
+                    .is_some_and(|conversation| conversation.is_agent_session_lost())
+            }
+    }
+
     fn render_waterfall_mode_background(
         &self,
         model: &TerminalModel,
@@ -28399,9 +28417,26 @@ impl View for TerminalView {
                         );
                     }
 
+                    // A voided agent conversation (session-drift guard) tints the whole
+                    // agent pane yellow so the dead state is obvious without reading the
+                    // transcript. The overlay is click-through and low-opacity so text
+                    // stays readable.
+                    let content = {
+                        let clipped = Clipped::new(column.finish()).finish();
+                        if self.is_agent_conversation_voided(app) {
+                            let mut yellow: ColorU =
+                                appearance.theme().terminal_colors().normal.yellow.into();
+                            yellow.a = AGENT_VOIDED_TINT_ALPHA;
+                            Container::new(clipped)
+                                .with_foreground_overlay(Fill::Solid(yellow))
+                                .finish()
+                        } else {
+                            clipped
+                        }
+                    };
                     let stack = Stack::new()
                         .with_constrain_absolute_children()
-                        .with_child(Clipped::new(column.finish()).finish());
+                        .with_child(content);
                     if matches!(input_mode, InputMode::Waterfall) && !is_alt_screen_active {
                         self.render_waterfall_mode_background(&model, stack, app)
                     } else {
