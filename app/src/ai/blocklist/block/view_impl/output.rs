@@ -24,6 +24,7 @@ use ui_components::{Component as _, Options as _, button};
 use warp_core::channel::ChannelState;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
+use warp_i18n::t;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::elements::new_scrollable::SingleAxisConfig;
 use warpui::elements::{
@@ -64,8 +65,8 @@ use crate::ai::agent::{
     AIAgentActionType, AIAgentCitation, AIAgentInput, AIAgentOutputMessage,
     AIAgentOutputMessageType, AIAgentText, AIAgentTextSection, CancellationOutcome,
     ChatGPTSubscriptionErrorActionKind, MessageId, ReadFilesFailedFile, ReadFilesRequest,
-    ReadFilesResult, RequestCommandOutputResult, SearchCodebaseFailureReason, SearchCodebaseResult,
-    StartRecordingResult, StopRecordingResult, SubagentCall, SubagentType,
+    ReadFilesResult, RenderableAIError, RequestCommandOutputResult, SearchCodebaseFailureReason,
+    SearchCodebaseResult, StartRecordingResult, StopRecordingResult, SubagentCall, SubagentType,
     SuggestNewConversationResult, SummarizationType, TodoOperation, UploadArtifactResult,
 };
 use crate::ai::agent_conversations_model::AgentConversationsModel;
@@ -140,7 +141,6 @@ use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::ChargeUnit;
 use crate::{AIAgentTodoList, FeatureFlag};
-use warp_i18n::t;
 
 const BLOCKED_ACTION_MESSAGE_FOR_UPLOADING_ARTIFACT: &str = "Grant access to upload this artifact?";
 
@@ -1299,8 +1299,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
     if !request_type.is_active()
         && !matches!(&status, AIBlockOutputStatus::Failed { .. })
         && let Some(conversation) = props.model.conversation(app)
-        && conversation.status().is_error()
-        && let Some(error) = conversation.status_error()
+        && let Some(error) = conversation_banner_error(&conversation)
     {
         let conversation_uses_warp_credits_instead_of_chatgpt =
             conversation.use_warp_credits_instead_of_chatgpt();
@@ -1313,8 +1312,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                         .state_handles
                         .invalid_api_key_button_handle,
                     subscribe_button_handle: &props.state_handles.subscribe_button_handle,
-                    aws_bedrock_credentials_error_view: props
-                        .aws_bedrock_credentials_error_view,
+                    aws_bedrock_credentials_error_view: props.aws_bedrock_credentials_error_view,
                     gemini_enterprise_credentials_error_view: props
                         .gemini_enterprise_credentials_error_view,
                     chatgpt_subscription_actions: None,
@@ -1349,6 +1347,20 @@ fn dispatch_chatgpt_subscription_action(
         }
         ChatGPTSubscriptionErrorActionKind::OpenUrl { url } => app.open_url(url),
     }
+}
+
+/// The conversation-level failure to surface inline: the live terminal error, or
+/// the session-drift void after a restart, where the status error is not restored
+/// but the persisted void flag is.
+fn conversation_banner_error(conversation: &AIConversation) -> Option<&RenderableAIError> {
+    if conversation.status().is_error()
+        && let Some(error) = conversation.status_error()
+    {
+        return Some(error);
+    }
+    conversation
+        .is_agent_session_lost()
+        .then_some(&RenderableAIError::TerminalSessionLost)
 }
 
 fn should_render_stopped_output(props: Props, app: &AppContext) -> bool {

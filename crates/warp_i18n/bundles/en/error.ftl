@@ -28,3 +28,4 @@ error-queue-requires-prompt = /queue requires a prompt argument
 
 # Agent terminal-session drift guard
 error-agent-terminal-session-lost = The terminal session the agent was running commands in has ended or switched (e.g. an SSH connection closed). Commands were not re-targeted to another machine, and the conversation was stopped.
+agent-view-conversation-voided = This conversation has been voided (the agent's SSH session ended). Start a new conversation to continue.

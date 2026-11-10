@@ -1819,6 +1819,7 @@ impl BlocklistAIHistoryModel {
             pinned: false,
             use_warp_credits_instead_of_chatgpt: source_conversation
                 .use_warp_credits_instead_of_chatgpt(),
+            agent_session_lost: false,
         };
         let forked_conversation_id = AIConversationId::new();
         if let Err(e) = sqlite_sender.send(ModelEvent::UpdateMultiAgentConversation {
@@ -1998,6 +1999,7 @@ impl BlocklistAIHistoryModel {
             last_event_sequence: None,
             pinned: false,
             use_warp_credits_instead_of_chatgpt: conversation.use_warp_credits_instead_of_chatgpt(),
+            agent_session_lost: false,
         };
 
         let forked_conversation_id = AIConversationId::new();
@@ -3093,6 +3095,7 @@ fn merged_remote_child_placeholder_conversation_data(
         root_task_is_optimistic: None,
         autoexecute_override: None,
         use_warp_credits_instead_of_chatgpt: false,
+        agent_session_lost: false,
     }
 }
 

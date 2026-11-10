@@ -156,6 +156,7 @@ fn pill_bar_data_layer_finds_restored_children_before_pane_creation() {
                     id: 1,
                     conversation_id: child_id.to_string(),
                     conversation_data: serde_json::to_string(&AgentConversationData {
+                        agent_session_lost: false,
                         server_conversation_token: Some("child-token".to_string()),
                         conversation_usage_metadata: None,
                         reverted_action_ids: None,
@@ -209,6 +210,7 @@ fn pill_bar_data_layer_finds_restored_children_before_pane_creation() {
                     id: 2,
                     conversation_id: parent_id.to_string(),
                     conversation_data: serde_json::to_string(&AgentConversationData {
+                        agent_session_lost: false,
                         server_conversation_token: Some("parent-token".to_string()),
                         conversation_usage_metadata: None,
                         reverted_action_ids: None,
@@ -540,6 +542,7 @@ fn breadcrumbs_resolve_token_only_parent_linkage_after_restore() {
         let now = Utc::now().naive_utc();
 
         let root_data = AgentConversationData {
+            agent_session_lost: false,
             server_conversation_token: Some("root-token".to_string()),
             conversation_usage_metadata: None,
             reverted_action_ids: None,
@@ -558,6 +561,7 @@ fn breadcrumbs_resolve_token_only_parent_linkage_after_restore() {
             use_warp_credits_instead_of_chatgpt: false,
         };
         let child_data = AgentConversationData {
+            agent_session_lost: false,
             server_conversation_token: None,
             conversation_usage_metadata: None,
             reverted_action_ids: None,

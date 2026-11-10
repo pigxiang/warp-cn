@@ -437,6 +437,12 @@ pub struct AIConversation {
     /// Whether the user chose Warp-funded inference for this conversation after a ChatGPT
     /// token-sharing failure. Sticky for the rest of the conversation and inherited by forks.
     use_warp_credits_instead_of_chatgpt: bool,
+
+    /// Set when the agent session-drift guard voided this conversation because the
+    /// terminal session hosting its commands exited (e.g. an SSH disconnect). A voided
+    /// conversation rejects further messages and resumes. Persisted via
+    /// `AgentConversationData.agent_session_lost`.
+    agent_session_lost: bool,
 }
 
 pub(crate) fn artifact_from_fork_proto(
@@ -501,6 +507,7 @@ impl AIConversation {
             pinned: false,
             task_sync_mode: TaskSyncMode::default(),
             use_warp_credits_instead_of_chatgpt: false,
+            agent_session_lost: false,
         }
     }
 
@@ -638,6 +645,7 @@ impl AIConversation {
             last_event_sequence,
             pinned,
             use_warp_credits_instead_of_chatgpt,
+            agent_session_lost,
         ) = if let Some(data) = conversation_data {
             let server_conversation_token = data
                 .server_conversation_token
@@ -695,6 +703,7 @@ impl AIConversation {
                 data.last_event_sequence,
                 data.pinned,
                 data.use_warp_credits_instead_of_chatgpt,
+                data.agent_session_lost,
             )
         } else {
             (
@@ -712,6 +721,7 @@ impl AIConversation {
                 None,
                 AIConversationAutoexecuteMode::default(),
                 None,
+                false,
                 false,
                 false,
             )
@@ -759,6 +769,7 @@ impl AIConversation {
             pinned,
             task_sync_mode: TaskSyncMode::default(),
             use_warp_credits_instead_of_chatgpt,
+            agent_session_lost,
         })
     }
 
@@ -1354,6 +1365,30 @@ impl AIConversation {
     /// with `write_updated_conversation_state` to push the change to SQLite.
     pub fn set_use_warp_credits_instead_of_chatgpt(&mut self) {
         self.use_warp_credits_instead_of_chatgpt = true;
+    }
+
+    /// Returns whether the agent session-drift guard voided this conversation
+    /// (its command session exited, e.g. an SSH disconnect).
+    pub fn is_agent_session_lost(&self) -> bool {
+        self.agent_session_lost
+    }
+
+    /// Voids this conversation after an agent session loss: further messages and
+    /// resumes are rejected until the user starts a new conversation. Persists the
+    /// void so it survives restarts.
+    pub(crate) fn mark_agent_session_lost(
+        &mut self,
+        ctx: &mut ModelContext<BlocklistAIHistoryModel>,
+    ) {
+        if self.agent_session_lost {
+            return;
+        }
+        self.agent_session_lost = true;
+        log::info!(
+            "agent drift guard: conversation {} voided after session loss",
+            self.id
+        );
+        self.write_updated_conversation_state(ctx);
     }
 
     /// Returns true if this conversation was spawned by a parent orchestrator
@@ -3990,6 +4025,7 @@ impl AIConversation {
                 last_event_sequence: self.last_event_sequence,
                 pinned: self.pinned,
                 use_warp_credits_instead_of_chatgpt: self.use_warp_credits_instead_of_chatgpt,
+                agent_session_lost: self.agent_session_lost,
             },
         };
         ctx.spawn(

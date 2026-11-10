@@ -28,3 +28,4 @@ error-queue-requires-prompt = /queue 需要一个提示词参数
 
 # Agent 终端会话漂移防护
 error-agent-terminal-session-lost = 智能体执行命令所在的终端会话已结束或切换（例如 SSH 连接断开）。命令不会被转到其他机器继续执行，该对话已停止。
+agent-view-conversation-voided = 该对话已作废（智能体的 SSH 会话已断开），请开新对话继续。

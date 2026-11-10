@@ -42,6 +42,7 @@ fn conversation_data_with_usage_metadata(
     conversation_usage_metadata: ConversationUsageMetadata,
 ) -> AgentConversationData {
     AgentConversationData {
+        agent_session_lost: false,
         server_conversation_token: None,
         conversation_usage_metadata: Some(conversation_usage_metadata),
         reverted_action_ids: None,

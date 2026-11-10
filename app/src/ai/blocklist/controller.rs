@@ -202,6 +202,12 @@ pub enum BlocklistAIControllerEvent {
     ExecuteLocalHarnessCommand {
         command: String,
     },
+
+    /// Emitted when a send was rejected because the target conversation was voided
+    /// by the agent session-drift guard (its command session exited, e.g. SSH disconnect).
+    SessionLostSendRejected {
+        conversation_id: AIConversationId,
+    },
 }
 
 #[derive(Debug)]
@@ -755,6 +761,23 @@ impl BlocklistAIController {
         }
 
         let query = input_query.query().to_owned();
+        // A conversation voided by the agent session-drift guard can never continue:
+        // reject the send before any cancellation or exchange side effects run.
+        if let WhichTask::Task {
+            conversation_id, ..
+        } = &input_query.which_task
+            && BlocklistAIHistoryModel::as_ref(ctx)
+                .conversation(conversation_id)
+                .is_some_and(|conversation| conversation.is_agent_session_lost())
+        {
+            log::info!(
+                "agent drift guard: rejecting send for voided conversation {conversation_id}"
+            );
+            ctx.emit(BlocklistAIControllerEvent::SessionLostSendRejected {
+                conversation_id: *conversation_id,
+            });
+            return;
+        }
         let (conversation_id, task_id) = match input_query.which_task {
             WhichTask::NewConversation => {
                 let conversation = self.start_new_conversation_for_request(ctx);
@@ -3387,6 +3410,14 @@ impl BlocklistAIController {
         conversation_id: AIConversationId,
         ctx: &mut ModelContext<Self>,
     ) {
+        // Void the conversation first so it stays unusable even if the running turn
+        // already finished by the time this fires (fail_conversation_terminal_exit
+        // early-returns for non-running conversations).
+        BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
+            if let Some(conversation) = history_model.conversation_mut(&conversation_id) {
+                conversation.mark_agent_session_lost(ctx);
+            }
+        });
         self.fail_conversation_terminal_exit(
             conversation_id,
             RenderableAIError::TerminalSessionLost,

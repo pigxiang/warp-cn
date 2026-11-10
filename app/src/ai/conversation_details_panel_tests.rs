@@ -65,6 +65,7 @@ fn test_from_conversation_prefers_server_creator_profile() {
             "root-task",
             "/tmp/server-creator-profile",
             AgentConversationData {
+                agent_session_lost: false,
                 server_conversation_token: None,
                 conversation_usage_metadata: None,
                 reverted_action_ids: None,
@@ -233,6 +234,7 @@ fn test_from_task_includes_linked_directory_when_run_id_matches() {
             "root-task",
             directory,
             AgentConversationData {
+                agent_session_lost: false,
                 server_conversation_token: None,
                 conversation_usage_metadata: None,
                 reverted_action_ids: None,
@@ -269,8 +271,6 @@ fn test_from_task_includes_linked_directory_when_run_id_matches() {
         });
     });
 }
-
-
 
 #[test]
 fn test_from_task_resolves_harness() {
@@ -351,6 +351,7 @@ fn test_from_conversation_populates_local_conversation_fields() {
             "root-task",
             directory,
             AgentConversationData {
+                agent_session_lost: false,
                 server_conversation_token: None,
                 conversation_usage_metadata: None,
                 reverted_action_ids: None,
@@ -489,7 +490,6 @@ fn test_oz_run_url_present_for_task() {
                 "unexpected Oz run URL: {url}"
             );
         });
-
     });
 }
 
@@ -508,6 +508,7 @@ fn test_from_task_includes_linked_directory_when_server_token_matches() {
             "root-task",
             directory,
             AgentConversationData {
+                agent_session_lost: false,
                 server_conversation_token: Some(server_token.to_string()),
                 conversation_usage_metadata: None,
                 reverted_action_ids: None,
@@ -607,6 +608,7 @@ fn test_conversation_mode_carries_no_runner() {
             "root-task",
             "/tmp/local-conversation",
             AgentConversationData {
+                agent_session_lost: false,
                 server_conversation_token: None,
                 conversation_usage_metadata: None,
                 reverted_action_ids: None,

@@ -737,6 +737,95 @@ fn fail_conversation_due_to_session_loss_reports_error_and_survives_manual_cance
     });
 }
 
+/// The session-loss void must survive into follow-up sends: after the guard voids
+/// a conversation, a user follow-up must not add exchanges to it.
+#[test]
+fn session_lost_conversation_rejects_follow_up_sends() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        let conversation_id = terminal.update(&mut app, |view, ctx| {
+            let terminal_surface_id = view.id();
+            let stream_id = ResponseStreamId::new_for_test();
+            let conversation_id =
+                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
+                    let conversation_id = history.start_new_conversation(
+                        terminal_surface_id,
+                        false,
+                        false,
+                        false,
+                        ctx,
+                    );
+                    let task_id = history
+                        .conversation(&conversation_id)
+                        .unwrap()
+                        .get_root_task_id()
+                        .clone();
+                    history
+                        .update_conversation_for_new_request_input(
+                            RequestInput {
+                                conversation_id,
+                                input_messages: HashMap::from([(task_id, vec![])]),
+                                working_directory: None,
+                                model_id: LLMId::from("test-model"),
+                                coding_model_id: LLMId::from("test-coding-model"),
+                                cli_agent_model_id: LLMId::from("test-cli-agent-model"),
+                                computer_use_model_id: LLMId::from("test-computer-use-model"),
+                                shared_session_response_initiator: None,
+                                request_start_ts: Local::now(),
+                                supported_tools_override: None,
+                            },
+                            stream_id.clone(),
+                            terminal_surface_id,
+                            ctx,
+                        )
+                        .unwrap();
+                    conversation_id
+                });
+            let stream = ctx.add_model(|_| ResponseStream::new_for_test(stream_id.clone()));
+            view.ai_controller().update(ctx, |controller, ctx| {
+                controller.register_mock_stream_for_test(stream_id, conversation_id, stream, ctx);
+                controller.fail_conversation_due_to_session_loss(conversation_id, ctx);
+            });
+            conversation_id
+        });
+
+        BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
+            let conversation = history.conversation(&conversation_id).unwrap();
+            assert!(conversation.is_agent_session_lost());
+        });
+
+        let exchange_count_before =
+            BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
+                history
+                    .conversation(&conversation_id)
+                    .unwrap()
+                    .exchange_count()
+            });
+
+        terminal.update(&mut app, |view, ctx| {
+            view.ai_controller().update(ctx, |controller, ctx| {
+                controller.send_user_query_in_conversation(
+                    "follow up on the remote box".to_string(),
+                    conversation_id,
+                    None,
+                    ctx,
+                );
+            });
+        });
+
+        BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
+            let conversation = history.conversation(&conversation_id).unwrap();
+            assert_eq!(
+                conversation.exchange_count(),
+                exchange_count_before,
+                "a voided conversation must not accept new sends"
+            );
+        });
+    });
+}
+
 /// An optimistic long-running-command completion that cancels an in-flight
 /// stream must finalize the conversation as `Success`, not `Cancelled`. This is
 /// a regression test for the reason -> status mapping living in a single place

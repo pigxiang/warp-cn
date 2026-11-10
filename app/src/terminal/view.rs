@@ -347,8 +347,7 @@ use crate::server::telemetry::{
     AnonymousUserSignupEntrypoint, BootstrappingInfo, CloudAgentShellExitDetection,
     CloudAgentShellRecoveryFailureClass, CloudAgentShellRecoveryOutcome, InteractionSource,
     NotificationAgentVariant, NotificationsTurnedOnSource, PaletteSource, PromptSuggestionViewType,
-    SecretInteraction, SlowBootstrapInfo, TelemetryEvent,
-    ToggleBlockFilterSource,
+    SecretInteraction, SlowBootstrapInfo, TelemetryEvent, ToggleBlockFilterSource,
 };
 use crate::session_management::{CommandContext, SessionNavigationPromptElements};
 use crate::settings::ai::FocusedTerminalInfo;
@@ -5399,6 +5398,11 @@ impl TerminalView {
         if let BlocklistAIControllerEvent::ExecuteLocalHarnessCommand { command } = event {
             self.execute_command_or_set_pending(command, ctx);
         }
+        if let BlocklistAIControllerEvent::SessionLostSendRejected { .. } = event {
+            self.agent_view_controller.update(ctx, |controller, ctx| {
+                controller.show_agent_session_lost_notice(ctx);
+            });
+        }
         if let BlocklistAIControllerEvent::FinishedReceivingOutput {
             conversation_id, ..
         } = event
@@ -7154,6 +7158,20 @@ impl TerminalView {
         conversation_id: &AIConversationId,
         ctx: &mut ViewContext<Self>,
     ) {
+        // Conversations voided by the agent session-drift guard cannot be resumed.
+        if BlocklistAIHistoryModel::as_ref(ctx)
+            .conversation(conversation_id)
+            .is_some_and(|conversation| conversation.is_agent_session_lost())
+        {
+            log::info!(
+                "agent drift guard: refusing resume for voided conversation {conversation_id}"
+            );
+            self.agent_view_controller.update(ctx, |controller, ctx| {
+                controller.show_agent_session_lost_notice(ctx);
+            });
+            return;
+        }
+
         // If `AgentView` is enabled, this button is only rendered when the agent view is already
         // active for the selected conversation, so this call is redundant.
         if !FeatureFlag::AgentView.is_enabled() {
@@ -21705,8 +21723,6 @@ impl TerminalView {
             self.focus_input_box(ctx);
         }
     }
-
-
 
     fn context_menu_copy_blocks(&mut self, ctx: &mut ViewContext<Self>) {
         self.copy_blocks(BlockEntity::CommandAndOutput, ctx);

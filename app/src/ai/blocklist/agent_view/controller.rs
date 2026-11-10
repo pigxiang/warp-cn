@@ -535,6 +535,22 @@ impl AgentViewController {
         });
     }
 
+    /// Shows a red ephemeral notice that the conversation was voided because the
+    /// agent's command session exited (e.g. an SSH disconnect).
+    pub fn show_agent_session_lost_notice(&mut self, ctx: &mut ModelContext<Self>) {
+        const NOTICE_DURATION: Duration = Duration::from_secs(5);
+        let appearance = Appearance::handle(ctx).as_ref(ctx);
+        let message = Message::from_text(warp_i18n::t!("agent-view-conversation-voided"))
+            .with_text_color(appearance.theme().ansi_fg_red());
+        self.ephemeral_message_model.update(ctx, |model, ctx| {
+            model.show_ephemeral_message(
+                EphemeralMessage::new(message, DismissalStrategy::Timer(NOTICE_DURATION))
+                    .with_id("agent-session-lost-notice"),
+                ctx,
+            )
+        });
+    }
+
     fn clear_exit_confirmation(&mut self, ctx: &mut ModelContext<Self>) {
         if self
             .pending_confirmation

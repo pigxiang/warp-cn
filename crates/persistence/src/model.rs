@@ -1204,6 +1204,11 @@ pub struct AgentConversationData {
     /// token-sharing failure. Sent as `skip_chatgpt_subscription` on every request.
     #[serde(default, skip_serializing_if = "is_false")]
     pub use_warp_credits_instead_of_chatgpt: bool,
+    /// Set when the agent session-drift guard voided this conversation because the
+    /// terminal session hosting its commands exited (e.g. an SSH disconnect). Voids
+    /// survive restarts: the conversation can no longer accept messages or resumes.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub agent_session_lost: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
