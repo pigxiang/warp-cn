@@ -9970,6 +9970,10 @@ impl TerminalView {
             let mut terminal_model = self.model.lock();
             let active_block = terminal_model.block_list().active_block();
             if active_block.is_agent_in_control() {
+                log::info!(
+                    "input: user keystrokes dropped — agent holds control of active block {}",
+                    active_block.id()
+                );
                 return false;
             }
             if active_block.is_active_and_long_running() && !active_block.has_received_user_input()

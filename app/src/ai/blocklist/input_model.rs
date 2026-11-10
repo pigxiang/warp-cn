@@ -471,6 +471,13 @@ impl BlocklistAIInputModel {
 
         let old_config = self.input_config;
 
+        log::info!(
+            "input config: {:?} -> {:?} (source={:?})",
+            old_config,
+            new_config,
+            decision_source
+        );
+
         if !new_config.is_locked && new_config.input_type.is_ai() {
             self.last_ai_autodetection_ts = Some(Instant::now());
         } else {

@@ -467,6 +467,10 @@ impl CLISubagentController {
         let interaction_mode_debug = format!("{:?}", active_block.interaction_mode());
         let lrc_state_debug = format!("{:?}", active_block.long_running_control_state());
         if let Err(e) = active_block.take_over_control_for_user(reason.clone()) {
+            log::error!(
+                "cli subagent: user takeover FAILED for block {block_id}: {e} \
+                 (interaction={interaction_mode_debug}, lrc={lrc_state_debug})"
+            );
             report_error!(
                 anyhow::Error::new(e).context("Failed to take control for user"),
                 extra: {
@@ -482,6 +486,11 @@ impl CLISubagentController {
         let action_id = active_block.requested_command_action_id().cloned();
         let conversation_id = active_block.ai_conversation_id();
         let agent_has_control = active_block.is_agent_in_control();
+        log::info!(
+            "cli subagent: user takeover OK (block {block_id}, lrc now \
+             {:?})",
+            active_block.long_running_control_state()
+        );
         // Conversation cancellation potentially takes a lock on terminal model if the
         // cancelled action is a shell command action, so we have to drop the terminal
         // model lock before actually cancelling the conversation.
@@ -532,12 +541,17 @@ impl CLISubagentController {
             .and_then(|state| state.user_take_over_reason())
             .is_some_and(|reason| reason.is_transfer_from_agent());
         if let Err(e) = active_block.handoff_control_to_agent() {
+            log::error!(
+                "cli subagent: handoff to AGENT FAILED for block {block_id}: {e} \
+                 (lrc={lrc_state_debug})"
+            );
             report_error!(
                 anyhow::Error::new(e).context("Failed to handoff control to agent"),
                 extra: { "block_id" => ?block_id, "lrc_state" => %lrc_state_debug }
             );
             return;
         }
+        log::info!("cli subagent: control handed back to AGENT (block {block_id})");
         log::info!(
             "handoff_active_command_control_to_agent: block_id={block_id:?}, \
              conversation_id={conversation_id:?}, lrc_state={lrc_state_debug}"
