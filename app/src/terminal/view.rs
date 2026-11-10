@@ -27596,9 +27596,21 @@ impl TypedActionView for TerminalView {
                     .active_block()
                     .is_eligible_for_agent_handoff()
                 {
+                    // Return the input to agent mode before handing control back: the
+                    // mode toggle self-disables while the agent holds control.
+                    self.input.update(ctx, |input, ctx| {
+                        input.set_input_mode_agent(true, ctx);
+                    });
                     self.cli_subagent_controller.update(ctx, |controller, ctx| {
                         controller.handoff_active_command_control_to_agent(ctx);
                     });
+                    if FeatureFlag::AgentView.is_enabled()
+                        && self.agent_view_controller.as_ref(ctx).is_active()
+                    {
+                        self.agent_view_controller.update(ctx, |controller, ctx| {
+                            controller.show_input_mode_notice(false, ctx);
+                        });
+                    }
                 } else if self
                     .model
                     .lock()
@@ -27663,6 +27675,13 @@ impl TypedActionView for TerminalView {
                     self.input.update(ctx, |input, ctx| {
                         input.set_input_mode_terminal(true, ctx);
                     });
+                    if FeatureFlag::AgentView.is_enabled()
+                        && self.agent_view_controller.as_ref(ctx).is_active()
+                    {
+                        self.agent_view_controller.update(ctx, |controller, ctx| {
+                            controller.show_input_mode_notice(true, ctx);
+                        });
+                    }
                 } else if self
                     .model
                     .lock()

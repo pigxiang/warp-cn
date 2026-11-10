@@ -1132,8 +1132,11 @@ fn register_input_mode_bindings(app: &mut AppContext) {
     // - In an active agent view, OR
     // - Input is unlocked (autodetected) (implying the input is autodetected as AI in terminal mode)
     // An active agent view also matches while its input is autodetected as Shell (empty
-    // buffer), so Cmd+I works there to reach a running command's stdin.
+    // buffer), so Cmd+I works there to reach a running command's stdin. The mode flag
+    // conjunct keeps Cmd+I a two-way toggle inside agent view: in shell mode the
+    // SetInputModeAgent binding claims the key instead.
     let terminal_mode_predicate = base_context.clone()
+        & !id!(flags::TERMINAL_MODE_INPUT)
         & (id!(flags::AGENT_MODE_INPUT)
             | id!(flags::ACTIVE_AGENT_VIEW)
             | id!(flags::ACTIVE_INLINE_AGENT_VIEW))

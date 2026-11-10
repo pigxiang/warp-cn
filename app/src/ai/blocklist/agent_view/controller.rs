@@ -551,6 +551,26 @@ impl AgentViewController {
         });
     }
 
+    /// Shows an ephemeral notice when command-line input is toggled between the
+    /// user and the agent (e.g. the Cmd+I takeover/handback).
+    pub fn show_input_mode_notice(&mut self, taken_over: bool, ctx: &mut ModelContext<Self>) {
+        const NOTICE_DURATION: Duration = Duration::from_secs(6);
+        let appearance = Appearance::handle(ctx).as_ref(ctx);
+        let message = if taken_over {
+            Message::from_text(warp_i18n::t!("agent-view-input-taken-over"))
+        } else {
+            Message::from_text(warp_i18n::t!("agent-view-input-handed-back"))
+        }
+        .with_text_color(appearance.theme().ansi_fg_yellow());
+        self.ephemeral_message_model.update(ctx, |model, ctx| {
+            model.show_ephemeral_message(
+                EphemeralMessage::new(message, DismissalStrategy::Timer(NOTICE_DURATION))
+                    .with_id("agent-input-mode-notice"),
+                ctx,
+            )
+        });
+    }
+
     fn clear_exit_confirmation(&mut self, ctx: &mut ModelContext<Self>) {
         if self
             .pending_confirmation
