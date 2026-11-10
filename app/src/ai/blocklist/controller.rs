@@ -3370,9 +3370,40 @@ impl BlocklistAIController {
         command: String,
         ctx: &mut ModelContext<Self>,
     ) {
+        self.fail_conversation_terminal_exit(
+            conversation_id,
+            RenderableAIError::AgentExitedShell { command },
+            CancellationReason::AgentExitedShell,
+            ctx,
+        );
+    }
+
+    /// Finalizes a conversation as a terminal failure because the terminal
+    /// session the agent's commands were running against ended or switched
+    /// mid-run (e.g. an SSH remote shell exited and the pane fell back to its
+    /// outer local shell). The shell-exit sibling documents the machinery.
+    pub fn fail_conversation_due_to_session_loss(
+        &mut self,
+        conversation_id: AIConversationId,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        self.fail_conversation_terminal_exit(
+            conversation_id,
+            RenderableAIError::TerminalSessionLost,
+            CancellationReason::TerminalSessionLost,
+            ctx,
+        );
+    }
+
+    fn fail_conversation_terminal_exit(
+        &mut self,
+        conversation_id: AIConversationId,
+        terminal_error: RenderableAIError,
+        cancellation_reason: CancellationReason,
+        ctx: &mut ModelContext<Self>,
+    ) {
         let terminal_surface_id = self.terminal_surface_id;
         let history_model = BlocklistAIHistoryModel::handle(ctx);
-        let shell_exit_error = RenderableAIError::AgentExitedShell { command };
 
         // Only act on conversations that are still running. A finished
         // conversation (e.g. the agent already completed) must not be
@@ -3396,7 +3427,7 @@ impl BlocklistAIController {
             .stream_ids_for_conversation(conversation_id, ctx);
         let had_in_flight_stream = !stream_ids.is_empty();
         for stream_id in &stream_ids {
-            let error = shell_exit_error.clone();
+            let error = terminal_error.clone();
             history_model.update(ctx, |history_model, ctx| {
                 history_model.mark_response_stream_completed_with_error(
                     error,
@@ -3407,11 +3438,7 @@ impl BlocklistAIController {
                     ctx,
                 );
             });
-            self.try_cancel_pending_response_stream(
-                stream_id,
-                CancellationReason::AgentExitedShell,
-                ctx,
-            );
+            self.try_cancel_pending_response_stream(stream_id, cancellation_reason, ctx);
         }
 
         // Stop any pending or mid-execution actions so a queued action result
@@ -3419,7 +3446,7 @@ impl BlocklistAIController {
         self.action_model.update(ctx, |action_model, ctx| {
             action_model.cancel_all_pending_actions(
                 conversation_id,
-                Some(CancellationReason::AgentExitedShell),
+                Some(cancellation_reason),
                 ctx,
             );
         });
@@ -3435,7 +3462,7 @@ impl BlocklistAIController {
                     terminal_surface_id,
                     conversation_id,
                     ConversationStatus::Error,
-                    Some(shell_exit_error),
+                    Some(terminal_error),
                     ctx,
                 );
             });

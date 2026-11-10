@@ -183,7 +183,8 @@ pub fn failed_output_presentation(
         | RenderableAIError::Other { error_message, .. } => {
             FailedOutputPresentation::Message(format!("{ERROR_APOLOGY_TEXT}\n\n{error_message}"))
         }
-        RenderableAIError::AgentExitedShell { .. } => {
+        RenderableAIError::AgentExitedShell { .. }
+        | RenderableAIError::TerminalSessionLost => {
             FailedOutputPresentation::Message(format!("{ERROR_APOLOGY_TEXT}\n\n{error}"))
         }
         // Cloud startup failures surface the raw server message directly, matching the

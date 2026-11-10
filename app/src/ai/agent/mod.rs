@@ -125,6 +125,13 @@ pub enum CancellationReason {
     /// finalized as a terminal `Error` (with a shell-exit message) by the
     /// controller rather than reported as a user cancellation.
     AgentExitedShell,
+
+    /// The terminal session the agent's commands ran against ended or switched
+    /// mid-run (e.g. an SSH remote shell exited and the pane fell back to the
+    /// outer local shell). Like `AgentExitedShell`, the conversation is
+    /// finalized as a terminal `Error` by a dedicated path rather than being
+    /// reported as a user cancellation.
+    TerminalSessionLost,
 }
 
 /// How a [`CancellationReason`] maps to the conversation's resulting status.
@@ -165,6 +172,9 @@ impl Display for CancellationReason {
             }
             CancellationReason::AgentExitedShell => {
                 write!(f, "agent command exited the shell")
+            }
+            CancellationReason::TerminalSessionLost => {
+                write!(f, "agent terminal session ended or switched")
             }
         }
     }
@@ -211,7 +221,8 @@ impl CancellationReason {
             | CancellationReason::Reverted => CancellationOutcome::Succeeded,
             // The shell died under the agent; a dedicated path finalizes this as a
             // terminal `Error`, so the cancellation machinery must not stamp a status.
-            CancellationReason::AgentExitedShell => CancellationOutcome::FinalizedExternally,
+            CancellationReason::AgentExitedShell
+            | CancellationReason::TerminalSessionLost => CancellationOutcome::FinalizedExternally,
             CancellationReason::ManuallyCancelled
             | CancellationReason::AutomaticCloudHandoff
             | CancellationReason::UserCommandExecuted
@@ -743,6 +754,12 @@ pub enum RenderableAIError {
     AgentExitedShell {
         command: String,
     },
+    /// The terminal session the agent's commands were executing against
+    /// ended or switched mid-run (e.g. the SSH remote shell exited and the
+    /// pane fell back to its outer local shell). Continuing would silently
+    /// re-target later commands onto a different machine, so the run is
+    /// finalized as a terminal failure (FAILED) instead.
+    TerminalSessionLost,
     /// A cloud-mode startup failure. Carries the raw server error message and
     /// surfaces it without the generic apology prefix, matching the dedicated
     /// GUI error card (`render_cloud_mode_error_screen`) which shows the
@@ -1009,6 +1026,13 @@ impl Display for RenderableAIError {
                 "The shell exited while the agent was running the command `{command}`, so the run \
                  could not continue. Ensure the agent is not asked to run commands or source \
                  scripts that can exit the shell."
+            ),
+            Self::TerminalSessionLost => write!(
+                f,
+                "The terminal session the agent was running commands in ended or switched \
+                 (e.g. an SSH session closed), so the run could not continue. Commands are never \
+                 re-targeted to another session or machine; start a new conversation after \
+                 reconnecting."
             ),
             Self::CloudStartupFailed(msg) => write!(f, "{msg}"),
             Self::ChatGPTSubscriptionError {

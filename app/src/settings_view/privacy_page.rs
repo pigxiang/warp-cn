@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::time::Duration;
 
 use pathfinder_geometry::vector::vec2f;
@@ -43,8 +43,7 @@ use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings::{
-    AISettings, BlockWarpCloudServices, CustomSecretRegex, PrivacySettings, RegexDisplayInfo,
-    WarpDrivePrivacySettings,
+    AISettings, CustomSecretRegex, PrivacySettings, RegexDisplayInfo, WarpDrivePrivacySettings,
 };
 use crate::settings_view::privacy::AddRegexModalViewState;
 use crate::settings_view::render_body_item_label;

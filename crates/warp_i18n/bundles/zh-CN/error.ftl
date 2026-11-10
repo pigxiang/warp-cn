@@ -25,3 +25,6 @@ error-fork-and-compact-requires-active-conversation = /fork-and-compact 需要�
 error-compact-and-requires-active-conversation = /compact-and 需要一个活动会话
 error-queue-requires-active-conversation = /queue 需要一个活动会话
 error-queue-requires-prompt = /queue 需要一个提示词参数
+
+# Agent 终端会话漂移防护
+error-agent-terminal-session-lost = 智能体执行命令所在的终端会话已结束或切换（例如 SSH 连接断开）。命令不会被转到其他机器继续执行，该对话已停止。

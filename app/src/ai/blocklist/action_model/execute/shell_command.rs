@@ -13,6 +13,7 @@ use parking_lot::{FairMutex, Mutex};
 use warp_core::command::ExitCode;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
+use warp_core::SessionId;
 use warp_terminal::event::ObservedExitStatus;
 use warp_util::path::ShellFamily;
 use warpui::r#async::{Spawnable, Timer};
@@ -56,6 +57,13 @@ pub struct ShellCommandExecutor {
     terminal_view_id: EntityId,
     /// Sender to notify when user hands control back to agent after TransferShellCommandControlToUser.
     control_handback_sender: Option<oneshot::Sender<()>>,
+    /// Session each conversation's shell actions were first dispatched against.
+    /// Later actions only run while the terminal is still attached to that
+    /// session; when it ends or switches (e.g. an SSH remote shell exits and
+    /// the pane falls back to its outer local shell) commands must never be
+    /// silently re-targeted onto another machine, so they are blocked and the
+    /// conversation is failed.
+    conversation_session_anchors: HashMap<AIConversationId, SessionId>,
     /// Liveness signals for the long-running commands this agent is monitoring.
     /// Shared with the snapshot futures, which have no `ModelContext`.
     activity_monitor: Arc<LrcActivityMonitor>,
@@ -104,6 +112,7 @@ impl ShellCommandExecutor {
             shell_recovery_senders: HashMap::new(),
             terminal_view_id,
             control_handback_sender: None,
+            conversation_session_anchors: HashMap::new(),
             activity_monitor: Arc::new(LrcActivityMonitor::new()),
             shell_recovery: None,
             recovering_block_id: Arc::new(Mutex::new(None)),
@@ -304,11 +313,90 @@ impl ShellCommandExecutor {
         }
     }
 
+    /// True while the conversation's shell actions still target the session they
+    /// started in. The first check anchors the conversation to the active
+    /// session; later checks compare. On drift, drops the anchor and emits
+    /// [`ShellCommandExecutorEvent::AgentSessionLost`] so the view fails the
+    /// conversation; the caller must not dispatch the action.
+    fn conversation_session_is_anchored(
+        &mut self,
+        conversation_id: AIConversationId,
+        ctx: &mut ModelContext<Self>,
+    ) -> bool {
+        let Some(current) = self.active_session.as_ref(ctx).session_id(ctx) else {
+            // Nothing to compare until the terminal has a bootstrapped active session.
+            return true;
+        };
+        match self.conversation_session_anchors.get(&conversation_id).copied() {
+            None => {
+                self.conversation_session_anchors
+                    .insert(conversation_id, current);
+                true
+            }
+            Some(anchored) if anchored == current => true,
+            Some(_) => {
+                self.conversation_session_anchors.remove(&conversation_id);
+                log::error!(
+                    "Agent session anchor lost for conversation {conversation_id}: the terminal \
+                     switched sessions; blocking commands from being re-targeted."
+                );
+                ctx.emit(ShellCommandExecutorEvent::AgentSessionLost { conversation_id });
+                false
+            }
+        }
+    }
+
+    /// The per-action-type "not executed" result used when
+    /// [`Self::conversation_session_is_anchored`] rejects an action.
+    fn session_lost_result(action: &AIAgentActionType) -> AIAgentActionResultType {
+        match action {
+            AIAgentActionType::RequestCommandOutput { .. } => {
+                AIAgentActionResultType::RequestCommandOutput(
+                    RequestCommandOutputResult::CancelledBeforeExecution,
+                )
+            }
+            AIAgentActionType::WriteToLongRunningShellCommand { .. } => {
+                AIAgentActionResultType::WriteToLongRunningShellCommand(
+                    WriteToLongRunningShellCommandResult::Cancelled,
+                )
+            }
+            AIAgentActionType::ReadShellCommandOutput { .. } => {
+                AIAgentActionResultType::ReadShellCommandOutput(
+                    ReadShellCommandOutputResult::Cancelled,
+                )
+            }
+            AIAgentActionType::TransferShellCommandControlToUser { .. } => {
+                AIAgentActionResultType::TransferShellCommandControlToUser(
+                    TransferShellCommandControlToUserResult::Cancelled,
+                )
+            }
+            _ => unreachable!(
+                "ShellCommandExecutor only executes actions handled by execute(), all of which \
+                 have a cancelled result above."
+            ),
+        }
+    }
+
     pub(super) fn execute(
         &mut self,
         input: ExecuteActionInput,
         ctx: &mut ModelContext<Self>,
     ) -> impl Into<AnyActionExecution> + use<> {
+        // Run before touching the terminal model: if the session the conversation
+        // started in ended or switched (e.g. an SSH remote shell exited and the
+        // pane fell back to the outer local shell), no further shell action may
+        // be dispatched — it would silently execute on a different machine.
+        if matches!(
+            &input.action.action,
+            AIAgentActionType::RequestCommandOutput { .. }
+                | AIAgentActionType::WriteToLongRunningShellCommand { .. }
+                | AIAgentActionType::ReadShellCommandOutput { .. }
+                | AIAgentActionType::TransferShellCommandControlToUser { .. }
+        ) && !self.conversation_session_is_anchored(input.conversation_id, ctx)
+        {
+            return ActionExecution::Sync(Self::session_lost_result(&input.action.action));
+        }
+
         let model = self.terminal_model.lock();
 
         // Determine the action we want to take based on the input.
@@ -1217,6 +1305,12 @@ pub enum ShellCommandExecutorEvent {
         block_id: BlockId,
     },
     /// Emitted when the agent requests to transfer control of a long-running command to the user.
+    /// The session the conversation's shell actions were anchored to ended or
+    /// switched mid-run (e.g. the SSH remote shell exited and the pane fell back
+    /// to its outer local shell). All further PTY actions for the conversation
+    /// have been blocked; the view must fail the conversation and surface the
+    /// error to the user.
+    AgentSessionLost { conversation_id: AIConversationId },
     TransferControlToUser {
         action_id: AIAgentActionId,
         reason: String,

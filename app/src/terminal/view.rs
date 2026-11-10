@@ -7953,6 +7953,15 @@ impl TerminalView {
                     self.write_to_pty(vec![escape_sequences::C0::ETX], ctx);
                 }
             }
+            ShellCommandExecutorEvent::AgentSessionLost { conversation_id } => {
+                self.show_error_toast(
+                    warp_i18n::t!("error-agent-terminal-session-lost").to_owned(),
+                    ctx,
+                );
+                self.ai_controller.update(ctx, |controller, ctx| {
+                    controller.fail_conversation_due_to_session_loss(*conversation_id, ctx);
+                });
+            }
             ShellCommandExecutorEvent::TransferControlToUser { reason, .. } => {
                 // Transfer control of the long-running command to the user.
                 self.cli_subagent_controller.update(ctx, |controller, ctx| {

@@ -25,3 +25,6 @@ error-fork-and-compact-requires-active-conversation = /fork-and-compact requires
 error-compact-and-requires-active-conversation = /compact-and requires an active conversation
 error-queue-requires-active-conversation = /queue requires an active conversation
 error-queue-requires-prompt = /queue requires a prompt argument
+
+# Agent terminal-session drift guard
+error-agent-terminal-session-lost = The terminal session the agent was running commands in has ended or switched (e.g. an SSH connection closed). Commands were not re-targeted to another machine, and the conversation was stopped.

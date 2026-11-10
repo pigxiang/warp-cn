@@ -656,6 +656,87 @@ fn fail_conversation_due_to_shell_exit_reports_error_and_survives_manual_cancel(
     });
 }
 
+/// When the session a conversation's shell actions were anchored to ends or
+/// switches (e.g. an SSH remote shell exits and the pane falls back to its
+/// outer local shell), the drift guard fails the conversation as `Error`, and
+/// a subsequent `ManuallyCancelled` must not overwrite that failure.
+#[test]
+fn fail_conversation_due_to_session_loss_reports_error_and_survives_manual_cancel() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        let conversation_id = terminal.update(&mut app, |view, ctx| {
+            let terminal_surface_id = view.id();
+            let stream_id = ResponseStreamId::new_for_test();
+            let conversation_id =
+                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
+                    let conversation_id = history.start_new_conversation(
+                        terminal_surface_id,
+                        false,
+                        false,
+                        false,
+                        ctx,
+                    );
+                    let task_id = history
+                        .conversation(&conversation_id)
+                        .unwrap()
+                        .get_root_task_id()
+                        .clone();
+                    history
+                        .update_conversation_for_new_request_input(
+                            RequestInput {
+                                conversation_id,
+                                input_messages: HashMap::from([(task_id, vec![])]),
+                                working_directory: None,
+                                model_id: LLMId::from("test-model"),
+                                coding_model_id: LLMId::from("test-coding-model"),
+                                cli_agent_model_id: LLMId::from("test-cli-agent-model"),
+                                computer_use_model_id: LLMId::from("test-computer-use-model"),
+                                shared_session_response_initiator: None,
+                                request_start_ts: Local::now(),
+                                supported_tools_override: None,
+                            },
+                            stream_id.clone(),
+                            terminal_surface_id,
+                            ctx,
+                        )
+                        .unwrap();
+                    conversation_id
+                });
+            let stream = ctx.add_model(|_| ResponseStream::new_for_test(stream_id.clone()));
+            view.ai_controller().update(ctx, |controller, ctx| {
+                controller.register_mock_stream_for_test(stream_id, conversation_id, stream, ctx);
+                controller.fail_conversation_due_to_session_loss(conversation_id, ctx);
+            });
+            conversation_id
+        });
+
+        BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
+            assert_eq!(
+                history.conversation(&conversation_id).map(|c| c.status()),
+                Some(&crate::ai::agent::conversation::ConversationStatus::Error)
+            );
+        });
+
+        terminal.update(&mut app, |view, ctx| {
+            view.ai_controller().update(ctx, |controller, ctx| {
+                controller.cancel_conversation_progress(
+                    conversation_id,
+                    CancellationReason::ManuallyCancelled,
+                    ctx,
+                );
+            });
+        });
+        BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
+            assert_eq!(
+                history.conversation(&conversation_id).map(|c| c.status()),
+                Some(&crate::ai::agent::conversation::ConversationStatus::Error)
+            );
+        });
+    });
+}
+
 /// An optimistic long-running-command completion that cancels an in-flight
 /// stream must finalize the conversation as `Success`, not `Cancelled`. This is
 /// a regression test for the reason -> status mapping living in a single place

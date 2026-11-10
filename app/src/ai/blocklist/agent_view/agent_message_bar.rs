@@ -795,7 +795,8 @@ fn should_fork_from_last_known_good_state(
         // can fork from the last known good state to continue in a fresh one.
         RenderableAIError::InternalWarpError
         | RenderableAIError::AgentStreamFailure { .. }
-        | RenderableAIError::AgentExitedShell { .. } => true,
+        | RenderableAIError::AgentExitedShell { .. }
+        | RenderableAIError::TerminalSessionLost => true,
         RenderableAIError::Other {
             will_attempt_resume,
             ..
