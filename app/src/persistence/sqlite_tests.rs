@@ -630,7 +630,7 @@ fn test_sqlite_round_trips_code_pane_with_multiple_tabs() {
         ..
     }) = &restored_tab.root
     else {
-        panic!("Expected code pane leaf");
+        panic!("Expected code pane leaf, got: {:?}", restored_tab.root);
     };
 
     assert_eq!(tabs.len(), 3);

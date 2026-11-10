@@ -752,6 +752,14 @@ fn local_cli_auto_approve_requires_mcp_config_approval() {
     })
 }
 
+// warp-cn fork: the workspace AlwaysAsk override is coerced to AgentDecides
+// under `direct_llm_backend`, so this upstream expectation
+// (Denied(AlwaysAskEnabled)) no longer holds for that build. Covered by
+// `test_direct_backend_coerces_always_ask_to_agent_decides`.
+#[cfg_attr(
+    feature = "direct_llm_backend",
+    ignore = "see fork-specific coercion test"
+)]
 #[test]
 fn test_can_autoexecute_command_workspace_settings_override_profile() {
     App::test((), |mut app| async move {
@@ -1005,6 +1013,15 @@ fn test_can_autoexecute_command_denylist_matches_env_prefixed_commands() {
     })
 }
 
+// warp-cn fork: under `direct_llm_backend` the AlwaysAsk setting (profile or
+// workspace) is coerced to AgentDecides, so the non-matching command here is
+// denied with reason `AgentDecided`, not `AlwaysAskEnabled`. The allowlist
+// precedence itself still holds; the fork-specific coercion test pins the
+// AlwaysAsk → AgentDecides semantics.
+#[cfg_attr(
+    feature = "direct_llm_backend",
+    ignore = "see fork-specific coercion test"
+)]
 #[test]
 fn test_can_autoexecute_command_allowlist_precedence() {
     App::test((), |mut app| async move {

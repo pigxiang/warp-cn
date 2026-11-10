@@ -121,6 +121,10 @@ const COMMANDS_COUNT_LIMIT: i64 = 10000;
 
 const WARP_SQLITE_FILE_NAME: &str = "warp.sqlite";
 
+// Pane kind written by pre-removal builds for workflow panes; the writer side no
+// longer emits it, so it only appears when restoring an old database.
+const LEGACY_WORKFLOW_PANE_KIND: &str = "workflow";
+
 /// Runs any migrations and creates the Sqlite database if it doesn't exist.
 /// Reads from the sqlite database to get the app state for session restoration.
 /// Starts a writer thread that listens for ModelEvents and processes them.
@@ -2215,7 +2219,7 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                 }
                 // Workflows were removed; a saved workflow pane restores as an empty scratch
                 // buffer so the tab layout survives.
-                _WORKFLOW_PANE_KIND => {
+                LEGACY_WORKFLOW_PANE_KIND => {
                     LeafContents::Notebook(NotebookPaneSnapshot::LocalFileNotebook { path: None })
                 }
                 CODE_PANE_KIND => {

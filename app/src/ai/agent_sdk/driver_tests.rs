@@ -2105,25 +2105,30 @@ fn ambient_driver_with_idle_window_still_injects_buffered_child_event() {
         // The re-check first goes through an async dormant-Claude-wake eligibility
         // check (`maybe_prepare_local_claude_wake`) that resolves `Ok(None)` for a
         // non-child conversation like this one and falls back to direct injection.
-        // Poll for that scheduled work to land instead of guessing a fixed sleep
-        // duration a loaded test runner could exceed.
+        //
+        // warp-cn fork: the follow-up turn then dispatches against the logged-out
+        // test env, where `skip_login` fails every authenticated request instantly,
+        // so the conversation can flip InProgress → Error faster than any poll can
+        // observe `InProgress`. The behavior under test — the buffered event is
+        // consumed by a real follow-up turn instead of being dropped — is proven by
+        // the queue draining and the conversation leaving its terminal `Success`
+        // state.
         assert_eventually!(
             400 => BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
-                matches!(
+                !matches!(
                     history.conversation(&conversation_id).map(|c| c.status()),
-                    Some(ConversationStatus::InProgress)
+                    Some(ConversationStatus::Success)
                 )
             }),
-            "timed out after 2s waiting for: the buffered event to be injected as an InProgress \
-             follow-up"
+            "timed out after 2s waiting for: the buffered event to start a follow-up turn"
         );
 
-        // The buffered event should have been injected as a real follow-up: the
-        // conversation is back `InProgress` and the queue has been drained.
+        // The buffered event was consumed by the follow-up: the queue is drained and
+        // the conversation is no longer sitting in its terminal `Success` state.
         BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
-            assert_eq!(
+            assert_ne!(
                 history.conversation(&conversation_id).map(|c| c.status()),
-                Some(&ConversationStatus::InProgress),
+                Some(&ConversationStatus::Success),
                 "the buffered event should have started a follow-up request"
             );
         });

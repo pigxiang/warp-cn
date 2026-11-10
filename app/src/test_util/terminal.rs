@@ -73,6 +73,10 @@ use crate::{AgentNotificationsModel, experiments};
 
 /// Initializes all of the necessary models to use a terminal view.
 pub fn initialize_app_for_terminal_view(app: &mut App) {
+    // Menu labels go through t!(); without an initialized bundle they render as
+    // `{key}` placeholders and label-based assertions fail.
+    let _ = warp_i18n::init(warp_i18n::Locale::En);
+    warp_i18n::set_locale(warp_i18n::Locale::En);
     initialize_history_persistence_for_tests(app);
 
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());

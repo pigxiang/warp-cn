@@ -153,7 +153,9 @@ fn surface_list_rejects_target_selectors() {
 
 #[test]
 fn capabilities_advertises_the_complete_catalog() {
-    assert_eq!(capabilities().len(), 84);
+    // warp-cn lite: the two `surface.warp_drive.*` actions were removed from the
+    // catalog with Warp Drive, leaving 82 implemented actions.
+    assert_eq!(capabilities().len(), 82);
 }
 
 #[test]

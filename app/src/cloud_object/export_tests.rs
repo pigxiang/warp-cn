@@ -144,72 +144,27 @@ fn add_notebook(id: SyncId, title: impl Into<String>, data: impl Into<String>, a
 }
 
 #[test]
-fn test_export_workflow_success() {
+fn test_export_notebook_duplicate() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        let workflow_id = SyncId::ServerId(WorkflowId::from(123).into());
-        let workflow = Workflow::new("Test workflow", "echo hello world");
-        add_workflow(workflow_id, workflow, &mut app);
+        let notebook_id = SyncId::ServerId(NotebookId::from(456).into());
+        add_notebook(notebook_id, "Test notebook", "This is a test notebook", &mut app);
 
-        let exporter = ExportTest::new("test_export_workflow_success", &mut app);
-        let (id, export) = exporter.start_export(
-            CloudObjectTypeAndId::from_id_and_type(workflow_id, ObjectType::Workflow),
-            &mut app,
-        );
-        let expected_path = exporter.path("Test workflow.yaml", None, &app);
-
-        // The export should succeed.
-        assert_eq!(
-            export.await,
-            Ok(ExportEvent::Completed {
-                id,
-                path: expected_path.clone()
-            })
-        );
-
-        let contents =
-            fs::read_to_string(&expected_path).expect("failed to read exported workflow");
-        assert_eq!(
-            &contents,
-            r#"---
-name: Test workflow
-command: echo hello world
-description: ~
-arguments: []
-tags: []
-source_url: ~
-author: ~
-author_url: ~
-shells: []
-"#
-        );
-    });
-}
-
-#[test]
-fn test_export_workflow_duplicate() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let workflow_id = SyncId::ServerId(WorkflowId::from(123).into());
-        let workflow = Workflow::new("Test workflow", "echo hello world");
-        add_workflow(workflow_id, workflow, &mut app);
-
-        let exporter = ExportTest::new("test_export_workflow_duplicate", &mut app);
+        let exporter = ExportTest::new("test_export_notebook_duplicate", &mut app);
 
         // Create a file at the default export path.
         fs::write(
-            exporter.path("Test workflow.yaml", None, &app),
+            exporter.path("Test notebook.md", None, &app),
             "Already exists",
         )
-        .expect("failed to write existing workflow");
+        .expect("failed to write existing notebook");
 
         let (id, export) = exporter.start_export(
-            CloudObjectTypeAndId::from_id_and_type(workflow_id, ObjectType::Workflow),
+            CloudObjectTypeAndId::from_id_and_type(notebook_id, ObjectType::Notebook),
             &mut app,
         );
-        let expected_path = exporter.path("Test workflow (1).yaml", None, &app);
+        let expected_path = exporter.path("Test notebook (1).md", None, &app);
 
         // The export should succeed, and not overwrite the existing file.
         assert_eq!(
@@ -221,45 +176,31 @@ fn test_export_workflow_duplicate() {
         );
 
         assert_eq!(
-            fs::read_to_string(exporter.path("Test workflow.yaml", None, &app))
+            fs::read_to_string(exporter.path("Test notebook.md", None, &app))
                 .expect("failed to read original file"),
             "Already exists"
         );
 
         let contents =
-            fs::read_to_string(&expected_path).expect("failed to read exported workflow");
-        assert_eq!(
-            &contents,
-            r#"---
-name: Test workflow
-command: echo hello world
-description: ~
-arguments: []
-tags: []
-source_url: ~
-author: ~
-author_url: ~
-shells: []
-"#
-        );
+            fs::read_to_string(&expected_path).expect("failed to read exported notebook");
+        assert_eq!(&contents, "This is a test notebook");
     });
 }
 
 #[test]
-fn test_export_workflow_failure() {
+fn test_export_notebook_failure() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        let workflow_id = SyncId::ServerId(WorkflowId::from(123).into());
-        let workflow = Workflow::new("Test workflow", "echo hello world");
-        add_workflow(workflow_id, workflow, &mut app);
+        let notebook_id = SyncId::ServerId(NotebookId::from(456).into());
+        add_notebook(notebook_id, "Test notebook", "This is a test notebook", &mut app);
 
-        let exporter = ExportTest::new("test_export_workflow_failure", &mut app);
+        let exporter = ExportTest::new("test_export_notebook_failure", &mut app);
         // Ensure that the export will fail.
         fs::remove_dir_all(exporter.target_dir.path()).expect("Could not remove test directory");
 
         let (id, export) = exporter.start_export(
-            CloudObjectTypeAndId::from_id_and_type(workflow_id, ObjectType::Workflow),
+            CloudObjectTypeAndId::from_id_and_type(notebook_id, ObjectType::Notebook),
             &mut app,
         );
 
@@ -381,16 +322,20 @@ fn test_export_with_special_characters() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        let workflow_id = SyncId::ServerId(WorkflowId::from(123).into());
-        let workflow = Workflow::new("Prefix: Some/workflow", "echo hello world");
-        add_workflow(workflow_id, workflow, &mut app);
+        let notebook_id = SyncId::ServerId(NotebookId::from(456).into());
+        add_notebook(
+            notebook_id,
+            "Prefix: Some/notebook",
+            "This is a test notebook",
+            &mut app,
+        );
 
         let exporter = ExportTest::new("test_export_with_special_characters", &mut app);
         let (id, export) = exporter.start_export(
-            CloudObjectTypeAndId::from_id_and_type(workflow_id, ObjectType::Workflow),
+            CloudObjectTypeAndId::from_id_and_type(notebook_id, ObjectType::Notebook),
             &mut app,
         );
-        let expected_path = exporter.path("Prefix_ Some_workflow.yaml", None, &app);
+        let expected_path = exporter.path("Prefix_ Some_notebook.md", None, &app);
 
         // The export should succeed, and transform the path.
         assert_eq!(
@@ -424,30 +369,24 @@ fn test_export_multiple_objects() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        // Create two workflows and a notebook
-        let workflow_id1 = SyncId::ServerId(WorkflowId::from(123).into());
-        let workflow1 = Workflow::new("Test workflow 1", "echo hello world");
-        add_workflow(workflow_id1, workflow1, &mut app);
+        // Create three notebooks (workflows were removed in the lite fork; the
+        // bulk-export path is exercised with the remaining exportable type).
+        let notebook_id1 = SyncId::ServerId(NotebookId::from(789).into());
+        add_notebook(notebook_id1, "Test notebook 1", "This is notebook one", &mut app);
 
-        let workflow_id2 = SyncId::ServerId(WorkflowId::from(456).into());
-        let workflow2 = Workflow::new("Test workflow 2", "echo goodbye world");
-        add_workflow(workflow_id2, workflow2, &mut app);
+        let notebook_id2 = SyncId::ServerId(NotebookId::from(790).into());
+        add_notebook(notebook_id2, "Test notebook 2", "This is notebook two", &mut app);
 
-        let notebook_id = SyncId::ServerId(NotebookId::from(789).into());
-        add_notebook(
-            notebook_id,
-            "Test notebook",
-            "This is a test notebook",
-            &mut app,
-        );
+        let notebook_id3 = SyncId::ServerId(NotebookId::from(791).into());
+        add_notebook(notebook_id3, "Test notebook 3", "This is notebook three", &mut app);
 
         let exporter = ExportTest::new("test_export_multiple_objects", &mut app);
 
         // Prepare export IDs for all three objects
         let export_ids = vec![
-            CloudObjectTypeAndId::from_id_and_type(workflow_id1, ObjectType::Workflow),
-            CloudObjectTypeAndId::from_id_and_type(workflow_id2, ObjectType::Workflow),
-            CloudObjectTypeAndId::from_id_and_type(notebook_id, ObjectType::Notebook),
+            CloudObjectTypeAndId::from_id_and_type(notebook_id1, ObjectType::Notebook),
+            CloudObjectTypeAndId::from_id_and_type(notebook_id2, ObjectType::Notebook),
+            CloudObjectTypeAndId::from_id_and_type(notebook_id3, ObjectType::Notebook),
         ];
 
         // Create channels for all exports
@@ -494,24 +433,24 @@ fn test_export_multiple_objects() {
         }
 
         // Verify the contents of each exported file
-        let workflow1_path = exporter.path("Test workflow 1.yaml", Some(Space::Personal), &app);
-        let workflow1_contents =
-            fs::read_to_string(&workflow1_path).expect("Failed to read workflow 1");
-        assert!(workflow1_contents.contains("echo hello world"));
+        let notebook1_path = exporter.path("Test notebook 1.md", Some(Space::Personal), &app);
+        let notebook1_contents =
+            fs::read_to_string(&notebook1_path).expect("Failed to read notebook 1");
+        assert!(notebook1_contents.contains("This is notebook one"));
 
-        let workflow2_path = exporter.path("Test workflow 2.yaml", Some(Space::Personal), &app);
-        let workflow2_contents =
-            fs::read_to_string(&workflow2_path).expect("Failed to read workflow 2");
-        assert!(workflow2_contents.contains("echo goodbye world"));
+        let notebook2_path = exporter.path("Test notebook 2.md", Some(Space::Personal), &app);
+        let notebook2_contents =
+            fs::read_to_string(&notebook2_path).expect("Failed to read notebook 2");
+        assert!(notebook2_contents.contains("This is notebook two"));
 
-        let notebook_path = exporter.path("Test notebook.md", Some(Space::Personal), &app);
-        let notebook_contents =
-            fs::read_to_string(&notebook_path).expect("Failed to read notebook");
-        assert!(notebook_contents.contains("This is a test notebook"));
+        let notebook3_path = exporter.path("Test notebook 3.md", Some(Space::Personal), &app);
+        let notebook3_contents =
+            fs::read_to_string(&notebook3_path).expect("Failed to read notebook 3");
+        assert!(notebook3_contents.contains("This is notebook three"));
 
         // Check that all files were created
-        assert!(workflow1_path.exists(), "Workflow 1 file does not exist");
-        assert!(workflow2_path.exists(), "Workflow 2 file does not exist");
-        assert!(notebook_path.exists(), "Notebook file does not exist");
+        assert!(notebook1_path.exists(), "Notebook 1 file does not exist");
+        assert!(notebook2_path.exists(), "Notebook 2 file does not exist");
+        assert!(notebook3_path.exists(), "Notebook 3 file does not exist");
     });
 }

@@ -1313,12 +1313,14 @@ fn test_bulk_create_generic_string_objects() {
                 );
             });
 
-        // Make sure that we won't block quitting even though there are pending changes at this point.
+        // warp-cn lite: the inputs are AIFact objects (the removed settings-sync
+        // objects used to be non-warning), and AIFacts do warn when unsaved, so
+        // both pending objects count toward the quit warning.
         CloudModel::handle(&app).read(&app, |cloud_model, _| {
             assert_eq!(cloud_model.num_unsaved_objects(), 2);
             assert_eq!(
                 cloud_model.num_unsaved_objects_to_warn_about_before_quitting(),
-                0
+                2
             );
         });
 

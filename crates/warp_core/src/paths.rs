@@ -402,6 +402,14 @@ pub fn app_group_container_path() -> Option<PathBuf> {
     static CONTAINER_PATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
         use objc2_foundation::{NSFileManager, NSString};
 
+        // Ops escape hatch: resolving/creating files inside the app-group vault is
+        // brokered by containermanagerd; if that broker is wedged the probe below
+        // blocks forever and takes down every caller (including unit tests). Setting
+        // this env var skips the container and falls back to the plain state dir.
+        if std::env::var_os("WARP_SKIP_APP_GROUP_CONTAINER").is_some() {
+            return None;
+        }
+
         let fm = NSFileManager::defaultManager();
         // Keep in sync with Entitlements.plist
         let group_id = format!("{}.dev.warp", crate::macos::APPLE_TEAM_ID);
