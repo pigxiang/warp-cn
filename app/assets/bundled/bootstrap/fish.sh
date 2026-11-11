@@ -902,7 +902,7 @@ test -n '$WARP_CLI_AGENT_PROTOCOL_VERSION' && export WARP_CLI_AGENT_PROTOCOL_VER
 # Start the remote shell in the same directory as the session this pane was
 # split from (the bootstrap body consumes WARP_INITIAL_WORKING_DIR).
 test -n '$remote_startup_dir' && export WARP_INITIAL_WORKING_DIR='$remote_startup_dir'
-hook="'$(printf "{\"hook\": \"SSH\", \"value\": {\"socket_path\": \"'$control_path'\", \"remote_shell\": \"%s\", \"session_id\": '"$WARP_SESSION_ID"', \"remote_session_id\": '"$remote_session_id"', \"external_control_master\": '"$external_control_master"'}}" "${SHELL##*/}" | command od -An -v -tx1 | command tr -d " \n")'"
+hook="'$(printf "{\"hook\": \"SSH\", \"value\": {\"socket_path\": \"'$control_path'\", \"remote_shell\": \"%s\", \"session_id\": '"$WARP_SESSION_ID"', \"remote_session_id\": '"$remote_session_id"', \"external_control_master\": '"$external_control_master"', \"probe\": {\"uname_sm\": \"%s\", \"bin_present\": %s, \"dir_exists\": %s}}}" "${SHELL##*/}" "$(command -p uname -sm 2>/dev/null)" "$(test x@@SSH_PROBE_BINARY@@ != x 2>/dev/null && test -x @@SSH_PROBE_BINARY@@ 2>/dev/null && echo true || echo false)" "$(test x@@SSH_PROBE_DIR@@ != x 2>/dev/null && test -d @@SSH_PROBE_DIR@@ 2>/dev/null && echo true || echo false)" | command od -An -v -tx1 | command tr -d " \n")'"
 printf '$DCS_START$DCS_JSON_MARKER%s$DCS_END' "'$hook'"
 
 if test "'"${SHELL##*/}" != "bash" -a "${SHELL##*/}" != "zsh"'"; then

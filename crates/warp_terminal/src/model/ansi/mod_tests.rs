@@ -572,6 +572,7 @@ fn parse_dcs_ssh() {
                 session_id: Some(167303092612201),
                 remote_session_id: Some(167303092612202),
                 external_control_master: false,
+                probe: None,
             }
         ),
         _ => panic!("incorrect dcs value"),
@@ -604,8 +605,38 @@ fn parse_dcs_ssh_with_external_control_master() {
                 session_id: Some(167303092612201),
                 remote_session_id: Some(167303092612202),
                 external_control_master: true,
+                probe: None,
             }
         ),
+        _ => panic!("incorrect dcs value"),
+    };
+}
+
+#[test]
+fn parse_dcs_ssh_with_probe() {
+    let bytes = hex_encoded_dcs_string(
+        r#"{
+                "hook": "SSH",
+                "value": {
+                    "socket_path": "/home/user/.ssh/cm-user@host:22",
+                    "remote_shell": "zsh",
+                    "session_id": 167303092612201,
+                    "remote_session_id": 167303092612202,
+                    "external_control_master": false,
+                    "probe": {"uname_sm": "Linux x86_64", "bin_present": true, "dir_exists": true}
+                }
+            }"#,
+    );
+    let (_, handler) = parse_bytes(&bytes);
+
+    assert_eq!(handler.d_proto_hooks.len(), 1);
+    match handler.d_proto_hooks.first().unwrap() {
+        DProtoHook::SSH { value } => {
+            let probe = value.probe.clone().expect("probe parsed");
+            assert_eq!(probe.uname_sm, "Linux x86_64");
+            assert!(probe.bin_present);
+            assert!(probe.dir_exists);
+        }
         _ => panic!("incorrect dcs value"),
     };
 }

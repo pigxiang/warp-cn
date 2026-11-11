@@ -162,8 +162,8 @@ pub fn wire_up_remote_server_controller_with_view<T: EventLoopSender>(
                 });
             }
             view::Event::RemoteServerSkipRequested { session_id } => {
-                controller.update(ctx, |ctrl, ctx| {
-                    ctrl.handle_ssh_remote_server_skip(*session_id, ctx);
+                controller.update(ctx, |ctrl, _ctx| {
+                    ctrl.handle_ssh_remote_server_skip(*session_id);
                 });
             }
             _ => {}

@@ -1942,6 +1942,14 @@ pub(crate) fn initialize_app(
 
     ctx.add_singleton_model(|_ctx| SyncedInputState::new());
 
+    // Register remote-server probe paths before any bootstrap body is cached
+    // so the SSH wrapper can probe the remote host during the connection
+    // itself (see warp_terminal::bootstrap).
+    warp_terminal::bootstrap::set_ssh_probe_paths(
+        remote_server::setup::remote_server_binary(),
+        remote_server::setup::remote_server_dir(),
+    );
+
     ctx.add_singleton_model(remote_server::manager::RemoteServerManager::new);
     #[cfg(not(target_family = "wasm"))]
     ctx.add_singleton_model(remote_server::codebase_index_model::RemoteCodebaseIndexModel::new);

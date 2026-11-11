@@ -8866,24 +8866,10 @@ impl TerminalView {
             return false;
         }
 
-        // Hide the input box while the SSH remote-server choice block is shown.
-        // User must choose to install or skip before any shell input is possible.
-        if self.active_ssh_remote_server_choice_block().is_some() {
-            return false;
-        }
-
-        // Hide the input box during the entire remote-server setup flow.
-        // The loading footer renders instead.
-        if FeatureFlag::SshRemoteServer.is_enabled()
-            && let Some(pending_sid) = model.pending_session_id()
-            && self
-                .sessions
-                .as_ref(app)
-                .remote_server_setup_state(pending_sid)
-                .is_some_and(|state| state.is_in_progress())
-        {
-            return false;
-        }
+        // Remote-server setup (check / install / connect) no longer hides the
+        // input box: the bootstrap is written at SSH-init time so the shell,
+        // editor and completions are interactive immediately and the
+        // remote-server capabilities attach when setup finishes.
 
         let active_ai_block = self.active_ai_block(app);
         if active_ai_block.is_some_and(|ai_block| {

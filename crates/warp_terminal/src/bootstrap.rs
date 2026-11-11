@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::sync::OnceLock;
 
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -10,6 +11,35 @@ use warpui_core::AssetProvider;
 use crate::shell::ShellType;
 
 const BYTE_ORDER_MARK: &str = "\u{FEFF}";
+
+/// Placeholder in the SSH wrapper bodies for the expected remote-server
+/// binary path, replaced with the value registered via
+/// [`set_ssh_probe_paths`] when the bootstrap script is built.
+pub const SSH_PROBE_BINARY_PLACEHOLDER: &str = "@@SSH_PROBE_BINARY@@";
+/// Placeholder in the SSH wrapper bodies for the remote-server install
+/// directory. See [`SSH_PROBE_BINARY_PLACEHOLDER`].
+pub const SSH_PROBE_DIR_PLACEHOLDER: &str = "@@SSH_PROBE_DIR@@";
+
+static SSH_PROBE_PATHS: OnceLock<(String, String)> = OnceLock::new();
+
+/// Registers the remote-server binary path and install directory used to
+/// interpolate the wrapper's connection-time probe into bootstrap bodies.
+/// Both values are static for the lifetime of the process (derived from the
+/// build's channel and version), and must be registered before the first
+/// bootstrap body is cached; unregistered builds emit an empty probe, which
+/// clients treat as "no probe" and fall back to the post-connect checks.
+pub fn set_ssh_probe_paths(binary_path: String, dir_path: String) {
+    let _ = SSH_PROBE_PATHS.set((binary_path, dir_path));
+}
+
+fn ssh_probe_replacements(data: String) -> String {
+    let (binary, dir) = SSH_PROBE_PATHS
+        .get()
+        .map(|paths| (paths.0.as_str(), paths.1.as_str()))
+        .unwrap_or_default();
+    data.replace(SSH_PROBE_BINARY_PLACEHOLDER, binary)
+        .replace(SSH_PROBE_DIR_PLACEHOLDER, dir)
+}
 
 lazy_static! {
     /// A memoized cache of the fully-interpolated bootstrap script for each
@@ -136,10 +166,10 @@ pub fn script_for_shell(shell_type: ShellType, assets: &dyn AssetProvider) -> Co
                                 });
                                 let data_string =
                                     unsafe { String::from_utf8_unchecked(data.to_vec()) };
-                                data_string.replace(
+                                ssh_probe_replacements(data_string.replace(
                                     "@@USING_CON_PTY_BOOLEAN@@",
                                     &(cfg!(windows).to_string()),
-                                )
+                                ))
                             })
                             .split('\n')
                             .map(trim_and_borrow_line)

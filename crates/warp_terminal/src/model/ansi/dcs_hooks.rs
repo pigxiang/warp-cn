@@ -928,6 +928,25 @@ pub struct PreInteractiveSSHSessionValue {
     pub pwd: Option<String>,
 }
 
+/// Remote-side remote-server binary facts collected by the SSH wrapper during
+/// the connection handshake and reported inside the SSH hook. Lets the client
+/// skip the post-connect binary-check round-trips.
+#[derive(Debug, Default, PartialEq, Eq, Deserialize, Serialize, Clone)]
+pub struct SSHProbeValue {
+    /// Raw `uname -sm` output from the remote host (e.g. `Linux x86_64`).
+    #[serde(default)]
+    pub uname_sm: String,
+    /// `true` when the expected remote-server binary path exists and is
+    /// executable on the remote host (`test -x`). Executability is verified
+    /// optimistically: a binary that exists but cannot run surfaces as SSH
+    /// exit 127 on the first proxy launch.
+    #[serde(default)]
+    pub bin_present: bool,
+    /// `true` when the remote-server install directory exists (`test -d`).
+    #[serde(default)]
+    pub dir_exists: bool,
+}
+
 /// Received from the pty after establishing an SSH connection, prior to
 /// bootstrapping the session.
 #[derive(Debug, Default, PartialEq, Eq, Deserialize, Serialize, Clone)]
@@ -944,6 +963,10 @@ pub struct SSHValue {
     /// `false` for hooks emitted by older bootstrap scripts.
     #[serde(default)]
     pub external_control_master: bool,
+    /// Remote-host probe collected by the wrapper at connection time.
+    /// `None` when emitted by older bootstrap scripts.
+    #[serde(default)]
+    pub probe: Option<SSHProbeValue>,
 }
 
 /// Received from the pty after the shell session has been initialized, marking

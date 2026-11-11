@@ -34,7 +34,7 @@ use warp_util::path::{
 use warpui::platform::OperatingSystem;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
-use super::ansi::{BootstrappedValue, InitShellValue, SSHValue};
+use super::ansi::{BootstrappedValue, InitShellValue, SSHProbeValue, SSHValue};
 use super::terminal_model::{HistoryEntry, SubshellInitializationInfo};
 #[cfg(feature = "local_tty")]
 use crate::features::FeatureFlag;
@@ -581,6 +581,9 @@ pub enum IsSSHWrapperSession {
         /// creating a Warp-owned one). Warp must not tear down such a
         /// master on session exit.
         external_control_master: bool,
+        /// Remote-host remote-server facts probed by the wrapper during the
+        /// connection; `None` from older bootstrap scripts or unparsable hooks.
+        probe: Option<SSHProbeValue>,
     },
     No,
 }
@@ -679,6 +682,7 @@ impl SessionInfo {
             Some(ssh_value) => IsSSHWrapperSession::Yes {
                 socket_path: ssh_value.socket_path,
                 external_control_master: ssh_value.external_control_master,
+                probe: ssh_value.probe,
             },
             None => IsSSHWrapperSession::No,
         };
@@ -1847,6 +1851,7 @@ pub mod testing {
             self.is_ssh_wrapper_session = IsSSHWrapperSession::Yes {
                 socket_path,
                 external_control_master: false,
+                probe: None,
             };
             self
         }
