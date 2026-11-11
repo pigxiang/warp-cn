@@ -197,11 +197,12 @@ pub fn decode(req: &api::Request) -> DecodedRequest {
     {
         atoms.push(Atom::UserText(prefix_query(
             &mut attached_context,
-            "[agent hint] The user finished interacting with the running command in the \
-             attached terminal block (they may have answered an interactive prompt, e.g. a \
-             password or confirmation). Re-read the block output above (or call \
-             read_shell_command_output) and continue the task. Do not assume the command \
-             failed, and do not re-run it just because a prompt looked unanswered.",
+            "[agent hint] The user just interacted with the long-running command in the \
+             attached terminal block and control came back to you; the command may still be \
+             running (e.g. an interactive prompt may have been answered). Check the block \
+             output above (or call read_shell_command_output) for its current state and \
+             continue the task. Do not assume the command failed, and do not re-run it just \
+             because a prompt looked unanswered.",
         )));
         has_user_input = true;
     }

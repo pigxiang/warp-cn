@@ -14277,7 +14277,7 @@ impl Input {
     /// Set input mode to Terminal Mode (shell command input)
     pub fn set_input_mode_terminal(&mut self, steal_focus: bool, ctx: &mut ViewContext<Self>) {
         let disabled = self.is_input_mode_toggle_disabled(ctx);
-        log::info!(
+        log::debug!(
             "input mode: set_input_mode_terminal(steal_focus={steal_focus}, disabled={disabled})"
         );
         if disabled {

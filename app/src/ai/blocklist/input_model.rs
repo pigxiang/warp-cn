@@ -471,7 +471,7 @@ impl BlocklistAIInputModel {
 
         let old_config = self.input_config;
 
-        log::info!(
+        log::debug!(
             "input config: {:?} -> {:?} (source={:?})",
             old_config,
             new_config,

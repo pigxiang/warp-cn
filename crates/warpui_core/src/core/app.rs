@@ -1594,7 +1594,14 @@ impl AppContext {
         arg: &dyn Any,
         log_level: log::Level,
     ) -> bool {
-        log::log!(log_level, "dispatching action for {name:?}");
+        log::log!(
+            if log_level == log::Level::Info {
+                log::Level::Debug
+            } else {
+                log_level
+            },
+            "dispatching action for {name:?}"
+        );
         self.pending_flushes += 1;
 
         let mut any_action_handled = false;
@@ -1660,8 +1667,17 @@ impl AppContext {
         action: &dyn Action,
         log_level: log::Level,
     ) -> bool {
+        // Routine per-action dispatch (every keystroke, mouse event, timer, editor
+        // mutation) floods the Info log file. Downgrade Info to Debug so it only
+        // appears when someone opts in via RUST_LOG; callers that explicitly want a
+        // dispatch line (Warn/Error) still get it.
+        let level = if log_level == log::Level::Info {
+            log::Level::Debug
+        } else {
+            log_level
+        };
         log::log!(
-            log_level,
+            level,
             "dispatching typed action: {}::{action:?}",
             action.type_name()
         );
@@ -1739,7 +1755,7 @@ impl AppContext {
         arg: &dyn Any,
     ) {
         if let Some((name, mut handlers)) = self.global_actions.remove_entry(name) {
-            log::info!("dispatching global action for {}", &name);
+            log::debug!("dispatching global action for {}", &name);
             self.pending_flushes += 1;
             for handler in handlers.iter_mut().rev() {
                 handler(arg, location, self);

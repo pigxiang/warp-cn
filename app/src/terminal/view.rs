@@ -27661,7 +27661,7 @@ impl TypedActionView for TerminalView {
                         block.is_agent_driving_command(),
                     )
                 };
-                log::info!(
+                log::debug!(
                     "input mode: SetInputModeTerminal dispatched (agent_in_control=\
                      {in_control}, agent_driving={driving_command})"
                 );
