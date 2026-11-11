@@ -128,6 +128,10 @@ pub struct HeaderGrid {
     pub(super) honor_ps1: bool,
     command_started: bool,
     command_start_time: Option<Instant>,
+    /// Set once PTY output has reached this block's grids after the command was
+    /// submitted, i.e. the shell has started echoing. Gates the transient
+    /// command-grid cursor in the gap between Enter and the first echo.
+    command_echo_observed: bool,
     /// Cached Point at which the prompt content ends,
     /// Use prompt_end_point() to access this value safely, do not use the raw value.
     cached_prompt_end_point: Option<PromptEndPoint>,
@@ -172,6 +176,7 @@ impl HeaderGrid {
             honor_ps1,
             command_started: false,
             command_start_time: None,
+            command_echo_observed: false,
             cached_prompt_end_point: None,
             cached_command_start_point: None,
             event_proxy,
@@ -620,6 +625,7 @@ impl HeaderGrid {
     pub fn start_command_grid(&mut self) {
         self.command_started = true;
         self.command_start_time = Some(Instant::now());
+        self.command_echo_observed = false;
 
         // This applies in the case of shell output from user rcfiles i.e. before
         // the first prompt/user-inputted command. In this case, we do not
@@ -640,6 +646,9 @@ impl HeaderGrid {
 
     pub fn init_command(&mut self, command: impl AsRef<[u8]>) {
         let mut processor = Processor::new();
+        // Reached only when the echo of the submitted command (or its matched
+        // newline) has arrived, so the shell has started echoing.
+        self.command_echo_observed = true;
         // If we haven't marked the end of the prompt yet (possible in the case of input-matching
         // typeahead, in older shells), we do so now.
         if self.cached_prompt_end_point.is_none() {
@@ -765,6 +774,14 @@ impl HeaderGrid {
 
     pub fn command_start_time(&self) -> Option<Instant> {
         self.command_start_time
+    }
+
+    pub(super) fn mark_command_echo_observed(&mut self) {
+        self.command_echo_observed = true;
+    }
+
+    pub(super) fn command_echo_observed(&self) -> bool {
+        self.command_echo_observed
     }
 
     pub fn num_secrets_obfuscated(&self) -> usize {

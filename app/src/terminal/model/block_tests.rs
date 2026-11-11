@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::pin::pin;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use chrono::TimeZone;
@@ -461,6 +462,26 @@ pub fn test_command_grid_bold_after_reset() {
     block.finish(0);
 
     assert_eq!("command", block.contents_to_string());
+}
+
+// warp-cn: with SuppressCommandCursorPreEcho, the block-shaped command-grid
+// cursor must stay hidden until the shell has echoed something for the command.
+#[test]
+pub fn test_command_cursor_suppressed_before_echo() {
+    let _flag = FeatureFlag::SuppressCommandCursorPreEcho.override_enabled(true);
+
+    let mut block = TestBlockBuilder::new().build();
+    block.set_was_long_running(AtomicBool::new(true));
+    block.start();
+
+    // Command submitted, no echo yet: no command-grid cursor.
+    assert!(!block.is_command_cursor_visible());
+
+    // The shell starts echoing the command: cursor becomes visible again.
+    for c in "ls -l".chars() {
+        block.input(c);
+    }
+    assert!(block.is_command_cursor_visible());
 }
 
 // Tests that the command grid has non-zero height even if the shell does not echo a linefeed

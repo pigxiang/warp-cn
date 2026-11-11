@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use warp_core::channel::ChannelState;
+use warp_core::channel::{Channel, ChannelState};
 pub use warp_core::features::*;
 
 /// Mark all features which should be enabled on the current channel as enabled.
@@ -18,7 +18,13 @@ fn enabled_features() -> HashSet<FeatureFlag> {
     let mut flags = ChannelState::additional_features();
 
     // Enable flags for release builds, if appropriate.
-    if ChannelState::is_release_bundle() {
+    //
+    // This fork ships only the `warp-oss` binary, so release behavior must not
+    // hinge on the `release_bundle` cargo feature: it is passed solely by
+    // `script/*/bundle`, and a plain `cargo build`/`cargo bundle` of warp-oss
+    // would otherwise silently drop every fork feature listed in RELEASE_FLAGS
+    // (SSH split-reconnect, the SSH extension, ambiguous-width rendering, ...).
+    if ChannelState::is_release_bundle() || matches!(ChannelState::channel(), Channel::Oss) {
         flags.extend(RELEASE_FLAGS);
     }
 

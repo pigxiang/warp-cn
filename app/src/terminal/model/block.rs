@@ -1686,6 +1686,14 @@ impl Block {
     }
 
     pub fn is_command_cursor_visible(&self) -> bool {
+        if FeatureFlag::SuppressCommandCursorPreEcho.is_enabled()
+            && !self.header_grid.command_echo_observed()
+        {
+            // The input editor's cursor is gone once the command is submitted;
+            // drawing the grid cursor before any echo reads as a vim-mode
+            // cursor switch, so hold it back until the shell has responded.
+            return false;
+        }
         self.is_active_and_long_running()
             && self.is_command_grid_active()
             && self.is_mode_set(TermMode::SHOW_CURSOR)
@@ -2989,6 +2997,9 @@ macro_rules! delegate {
             },
             _ => {
                 if $self.state == BlockState::BeforeExecution {
+                    // Any PTY handler routed to the header grid while the
+                    // command has not started executing is shell echo.
+                    $self.header_grid.mark_command_echo_observed();
                     $self.header_grid.$method($( $arg ),*)
                 } else {
                     $self.output_grid.$method($( $arg ),*)

@@ -1020,6 +1020,11 @@ pub enum FeatureFlag {
     /// cells, selectable between CJK-symbol-only and strict full-class modes
     /// in Settings. Off keeps upstream one-cell behavior.
     EastAsianAmbiguousWidth,
+
+    /// warp-cn fork: hides the block-shaped command-grid cursor until the shell
+    /// has echoed something for the command, removing the transient cursor that
+    /// otherwise flashes between pressing Enter and the shell's echo.
+    SuppressCommandCursorPreEcho,
 }
 
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =
@@ -1103,6 +1108,7 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::CloudAgentExecutionConfig,
     FeatureFlag::FactoryDeferredRepositories,
     FeatureFlag::EastAsianAmbiguousWidth,
+    FeatureFlag::SuppressCommandCursorPreEcho,
 ];
 
 /// Features enabled for feature preview build users (e.g.: Friends of Warp).
@@ -1147,6 +1153,9 @@ pub const RELEASE_FLAGS: &[FeatureFlag] = &[
     // warp-cn fork: default two-cell treatment of fullwidth-rendered East
     // Asian symbols for CJK users.
     FeatureFlag::EastAsianAmbiguousWidth,
+    // warp-cn fork: no transient block cursor on the command grid in the gap
+    // between Enter and the shell's echo (reads as a vim-mode switch).
+    FeatureFlag::SuppressCommandCursorPreEcho,
 ];
 
 /// Flags that we want to allow to switch at runtime (assuming RuntimeFeatureFlags is set)
@@ -1154,6 +1163,7 @@ pub const RUNTIME_FEATURE_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::LocalClaudeCodexChildHarnesses,
     FeatureFlag::EastAsianAmbiguousWidth,
     FeatureFlag::SSHReconnectOnSplit,
+    FeatureFlag::SuppressCommandCursorPreEcho,
 ];
 
 impl FeatureFlag {
