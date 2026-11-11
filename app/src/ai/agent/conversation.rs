@@ -1168,6 +1168,16 @@ impl AIConversation {
         let prev_status = self.status.clone();
         let new_status = status.clone();
         self.status = status;
+        if matches!(new_status, ConversationStatus::Error) {
+            log::warn!(
+                "conversation {}: status {:?} -> {:?} (error={:?}) backtrace=\n{}",
+                self.id,
+                prev_status,
+                new_status,
+                self.status_error,
+                std::backtrace::Backtrace::force_capture()
+            );
+        }
         ctx.emit(BlocklistAIHistoryEvent::UpdatedConversationStatus {
             conversation_id: self.id,
             terminal_surface_id,

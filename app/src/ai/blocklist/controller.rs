@@ -2631,7 +2631,7 @@ impl BlocklistAIController {
             None
         };
         let scope = ResolvedTeamScope::from_scope(&self.team_context(ctx));
-        let _ = self.send_request_input(
+        let resume_result = self.send_request_input(
             RequestInput::for_task(
                 inputs,
                 task_id,
@@ -2646,6 +2646,13 @@ impl BlocklistAIController {
             recovery,
             /*is_queued_prompt*/ false,
             ctx,
+        );
+        log::info!(
+            "resume_conversation: {conversation_id} status={:?} send_ok={}",
+            BlocklistAIHistoryModel::as_ref(ctx)
+                .conversation(&conversation_id)
+                .map(|c| c.status()),
+            resume_result.is_ok()
         );
     }
 

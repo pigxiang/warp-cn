@@ -27674,11 +27674,13 @@ impl TypedActionView for TerminalView {
                             controller.switch_control_to_user(UserTakeOverReason::Manual, ctx);
                         });
                     }
-                    // One press must land the user in a typeable command line: taking
-                    // over control without switching the input mode leaves AI input up.
+                    // Keep the terminal grid focused (not the input editor): typed
+                    // keystrokes must stream raw to the running command's stdin, and
+                    // the UpdatedControl handler already re-anchors focus there.
                     self.input.update(ctx, |input, ctx| {
-                        input.set_input_mode_terminal(true, ctx);
+                        input.set_input_mode_terminal(false, ctx);
                     });
+                    self.redetermine_terminal_focus(ctx);
                     if FeatureFlag::AgentView.is_enabled()
                         && self.agent_view_controller.as_ref(ctx).is_active()
                     {
