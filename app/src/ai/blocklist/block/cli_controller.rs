@@ -466,6 +466,23 @@ impl CLISubagentController {
         let interaction_mode_debug = format!("{:?}", active_block.interaction_mode());
         let lrc_state_debug = format!("{:?}", active_block.long_running_control_state());
         if let Err(e) = active_block.take_over_control_for_user(reason.clone()) {
+            // The model's transfer action may execute after the user already grabbed
+            // control via the keybinding; the desired end-state is already true, so
+            // this race is benign. The pending transfer action still resolves through
+            // its handback/block-finished channels.
+            let already_user_controlled = matches!(
+                active_block.long_running_control_state(),
+                Some(LongRunningCommandControlState::User { .. })
+            );
+            if already_user_controlled
+                && matches!(reason, UserTakeOverReason::TransferFromAgent { .. })
+            {
+                log::info!(
+                    "cli subagent: transfer-to-user skipped, block {block_id} already \
+                     user-controlled ({e})"
+                );
+                return;
+            }
             log::error!(
                 "cli subagent: user takeover FAILED for block {block_id}: {e} \
                  (interaction={interaction_mode_debug}, lrc={lrc_state_debug})"
