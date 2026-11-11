@@ -9978,6 +9978,10 @@ impl TerminalView {
             }
             if active_block.is_active_and_long_running() && !active_block.has_received_user_input()
             {
+                log::info!(
+                    "input: first user keystrokes routed to PTY for long-running block {}",
+                    active_block.id()
+                );
                 terminal_model
                     .block_list_mut()
                     .active_block_mut()
@@ -27675,11 +27679,15 @@ impl TypedActionView for TerminalView {
                         });
                     }
                     // Keep the terminal grid focused (not the input editor): typed
-                    // keystrokes must stream raw to the running command's stdin, and
-                    // the UpdatedControl handler already re-anchors focus there.
+                    // keystrokes must stream raw to the running command's stdin.
+                    // In the Agent View the keyboard may sit on the chat pane, so
+                    // redetermine_terminal_focus alone (which no-ops unless this view
+                    // is already focused) can't pull it back — focus_self moves focus
+                    // to the terminal, then the re-anchor lands it on the grid.
                     self.input.update(ctx, |input, ctx| {
                         input.set_input_mode_terminal(false, ctx);
                     });
+                    ctx.focus_self();
                     self.redetermine_terminal_focus(ctx);
                     if FeatureFlag::AgentView.is_enabled()
                         && self.agent_view_controller.as_ref(ctx).is_active()
