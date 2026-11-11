@@ -459,7 +459,6 @@ impl CLISubagentController {
     }
 
     pub fn switch_control_to_user(&self, reason: UserTakeOverReason, ctx: &mut ModelContext<Self>) {
-        let should_cancel_conversation = !reason.is_transfer_from_agent();
         let mut terminal_model = self.terminal_model.lock();
 
         let active_block = terminal_model.block_list_mut().active_block_mut();
@@ -502,15 +501,13 @@ impl CLISubagentController {
         // finishes or the user hands control back. We do NOT use ManuallyCancelled here
         // because that would mark the conversation (and ambient task) as cancelled,
         // which is incorrect since the conversation is still proceeding.
-        if should_cancel_conversation && let Some(conversation_id) = conversation_id {
-            self.controller.update(ctx, |controller, ctx| {
-                controller.cancel_conversation_progress(
-                    conversation_id,
-                    CancellationReason::CLISubagentUserTakeover,
-                    ctx,
-                );
-            });
-        }
+        // Upstream cancels the in-flight stream here to stop the CLI subagent
+        // monitoring loop. This fork's direct backend has no such loop, and the
+        // cancellation kills the very pending tool actions (transfer/read/write)
+        // whose futures resolve on block completion — killing them strands the
+        // conversation InProgress with no follow-up request after the command
+        // ends. Leave those actions alive: block completion delivers their real
+        // results and the standard FinishedAction path resumes the model turn.
 
         ctx.emit(CLISubagentEvent::UpdatedControl {
             block_id: block_id.clone(),
