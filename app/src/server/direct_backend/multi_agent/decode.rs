@@ -185,6 +185,27 @@ pub fn decode(req: &api::Request) -> DecodedRequest {
             }
         }
     }
+    // A resume request (agent regains control of a long-running command's block after the
+    // user interacted with it, e.g. typed a password) carries an empty `ResumeConversation`
+    // payload with no user text at all. Synthesize a guidance turn so the attached block
+    // context reaches the model and the `has_user_input` gate passes.
+    if let Some(input) = req.input.as_ref()
+        && matches!(
+            input.r#type,
+            Some(api::request::input::Type::ResumeConversation(_))
+        )
+    {
+        atoms.push(Atom::UserText(prefix_query(
+            &mut attached_context,
+            "[agent hint] The user finished interacting with the running command in the \
+             attached terminal block (they may have answered an interactive prompt, e.g. a \
+             password or confirmation). Re-read the block output above (or call \
+             read_shell_command_output) and continue the task. Do not assume the command \
+             failed, and do not re-run it just because a prompt looked unanswered.",
+        )));
+        has_user_input = true;
+    }
+
     // A tool-result-only input has no user turn to carry the request's context, and the turn
     // that was answered already went out with it on the first request of the step.
     let attached_context_chars = match attached_context {
@@ -982,6 +1003,39 @@ mod tests {
                     }],
                 },
             )),
+        }
+    }
+
+    #[test]
+    fn resume_conversation_synthesizes_a_user_turn() {
+        let req = api::Request {
+            input: Some(api::request::Input {
+                context: Some(api::InputContext {
+                    executed_shell_commands: vec![api::ExecutedShellCommand {
+                        command: "sudo ls".into(),
+                        output: "root".into(),
+                        exit_code: 0,
+                        command_id: "b1".into(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }),
+                r#type: Some(api::request::input::Type::ResumeConversation(
+                    api::request::input::ResumeConversation {},
+                )),
+            }),
+            ..Default::default()
+        };
+        let d = decode(&req);
+        assert!(d.has_user_input);
+        let last = d.turns.last().expect("resume must produce a turn");
+        if let NormalizedTurn::User { text, tool_results } = last {
+            assert!(tool_results.is_empty());
+            let text = text.as_deref().unwrap();
+            assert!(text.contains("sudo ls"));
+            assert!(text.contains("[agent hint]"));
+        } else {
+            panic!("expected User turn");
         }
     }
 }
