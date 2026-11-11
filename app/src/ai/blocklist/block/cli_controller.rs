@@ -549,11 +549,6 @@ impl CLISubagentController {
         let conversation_id = active_block.ai_conversation_id();
         let block_id = active_block.id().clone();
         let lrc_state_debug = format!("{:?}", active_block.long_running_control_state());
-        // Check if control was transferred from agent before handoff.
-        let was_transfer_from_agent = active_block
-            .long_running_control_state()
-            .and_then(|state| state.user_take_over_reason())
-            .is_some_and(|reason| reason.is_transfer_from_agent());
         if let Err(e) = active_block.handoff_control_to_agent() {
             log::error!(
                 "cli subagent: handoff to AGENT FAILED for block {block_id}: {e} \
@@ -616,10 +611,13 @@ impl CLISubagentController {
             agent_has_control,
         });
 
-        // Emit a special event if control was transferred from agent, so the executor can be notified.
-        if was_transfer_from_agent {
-            ctx.emit(CLISubagentEvent::ControlHandedBackAfterTransfer);
-        }
+        // Release any pending transfer_shell_command_control_to_user action. This fork
+        // deliberately keeps that action alive on manual ⌘I takeover (see switch_control_to_user),
+        // so hand-back must resolve it whether the takeover came from the model's transfer
+        // (was_transfer_from_agent) or the user's manual keypress — otherwise the transfer
+        // action stays running and the phase gate blocks the next tool call (e.g.
+        // read_shell_command_output), deadlocking the conversation. notify is idempotent.
+        ctx.emit(CLISubagentEvent::ControlHandedBackAfterTransfer);
 
         send_telemetry_from_ctx!(
             TelemetryEvent::CLISubagentControlStateChanged {
