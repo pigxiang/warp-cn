@@ -140,8 +140,10 @@ fn init_subshell_script_for_shell(
     let shell_init_script =
         shell_init_script.replace(SESSION_ID_PLACEHOLDER, &session_id.as_u64().to_string());
 
-    // Combine the environment setup script with the shell-specific init script
-    format!("{env_setup_script} {shell_init_script}")
+    // Combine the environment setup script with the shell-specific init script. The join must be
+    // `;`: a space swallows the init script's first statement into `export` (bash then errors on
+    // `-p` from `command -p stty raw` and never sets raw mode, leaving input wedged).
+    format!("{env_setup_script};{shell_init_script}")
 }
 
 /// Returns the init subshell script for an unknown shell which detects the shell type.

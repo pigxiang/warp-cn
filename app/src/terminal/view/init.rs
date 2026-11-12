@@ -331,10 +331,14 @@ pub fn init(app: &mut AppContext) {
             BindingDescription::fluent("binding-terminal-view-warpify-subshell"),
             TerminalAction::TriggerSubshellBootstrap,
         )
-        .with_key_binding("ctrl-i")
-        .with_context_predicate(
-            id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand") & id!("SubshellBanner"),
-        ),
+        // warp-cn fork: upstream only fires while the warpify footer/banner is active, but
+        // subshell detection misses commands like `ctty`, leaving no way to warpify. The
+        // injected snippet is guarded by `[ -z $WARP_BOOTSTRAPPED ]`, so firing anytime is a
+        // no-op in an already-warpified shell. Default moves off ctrl-i (== TAB) since the
+        // predicate no longer scopes it to subshell prompts.
+        .with_mac_key_binding("ctrl-cmd-meta-i")
+        .with_linux_or_windows_key_binding("ctrl-alt-i")
+        .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
         EditableBinding::new(
             ACCEPT_PROMPT_SUGGESTION_KEYBINDING,
             BindingDescription::fluent("binding-terminal-view-accept-prompt-suggestion"),
